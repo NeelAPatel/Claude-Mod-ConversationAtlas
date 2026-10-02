@@ -124,6 +124,7 @@ async function bind($: EngineInterface): Promise<void> {
 }
 
 async function ensureBound($: EngineInterface): Promise<void> {
+  await setup($)
   if (!sid || (await $.session.id()) !== sid) await bind($)
 }
 
@@ -245,41 +246,70 @@ async function command($: EngineInterface, args: string): Promise<string> {
   }
 }
 
+// Registration runs once per load, on whichever event reaches the module first. A hot
+// reload does not always raise session.start, so every hook below also calls this.
+let ready: Promise<void> | null = null
+let askClaude = true
+let lastProblem: string | null = null
+let saving: Timer | null = null
+
+function setup($: EngineInterface): Promise<void> {
+  ready ??= (async () => {
+    const failed: string[] = []
+    const step = async (name: string, run: () => Promise<unknown>) => {
+      try {
+        await run()
+      } catch (err) {
+        failed.push(name)
+        $.ui.log(`${PLUGIN}: ${name} failed: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    }
+    await step('command /atlas', () => $.command.register({ name: 'atlas', description: 'Open Conversation Atlas; or: goal, next, detour, return, promote, mark, reset', argumentHint: '[goal|next|detour|return|promote|mark|reset] [text]' }))
+    await step('session binding', () => bind($))
+    if (askClaude) {
+      await step('observe tool', async () => {
+        await $.tool.register({
+          name: 'observe',
+          description: 'Record what moved in this session on the Conversation Atlas pane: topic and shift, decisions, open or resolved questions, the next step, a milestone. Observations only; the user confirms intent.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              topic: { type: 'string', description: 'What the conversation is about now, at most 6 words' },
+              shift: { type: 'string', enum: ['same', 'subtopic', 'sibling', 'possible-detour', 'return'] },
+              why: { type: 'string', description: 'One line, for possible-detour or return' },
+              decisions: { type: 'array', items: { type: 'string' }, description: 'Conclusions reached this turn' },
+              questions: { type: 'array', items: { type: 'string' }, description: 'Questions left open for the user' },
+              resolved: { type: 'array', items: { type: 'string' }, description: 'Earlier open questions now answered' },
+              next: { type: 'string', description: 'The most useful next step to resume from' },
+              checkpoint: { type: 'string', description: 'A milestone just reached, a few words' },
+              goal: { type: 'string', description: 'Only while no goal is confirmed: the goal you infer' },
+            },
+          },
+        })
+      })
+    }
+    saving?.cancel()
+    saving = $.clock.every(SAVE_MS, () => void save($).catch(() => undefined))
+    await step('pane', () => openPane($, false))
+    const problem = failed.join(', ')
+    if (problem !== lastProblem) $.ui.toast(problem ? `Atlas loaded with problems: ${problem}` : 'Atlas ready: /atlas or the footer button')
+    lastProblem = problem
+    // A step that failed (say, before the session bound) is tried again on the next event.
+    if (failed.length) ready = null
+  })()
+  return ready
+}
+
 // ------------------------------------------------------------------ hooks
 
 export const register: Register = (on, options) => {
-  const askClaude = options?.observer !== 'engine only'
+  askClaude = options?.observer !== 'engine only'
+  ready = null
 
   on('session.start', async ($, e, next) => {
-    try {
-      await bind($)
-    } catch (err) {
-      $.ui.log(`${PLUGIN}: could not bind the session: ${err instanceof Error ? err.message : String(err)}`)
-    }
-    if (askClaude) {
-      await $.tool.register({
-        name: 'observe',
-        description: 'Record what moved in this session on the Conversation Atlas pane: topic and shift, decisions, open or resolved questions, the next step, a milestone. Observations only; the user confirms intent.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            topic: { type: 'string', description: 'What the conversation is about now, at most 6 words' },
-            shift: { enum: ['same', 'subtopic', 'sibling', 'possible-detour', 'return'] },
-            why: { type: 'string', description: 'One line, for possible-detour or return' },
-            decisions: { type: 'array', items: { type: 'string' }, description: 'Conclusions reached this turn' },
-            questions: { type: 'array', items: { type: 'string' }, description: 'Questions left open for the user' },
-            resolved: { type: 'array', items: { type: 'string' }, description: 'Earlier open questions now answered' },
-            next: { type: 'string', description: 'The most useful next step to resume from' },
-            checkpoint: { type: 'string', description: 'A milestone just reached, a few words' },
-            goal: { type: 'string', description: 'Only while no goal is confirmed: the goal you infer' },
-          },
-        },
-      })
-    }
-    await $.command.register({ name: 'atlas', description: 'Open Conversation Atlas; or: goal, next, detour, return, promote, mark, reset', argumentHint: '[goal|next|detour|return|promote|mark|reset] [text]' })
-    $.clock.every(SAVE_MS, () => void save($).catch(() => undefined))
-    void openPane($, false).catch(() => undefined)
-    return next(e)
+    const result = await next(e)
+    await setup($)
+    return result
   })
 
   on('session.end', async ($, e, next) => {
