@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { confirmSuggestion, emptySnapshot, observe, returnFromDetour, setItemStatus, startTurn } from '../hooks/model'
+import { confirmSuggestion, emptySnapshot, observe, returnFromDetour, setItemStatus, startTurn, upgrade } from '../hooks/model'
 
 const ROOT = 'F:/work/atlas'
 const OBSERVE = 'mcp__conversation-atlas__observe'
@@ -260,7 +260,7 @@ describe('joining a conversation late', () => {
   test('replays earlier rows for free on launch, and /atlas scan maps topics through one fork', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     let forks = 0
-    on('session.messages', () => ({ value: EARLIER }))
+    on('session.messages', () => ({ value: EARLIER as any }))
     on('model.fork', () => {
       forks += 1
       return { value: { isAnswered: true, text: MAP_REPLY, usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } }
@@ -297,5 +297,18 @@ describe('joining a conversation late', () => {
     expect(t).toContain('" Atlas "')
     expect(t).not.toContain('Conversation Atlas')
     await narrow.unmount()
+  })
+})
+
+describe('upgrades', () => {
+  test('a snapshot kept from an older build gains every newer field before anything reads it', async () => {
+    const { recall: _r, adopted: _a, scanned: _s, ...old } = emptySnapshot('s', ROOT, 0)
+    const legacy = { ...old, detourHistory: [{ id: 'x1', reason: 'Old detour', at: 0, turn: 0, topicId: null, departure: { goal: null, topic: null, nextStep: null, checkpointId: null, decisions: [] }, outcomes: [], status: 'returned', endedAt: 1 }] } as any
+    const up = upgrade(legacy)
+    expect(up.recall).toEqual([])
+    expect(up.adopted).toEqual([])
+    expect(up.scanned).toBe('none')
+    expect(up.detourHistory[0]?.exclusions).toEqual([])
+    expect(upgrade(up)).toBe(up)
   })
 })

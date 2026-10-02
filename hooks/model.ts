@@ -114,6 +114,17 @@ export function hydrate(raw: unknown, sessionId: string, root: string, now: numb
   return { ...base, ...s, detour, sessionId, root, fresh: [], activity: (s.activity ?? []).map(a => (a.state === 'running' ? { ...a, state: 'failed' as const, endedAt: a.endedAt ?? now } : a)) }
 }
 
+// A snapshot that survived a reload of an older build keeps its old shape in `$.state`:
+// fill every field added since, so no reader ever meets undefined. Cheap and idempotent.
+export function upgrade(s: AtlasSnapshot): AtlasSnapshot {
+  const partial = s as Partial<AtlasSnapshot>
+  const needs = !Array.isArray(partial.recall) || !Array.isArray(partial.adopted) || !partial.scanned || (s.detour && !Array.isArray(s.detour.exclusions)) || s.detourHistory.some(d => !Array.isArray(d.exclusions))
+  if (!needs) return s
+  const base = emptySnapshot(s.sessionId, s.root, s.startedAt)
+  const withEx = <T extends { exclusions?: string[] }>(d: T) => ({ ...d, exclusions: d.exclusions ?? [] })
+  return { ...base, ...s, recall: partial.recall ?? [], adopted: partial.adopted ?? [], scanned: partial.scanned ?? 'none', detour: s.detour ? withEx(s.detour) : null, detourHistory: s.detourHistory.map(withEx) }
+}
+
 function id(s: AtlasSnapshot, prefix: string): [string, AtlasSnapshot] {
   const seq = s.seq + 1
   return [`${prefix}${seq}`, { ...s, seq }]

@@ -40,6 +40,7 @@ import {
   startTurn,
   summary,
   takeContext,
+  upgrade,
   touchFile,
   addDecision,
   addDetourFinding,
@@ -86,7 +87,8 @@ const agentNames = new Map<string, string>()
 // ------------------------------------------------------------------ state
 
 async function snap($: EngineInterface): Promise<AtlasSnapshot | undefined> {
-  return (await $.state.get(SNAP)).value
+  const value = (await $.state.get(SNAP)).value
+  return value ? upgrade(value) : value
 }
 
 async function identity($: EngineInterface): Promise<{ sid: string; root: string }> {
@@ -97,7 +99,7 @@ async function identity($: EngineInterface): Promise<{ sid: string; root: string
 async function edit($: EngineInterface, fn: (s: AtlasSnapshot, now: number) => AtlasSnapshot): Promise<AtlasSnapshot> {
   const now = await $.clock.now()
   const before = await snap($)
-  const out = await update($, SNAP, cur => fn(cur && cur.sessionId === sid ? cur : emptySnapshot(sid, root, now), now))
+  const out = await update($, SNAP, cur => fn(cur && cur.sessionId === sid ? upgrade(cur) : emptySnapshot(sid, root, now), now))
   if (out.fresh.length && out.fresh.join() !== (before?.fresh ?? []).join()) scheduleUnflash($)
   return out
 }
@@ -477,7 +479,7 @@ export const register: Register = (on, options) => {
     let taken: string[] = []
     await update($, SNAP, cur => {
       if (!cur) return emptySnapshot(sid, root, 0)
-      const [ctx, rest] = takeContext(cur)
+      const [ctx, rest] = takeContext(upgrade(cur))
       taken = ctx
       return rest
     })
