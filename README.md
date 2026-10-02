@@ -74,6 +74,8 @@ claude plugin test .\MyMods\conversation-atlas
 
 Last result (2026-10-02, Claude Code 2.1.287): validate passed. Runtime tests **5/5 passed**: model invariants (observation never sets goal/detour; detour departure snapshot; one-shot return packet; wording cues only suggest) and hooks (tool/command registration, engine events → pane on terminal and desktop, press-to-confirm goal and detour, return packet attached to exactly one prompt). `tsc --strict` clean against the build's generated declarations.
 
+Live acceptance (2026-10-02): hot-reloaded into the authoring session. The engine loaded the module and generated its `.claude-plugin/types/`. Real Read/Edit/Bash/test calls in that session fed the pane. Claude's `observe` tool reaches the model from the prompt after a (re)load, not in the turn that loads it.
+
 ## Limitations and assumptions
 
 - Topic quality depends on Claude calling `observe`. Engine-only mode has activity, files and checkpoints but no topic path.
