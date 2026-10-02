@@ -76,13 +76,15 @@ One hooks module (`hooks/register.tsx`) plus pure `model.ts` (reducers), `activi
 
 No network, no telemetry. The only model cost is Claude's own `observe` tool calls in the normal session, about a few dozen tokens per call. Its rules sit in the cached system prompt. The `engine only` setting turns that off.
 
-## Run
+## Install and run
+
+Atlas is a **working product** (promoted 2026-10-02) with a private, user-level install. Every new Claude Code session loads it as `conversation-atlas@skills-dir`. Nothing is published. After changing the source, update the installed copy and reload:
 
 ```powershell
-claude --plugin-dir .\MyMods\conversation-atlas
+.\scripts\install-atlas.ps1     # validates, backs up the old copy, installs, validates again
 ```
 
-Or hot-reload it in a session that loaded the plugin-authoring skill, from the session's dev-mods folder. For a docked pane use `/tui fullscreen` and a terminal at least 144 columns wide, or click the footer Atlas button.
+Then `/reload-plugins` in a running session. To try a change without installing it, use `claude --plugin-dir .\MyMods\conversation-atlas`, or hot reload from a plugin-authoring session. Never use either while the installed copy is enabled in that session: two copies of one plugin would both load. For a docked pane use `/tui fullscreen` and a terminal at least 144 columns wide, or click the footer Atlas button.
 
 Configuration (`/config` → conversation-atlas, or `pluginConfigs` in settings):
 
