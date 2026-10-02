@@ -54,7 +54,7 @@ Everything is under `/atlas`. `/atlas help` lists them.
 | `return` | return from the detour, emit the return packet |
 | `promote` | promote the detour to the goal |
 | `scan` | map the conversation so far with Claude (one cached request) |
-| `/atlas recover [n]` | list earlier Atlas + Trailhead sessions, or resume number n |
+| `recover [n]` | list earlier Atlas + Trailhead sessions, or resume number n |
 | `reset` | clear this session's map (saved files and earlier sessions are kept) |
 
 ## What updates itself vs. what needs you
