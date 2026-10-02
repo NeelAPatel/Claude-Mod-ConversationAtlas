@@ -156,6 +156,8 @@ export type AtlasSnapshot = {
   // Earlier sessions found on disk; adopting one is an explicit press.
   recall: AtlasRecall[]
   adopted: string[]
+  // How this session's earlier conversation was mapped: not yet, replayed for free, or by Claude.
+  scanned: 'none' | 'engine' | 'claude'
   // Freshly observed ids drawn highlighted until the flash expires.
   fresh: string[]
 }

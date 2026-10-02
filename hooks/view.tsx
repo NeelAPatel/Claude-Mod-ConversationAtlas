@@ -56,6 +56,7 @@ export type Action =
   | { type: 'pin'; text: string }
   | { type: 'edit-goal' }
   | { type: 'adopt'; id: string }
+  | { type: 'scan' }
 
 type El = Pick<Elements['terminal'], 'Box' | 'Text' | 'Button'> & { Input?: Elements['terminal']['Input'] }
 
@@ -79,7 +80,7 @@ const EXPLAIN: Record<string, string> = {
   'WORKING SET': 'Files touched lately: ✎ edited, · read. Click one to point Claude at it.',
   LATEST: 'Newest decisions (◇) and questions (?). Confirm them in the Open tab.',
   'RESUME NEXT': 'Where to pick up. "pinned" is yours; "suggested" is Claude\'s guess.',
-  'MAP OF TOPICS': 'Every topic so far, nested where it branched. t3 = first seen on turn 3.',
+  'MAP OF TOPICS': 'Every topic so far, nested where it branched. t3 = first seen on turn 3. "Map earlier conversation" asks Claude once to map what came before Atlas was watching.',
   TRAIL: 'What happened, oldest first: › your prompts, ● topics, ◇ decisions, ◆ checkpoints.',
   'NEEDS YOUR CALL': 'Suggestions from Claude or your wording. Nothing changes until you press.',
   'OBSERVED DECISIONS': 'Things that sounded decided. Settle = true from now on; Drop = it was not a decision.',
@@ -301,6 +302,21 @@ function questionRow(ctx: Ctx, s: AtlasSnapshot, q: AtlasItem, withActions: bool
 }
 
 // ------------------------------------------------------------------ tab bar
+
+// A centered rule naming the product, spanning the pane: ─── Conversation Atlas ───.
+function titleRule(ctx: Ctx) {
+  const { Box, Text } = ctx.el
+  const name = ctx.width >= 34 ? ' Conversation Atlas ' : ' Atlas '
+  const left = Math.max(1, Math.floor((ctx.width - name.length) / 2))
+  const right = Math.max(1, ctx.width - name.length - left)
+  return (
+    <Box flexDirection="row" flexShrink={0} height={1}>
+      <Text dimColor>{'─'.repeat(left)}</Text>
+      <Text bold color={C.goal}>{name}</Text>
+      <Text dimColor>{'─'.repeat(right)}</Text>
+    </Box>
+  )
+}
 
 function tabBar(ctx: Ctx, s: AtlasSnapshot, scroll: { at: number; max: number; page: number }) {
   const { Box, Button, Text } = ctx.el
@@ -663,6 +679,7 @@ function trailTab(ctx: Ctx, s: AtlasSnapshot) {
   return (
     <Box flexDirection="column">
       {heading(ctx, 'MAP OF TOPICS', C.path, `${s.topics.length}`)}
+      {s.scanned !== 'claude' ? actions(ctx, [{ key: 'scan', label: 'Map earlier conversation', act: { type: 'scan' } }]) : null}
       {tree.length === 0 ? <Text dimColor>No topics yet.</Text> : null}
       {tree.map(({ topic: t, depth }) => {
         const isCur = t.id === cur?.id
@@ -828,7 +845,7 @@ export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScro
   const drawer = ctx.view.drawer ? (ctx.view.drawer === 'legend' ? legendDrawer(ctx) : listDrawer(ctx, s, ctx.view.drawer, drawerRoom)) : null
   const selection = selectionLine(ctx)
   const drawerRows = drawer ? Math.min(drawerRoom, rowsOf(drawer, ctx.width)) + 1 : 0
-  const fixed = 1 + (ctx.view.drawer === 'legend' ? 1 : 0) + drawerRows + (selection ? 1 : 0) + 2
+  const fixed = 2 + (ctx.view.drawer === 'legend' ? 1 : 0) + drawerRows + (selection ? 1 : 0) + 2
   const viewport = ctx.rows - fixed
   const pinned = viewport >= 4
   const content = rowsOf(body, ctx.width)
@@ -837,6 +854,7 @@ export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScro
   const rule = <Text dimColor>{'─'.repeat(Math.max(4, ctx.width))}</Text>
   const tree = (
     <Box flexDirection="column" paddingX={1} {...(pinned ? { height: ctx.rows } : {})}>
+      {titleRule(ctx)}
       {tabBar(ctx, s, { at, max: maxScroll, page: Math.max(1, viewport - 2) })}
       {pinned ? (
         <Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="hidden">

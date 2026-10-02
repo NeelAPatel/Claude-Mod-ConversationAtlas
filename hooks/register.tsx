@@ -47,6 +47,7 @@ import {
   recordDecision,
   setRecall,
 } from './model'
+import { applyMap, MAP_PROMPT, parseMap, replay, type ScanRow } from './scan'
 import { ATLAS_DIR, fromAtlasFile, fromTrailheadFile, mergeRecall, safeName, saveFile, TRAILHEAD_DIR } from './recall'
 import { type Action, oneLine, pane, TONES } from './view'
 
@@ -78,6 +79,8 @@ let observedThisTurn = false
 let activitySeq = 0
 // How far the body could scroll at the last draw; clamps wheel and page moves.
 let maxScroll = 0
+let scanOnLaunch: 'off' | 'engine' | 'claude' = 'engine'
+let scanning = false
 const agentNames = new Map<string, string>()
 
 // ------------------------------------------------------------------ state
@@ -126,9 +129,43 @@ async function bind($: EngineInterface): Promise<void> {
     const previous = (await $.store.get(`project:${root}`)) as (ReturnType<typeof summary> & { sessionId?: string }) | undefined
     if (previous && previous.sessionId !== sid) next = offerResume(next, previous, now)
   }
+  // Joined a thread that already has history (installed or reloaded mid-session, resumed
+  // without a save): replay it for free so the map starts where the conversation is.
+  const rows = scanOnLaunch === 'off' || next.scanned !== 'none' ? [] : await history($)
+  if (rows.length) next = { ...replay(next, rows, now), scanned: 'engine' }
   await $.state.set(SNAP, next)
+  if (rows.length > 2 && scanOnLaunch === 'claude') void mapWithClaude($).catch(() => undefined)
   lastSaved = saved ? next : undefined
   void loadRecall($).catch(() => undefined)
+}
+
+async function history($: EngineInterface): Promise<ScanRow[]> {
+  try {
+    const rows = await $.session.messages()
+    return Array.isArray(rows) ? (rows as ScanRow[]) : []
+  } catch {
+    return []
+  }
+}
+
+// One forked request over the session's own transcript (served mostly from the prompt
+// cache): topics, decisions, open questions and a next step, added as observations.
+async function mapWithClaude($: EngineInterface): Promise<string> {
+  if (scanning) return 'A scan is already running.'
+  scanning = true
+  try {
+    $.ui.toast('Atlas: mapping the conversation so far…')
+    const reply = await $.model.fork({ prompt: MAP_PROMPT })
+    if (!reply.isAnswered) return `Atlas could not map the conversation: ${reply.reason}`
+    const map = parseMap(reply.text)
+    if (!map) return 'Atlas could not read the map Claude returned.'
+    await edit($, (s, now) => ({ ...applyMap(s, map, now), scanned: 'claude' }))
+    const text = `Mapped ${map.topics.length} topics, ${map.rest.decisions?.length ?? 0} decisions, ${map.rest.questions?.length ?? 0} open questions. All are observations: confirm what is true in the Open tab.`
+    $.ui.toast(text)
+    return text
+  } finally {
+    scanning = false
+  }
 }
 
 // Earlier sessions of this project from its .claude folder: Atlas saves and Trailhead checkpoints.
@@ -195,6 +232,12 @@ async function act($: EngineInterface, a: Action): Promise<void> {
     case 'exclude':
       await edit($, (s, now) => setItemStatus(s, a.id, 'excluded', now))
       return
+    case 'scan': {
+      const rows = await history($)
+      if ((await snap($))?.scanned === 'none' && rows.length) await edit($, (s, now) => ({ ...replay(s, rows, now), scanned: 'engine' }))
+      await mapWithClaude($)
+      return
+    }
     case 'adopt':
       await edit($, (s, now) => adoptRecall(s, a.id, now))
       $.ui.toast('Resumed: the earlier goal, next step and decisions are back')
@@ -264,6 +307,7 @@ const HELP = [
   '  /atlas exclude <material>       set detour material aside',
   '  /atlas return                   end the detour; Claude gets one recap',
   '  /atlas promote                  make the detour your goal',
+  '  /atlas scan                     map the conversation so far with Claude (one cached request)',
   '  /atlas recover [n]              list earlier sessions (Atlas + Trailhead), or resume number n',
   "  /atlas reset                    clear this session's map",
 ].join('\n')
@@ -331,6 +375,11 @@ async function command($: EngineInterface, args: string): Promise<string> {
         ...list.map((r, i) => `  ${i + 1}. ${r.goal ?? 'no goal'} · ${r.source} · ${r.sessionId.slice(0, 8)}${r.detour ? ` · on detour: ${r.detour}` : ''}${r.nextStep ? ` · next: ${r.nextStep}` : ''}`),
       ].join('\n')
     }
+    case 'scan': {
+      const rows = await history($)
+      if (s?.scanned === 'none' && rows.length) await edit($, (cur, now) => ({ ...replay(cur, rows, now), scanned: 'engine' }))
+      return mapWithClaude($)
+    }
     case 'reset': {
       const now = await $.clock.now()
       await $.state.set(SNAP, emptySnapshot(sid, root, now))
@@ -359,7 +408,7 @@ function setup($: EngineInterface): Promise<void> {
         $.ui.log(`${PLUGIN}: ${name} failed: ${err instanceof Error ? err.message : String(err)}`)
       }
     }
-    await step('command /atlas', () => $.command.register({ name: 'atlas', description: 'ConversationAtlas: open the pane, or goal, next, mark, decision, detour, outcome, exclude, return, promote, recover, help', argumentHint: '[goal|next|mark|decision|detour|outcome|exclude|return|promote|recover|help] [text]' }))
+    await step('command /atlas', () => $.command.register({ name: 'atlas', description: 'ConversationAtlas: open the pane, or goal, next, mark, decision, detour, outcome, exclude, return, promote, scan, recover, help', argumentHint: '[goal|next|mark|decision|detour|outcome|exclude|return|promote|scan|recover|help] [text]' }))
     await step('session binding', () => bind($))
     if (askClaude) {
       await step('observe tool', async () => {
@@ -399,6 +448,7 @@ function setup($: EngineInterface): Promise<void> {
 
 export const register: Register = (on, options) => {
   askClaude = options?.observer !== 'engine only'
+  scanOnLaunch = options?.scanOnLaunch === 'off' || options?.scanOnLaunch === 'claude' ? options.scanOnLaunch : 'engine'
   ready = null
 
   on('session.start', async ($, e, next) => {

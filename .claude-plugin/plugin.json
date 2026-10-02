@@ -11,6 +11,13 @@
       "description": "claude and engine: Claude reports topic shifts, decisions and questions through a small tool (a few tokens per turn) besides the free engine events. engine only: files, activity, tests, commits and your own wording only; no tool, no system-prompt rules.",
       "default": "claude and engine",
       "options": ["claude and engine", "engine only"]
+    },
+    "scanOnLaunch": {
+      "type": "string",
+      "title": "Map earlier conversation on launch",
+      "description": "When Atlas joins a session that already has history: engine replays it for free (prompts, files, tests, commits, questions); claude also asks Claude once to map topics and decisions (one forked request, mostly served from the prompt cache); off does neither. /atlas scan always works.",
+      "default": "engine",
+      "options": ["engine", "claude", "off"]
     }
   }
 }

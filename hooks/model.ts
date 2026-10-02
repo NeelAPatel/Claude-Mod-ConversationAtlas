@@ -99,6 +99,7 @@ export function emptySnapshot(sessionId: string, root: string, now: number): Atl
     pendingContext: [],
     recall: [],
     adopted: [],
+    scanned: 'none',
     fresh: [],
   }
 }

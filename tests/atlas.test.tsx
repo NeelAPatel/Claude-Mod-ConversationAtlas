@@ -242,3 +242,60 @@ describe('readability: app bar, legend, resizing', () => {
     await short.unmount()
   })
 })
+
+const EARLIER = [
+  { role: 'user', text: 'Build the release checklist pane for the team.', toolUses: [] },
+  { role: 'assistant', text: 'Reading the code.', toolUses: [
+    { tool: 'Read', input: { file_path: `${ROOT}/src/pane.ts` }, result: {} },
+    { tool: 'Edit', input: { file_path: `${ROOT}/src/pane.ts`, old_string: 'a', new_string: 'b' }, result: {} },
+    { tool: 'Bash', input: { command: 'npm test' }, result: {} },
+  ] },
+  { role: 'user', text: '<system-reminder>not typed</system-reminder>', toolUses: [] },
+  { role: 'assistant', text: 'Done. Should the pane also show owners?', toolUses: [] },
+]
+
+const MAP_REPLY = 'Here it is:\n```json\n{"goal":"Ship the release checklist","topics":[{"topic":"Checklist pane"},{"topic":"Owner column","shift":"subtopic"},{"topic":"CI flakiness","shift":"possible-detour","why":"side trip"}],"decisions":["Keep it native"],"questions":["Who owns QA?"],"next":"Add the owner column"}\n```'
+
+describe('joining a conversation late', () => {
+  test('replays earlier rows for free on launch, and /atlas scan maps topics through one fork', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    let forks = 0
+    on('session.messages', () => ({ value: EARLIER }))
+    on('model.fork', () => {
+      forks += 1
+      return { value: { isAnswered: true, text: MAP_REPLY, usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } }
+    })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await clock.settle()
+    expect(forks).toBe(0)
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    let text = await drawn(ui)
+    expect(text).toContain('Build the release checklist pane for the team.')
+    expect(text).toContain('pane.ts')
+    expect(text).toContain('Should the pane also show owners?')
+    expect(text).not.toContain('not typed')
+
+    const scanned = await $.command.run({ command: 'atlas', args: 'scan', origin: { kind: 'composer' } } as any)
+    expect(forks).toBe(1)
+    expect(scanned.text).toContain('Mapped 3 topics')
+    await ui.press({ key: 'tab-trail' })
+    text = await drawn(ui)
+    for (const word of ['Checklist pane', 'Owner column', 'CI flakiness']) expect(text).toContain(word)
+    expect(text).not.toContain('Map earlier conversation')
+    await ui.unmount()
+  })
+
+  test('the title rule names the product and shortens when narrow', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await clock.settle()
+    const wide = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    expect(await drawn(wide)).toContain(' Conversation Atlas ')
+    await wide.unmount()
+    const narrow = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: { ...PANE_PROPS, bodyColumns: 30 } })
+    const t = await drawn(narrow)
+    expect(t).toContain('" Atlas "')
+    expect(t).not.toContain('Conversation Atlas')
+    await narrow.unmount()
+  })
+})
