@@ -1,0 +1,16 @@
+{
+  "name": "conversation-atlas",
+  "version": "0.1.0",
+  "description": "A live side pane that maps a long Claude Code session: goal, current path, possible detours, decisions, open questions, checkpoints, working files and what to resume next. It observes on its own and asks before changing your intent.",
+  "author": { "name": "Neel" },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "observer": {
+      "type": "string",
+      "title": "Observer",
+      "description": "claude and engine: Claude reports topic shifts, decisions and questions through a small tool (a few tokens per turn) besides the free engine events. engine only: files, activity, tests, commits and your own wording only; no tool, no system-prompt rules.",
+      "default": "claude and engine",
+      "options": ["claude and engine", "engine only"]
+    }
+  }
+}
