@@ -4,13 +4,13 @@
 // Layout, top to bottom, sized to the pane's rows so the bar never scrolls away:
 //   tab bar        Map · Trail · Open · Evidence, and ▲▼ while the body overflows
 //   body           the tab, scrolled by the pane itself (ui.scroll → view.scroll)
-//   menu drawer    Legend / Decisions / Questions / Checkpoints, when one is open
-//   app bar        the menus' buttons (an open one shows ^) and Mark
-// While the Legend is open every section heading also shows what that section is for.
+//   popup          a bordered event, decisions or questions menu over the body
+//   app bar        Legend toggle, decisions/questions menus, and Mark
+// While the Legend is on every section heading also shows what that section is for.
 
 import type { Elements, RenderElement } from 'claude-code'
 
-import type { AtlasCheckpoint, AtlasDrawer, AtlasItem, AtlasRecall, AtlasSelection, AtlasSnapshot, AtlasSuggestion, AtlasTab, AtlasTopic, AtlasView } from '../types'
+import type { AtlasCheckpoint, AtlasItem, AtlasPopup, AtlasRecall, AtlasSelection, AtlasSnapshot, AtlasSuggestion, AtlasTab, AtlasTopic, AtlasView } from '../types'
 import { base, rel } from './activity'
 import type { LiveRow, LiveSeg } from './live'
 import { activeDecisions, currentTopic, openQuestions, pathOf, resumeHint } from './model'
@@ -38,7 +38,8 @@ export const TONES: Record<string, string[]> = {
 
 export type Action =
   | { type: 'tab'; tab: AtlasTab }
-  | { type: 'drawer'; drawer: AtlasDrawer }
+  | { type: 'legend' }
+  | { type: 'popup'; popup: AtlasPopup }
   | { type: 'scroll'; by: number }
   | { type: 'scroll-to'; at: number }
   | { type: 'trail-sort' }
@@ -48,6 +49,7 @@ export type Action =
   | { type: 'settle'; id: string }
   | { type: 'exclude'; id: string }
   | { type: 'drop'; id: string }
+  | { type: 'restore'; id: string }
   | { type: 'resolve'; id: string }
   | { type: 'reopen'; id: string }
   | { type: 'attach'; ref: { kind: string; id: string; text: string } }
@@ -74,7 +76,7 @@ export type Ctx = {
 
 // What each section is for, shown under its heading while the Legend is open.
 const EXPLAIN: Record<string, string> = {
-  GOAL: 'What you are trying to do. Only you set it: confirm a suggestion or type one.',
+  GOAL: 'What you are trying to do. Only you set it: confirm a suggestion, type one, or explicitly adopt Atlas’s detected aim.',
   'CURRENT PATH': 'Topics from the start of the work to now; ● is where you are. Claude keeps it current.',
   DETOUR: 'A side trip you chose. Return hands Claude a recap of where you left off.',
   'POSSIBLE DETOUR': 'Looks like a side trip. Take it to get a return point, or say it is not one.',
@@ -82,8 +84,8 @@ const EXPLAIN: Record<string, string> = {
   'WORKING SET': 'Files touched lately: ✎ edited, · read. Click one to point Claude at it.',
   LATEST: 'Newest decisions (◇) and questions (?). Confirm them in the Open tab.',
   'RESUME NEXT': 'Where to pick up. "pinned" is yours; "suggested" is Claude\'s guess.',
-  'MAP OF TOPICS': 'Every topic so far, nested where it branched. t3 = first seen on turn 3. "Map earlier conversation" asks Claude once to map what came before Atlas was watching.',
-  TRAIL: 'What happened: › your prompts, ● topics, ◇ decisions, ◆ checkpoints. A + marks a prompt with more points: click to read them. The button beside the heading flips the order.',
+  'MAP OF TOPICS': 'Every topic so far, nested where it branched. Click one for kind, status, turns, children, decisions, questions and actions. t3 = first seen on turn 3.',
+  TRAIL: 'What happened: › prompts, ● topics, ◇ decisions, ◆ checkpoints. Click any event for its full text; the button beside the heading flips the order.',
   'NEEDS YOUR CALL': 'Suggestions from Claude or your wording. Nothing changes until you press.',
   'OBSERVED DECISIONS': 'Things that sounded decided. Settle = true from now on; Drop = it was not a decision.',
   'DETOUR FINDINGS': 'Keep = an outcome you take back; Exclude = explored, do not rely on it.',
@@ -94,6 +96,7 @@ const EXPLAIN: Record<string, string> = {
   DETOURS: 'Past detours: ↩ returned, ◎ made into the goal.',
   'EARLIER SESSIONS': 'Earlier sessions in this project (Atlas or Trailhead). Resume brings back their goal, next step and decisions.',
   FILES: 'Every file touched this session, most edited first.',
+  'HOW TO USE': 'Plain rows expand inline; bracketed controls act immediately; ◇ decisions and ? open questions use boxed popups.',
 }
 
 const TAB_HELP: Record<AtlasTab, string> = {
@@ -115,7 +118,7 @@ const LEGEND: [string, string, string | undefined][] = [
   ['✓ ✗', 'done · failed', undefined],
   ['✎ ·', 'file edited · read', C.write],
   ['✦', 'just changed', undefined],
-  ['▾', 'expanded · Add to message puts a chip in your draft', C.goal],
+  ['▾', 'expanded inline · Add to message puts a chip in your draft', C.goal],
 ]
 
 export function ago(ms: number): string {
@@ -161,6 +164,7 @@ export function rowsOf(v: unknown, width: number): number {
   if (typeof n === 'string' || typeof n === 'number') return 1
   const el = n as Node
   const p = el.props ?? {}
+  if (p.position === 'absolute') return 0
   const extra = (Number(p.marginTop) || 0) + (Number(p.marginBottom) || 0) + 2 * (Number(p.marginY) || 0) + 2 * (Number(p.paddingY) || 0)
   switch (el.type) {
     case 'Text':
@@ -175,7 +179,7 @@ export function rowsOf(v: unknown, width: number): number {
     }
     case 'Box': {
       if (p.display === 'none') return 0
-      const children = kids(childrenOf(el))
+      const children = kids(childrenOf(el)).filter(c => (c as Node).props?.position !== 'absolute')
       const inner = Math.max(8, width - 2 * (Number(p.paddingX) || 0) - (Number(p.marginLeft) || 0))
       if (p.flexDirection === 'row') {
         if (p.flexWrap === 'wrap') {
@@ -196,7 +200,7 @@ export function rowsOf(v: unknown, width: number): number {
 
 function heading(ctx: Ctx, label: string, color?: string, right?: string | RenderElement) {
   const { Box, Text } = ctx.el
-  const note = ctx.view.drawer === 'legend' ? EXPLAIN[label] : undefined
+  const note = ctx.view.legend ? EXPLAIN[label] : undefined
   return (
     <Box flexDirection="column" marginTop={1}>
       <Box flexDirection="row">
@@ -215,7 +219,9 @@ function heading(ctx: Ctx, label: string, color?: string, right?: string | Rende
   )
 }
 
-function selectable(ctx: Ctx, key: string, selection: AtlasSelection, label: string, color?: string, fresh = false) {
+type RowAction = { key: string; label: string; act: Action; primary?: boolean }
+
+function selectable(ctx: Ctx, key: string, selection: AtlasSelection, label: string, color?: string, fresh = false, details: string[] = [], extra: RowAction[] = []) {
   const { Box, Text, Button } = ctx.el
   const open = ctx.view.expanded === selection.id
   const text = fit(`${fresh ? '✦ ' : ''}${label}`, ctx.width - 2)
@@ -232,18 +238,21 @@ function selectable(ctx: Ctx, key: string, selection: AtlasSelection, label: str
   return (
     <Box key={`x-${key}`} flexDirection="column">
       {head}
-      <Box marginLeft={2}>
-        <Text wrap="wrap">{selection.text}</Text>
+      <Box flexDirection="column" marginLeft={2}>
+        {(details.length ? details : [`kind: ${selection.kind}`]).map((line, i) => (
+          <Text key={`detail-${key}-${i}`} dimColor wrap="wrap">{`│ ${line}`}</Text>
+        ))}
       </Box>
-      <Box flexDirection="row" gap={1} marginLeft={2}>
-        <Button key={`add-${key}`} label="Add to message" variant="primary" onPress={() => ctx.act({ type: 'attach', ref: { kind: selection.kind, id: selection.id, text: selection.text } })} />
-        <Button key={`close-${key}`} label="Close" onPress={() => ctx.act({ type: 'expand', id: selection.id })} />
-      </Box>
+      {actions(ctx, [
+        ...extra,
+        { key: `add-${key}`, label: 'Add to message', act: { type: 'attach', ref: { kind: selection.kind, id: selection.id, text: selection.text } }, primary: true },
+        { key: `close-${key}`, label: 'Close', act: { type: 'expand', id: selection.id } },
+      ])}
     </Box>
   )
 }
 
-function actions(ctx: Ctx, items: { key: string; label: string; act: Action; primary?: boolean }[]) {
+function actions(ctx: Ctx, items: RowAction[]) {
   const { Box, Button } = ctx.el
   return (
     <Box flexDirection="row" gap={1} marginLeft={2} flexWrap="wrap">
@@ -278,27 +287,48 @@ function suggestionRow(ctx: Ctx, s: AtlasSnapshot, x: AtlasSuggestion) {
   )
 }
 
+function sourceName(source: string): string {
+  return source === 'claude' ? 'Claude' : source === 'cue' ? 'your wording' : source === 'engine' ? 'engine' : source === 'person' ? 'you' : source
+}
+
+function topicName(s: AtlasSnapshot, id: string | null): string | null {
+  return id ? s.topics.find(t => t.id === id)?.title ?? null : null
+}
+
+function whenLine(ctx: Ctx, at: number, turn: number): string {
+  return `when: ${ago(ctx.now - at)} · turn ${turn}`
+}
+
 function decisionRow(ctx: Ctx, s: AtlasSnapshot, d: AtlasItem, withActions: boolean) {
   const { Box } = ctx.el
   const settled = d.status === 'settled'
+  const excluded = d.status === 'excluded'
   const inDetour = Boolean(s.detour) && d.at >= (s.detour?.at ?? 0)
+  const label = `${settled ? '◆' : '◇'} ${d.text}`
+  const details = [
+    ...(d.text.length > Math.max(24, ctx.width - 8) ? [`text: ${d.text}`] : []),
+    `kind: ${settled ? 'settled decision' : excluded ? 'excluded decision' : 'observed decision'}`,
+    `source: ${sourceName(d.source)}`,
+    whenLine(ctx, d.at, d.turn),
+    `status: ${d.status}`,
+    ...(topicName(s, d.topicId) ? [`topic: ${topicName(s, d.topicId)}`] : []),
+  ]
+  const extra: RowAction[] = !withActions
+    ? []
+    : settled || excluded
+      ? [{ key: `restore-${d.id}`, label: excluded ? 'Restore' : 'Reopen', act: { type: 'restore', id: d.id } }]
+      : inDetour
+        ? [
+            { key: `set-${d.id}`, label: 'Keep', act: { type: 'settle', id: d.id }, primary: true },
+            { key: `exc-${d.id}`, label: 'Exclude', act: { type: 'exclude', id: d.id } },
+          ]
+        : [
+            { key: `set-${d.id}`, label: 'Settle', act: { type: 'settle', id: d.id }, primary: true },
+            { key: `drp-${d.id}`, label: 'Drop', act: { type: 'drop', id: d.id } },
+          ]
   return (
     <Box key={`d-${d.id}`} flexDirection="column">
-      {selectable(ctx, `dsel-${d.id}`, { kind: settled ? 'Settled decision' : 'Observed decision', id: d.id, text: d.text }, `${settled ? '◆' : '◇'} ${d.text}`, settled ? C.decision : undefined, s.fresh.includes(d.id))}
-      {withActions && !settled
-        ? actions(
-            ctx,
-            inDetour
-              ? [
-                  { key: `set-${d.id}`, label: 'Keep', act: { type: 'settle', id: d.id }, primary: true },
-                  { key: `exc-${d.id}`, label: 'Exclude', act: { type: 'exclude', id: d.id } },
-                ]
-              : [
-                  { key: `set-${d.id}`, label: 'Settle', act: { type: 'settle', id: d.id }, primary: true },
-                  { key: `drp-${d.id}`, label: 'Drop', act: { type: 'drop', id: d.id } },
-                ],
-          )
-        : null}
+      {selectable(ctx, `dsel-${d.id}`, { kind: settled ? 'Settled decision' : excluded ? 'Excluded decision' : 'Observed decision', id: d.id, text: d.text }, label, settled ? C.decision : excluded ? undefined : C.decision, s.fresh.includes(d.id), details, extra)}
     </Box>
   )
 }
@@ -306,12 +336,17 @@ function decisionRow(ctx: Ctx, s: AtlasSnapshot, d: AtlasItem, withActions: bool
 function questionRow(ctx: Ctx, s: AtlasSnapshot, q: AtlasItem, withActions: boolean) {
   const { Box } = ctx.el
   const open = q.status === 'open'
+  const details = [
+    ...(q.text.length > Math.max(24, ctx.width - 8) ? [`text: ${q.text}`] : []),
+    `kind: ${open ? 'open question' : 'resolved question'}`,
+    `source: ${sourceName(q.source)}`,
+    whenLine(ctx, q.at, q.turn),
+    `status: ${q.status}`,
+    ...(topicName(s, q.topicId) ? [`topic: ${topicName(s, q.topicId)}`] : []),
+  ]
   return (
     <Box key={`q-${q.id}`} flexDirection="column">
-      {selectable(ctx, `qsel-${q.id}`, { kind: 'Open question', id: q.id, text: q.text }, `${open ? '?' : '✓'} ${q.text}`, open ? C.question : undefined, s.fresh.includes(q.id))}
-      {withActions
-        ? actions(ctx, [open ? { key: `res-${q.id}`, label: 'Resolved', act: { type: 'resolve', id: q.id } } : { key: `reo-${q.id}`, label: 'Reopen', act: { type: 'reopen', id: q.id } }])
-        : null}
+      {selectable(ctx, `qsel-${q.id}`, { kind: open ? 'Open question' : 'Resolved question', id: q.id, text: q.text }, `${open ? '?' : '✓'} ${q.text}`, open ? C.question : undefined, s.fresh.includes(q.id), details, withActions ? [open ? { key: `res-${q.id}`, label: 'Resolved', act: { type: 'resolve', id: q.id } } : { key: `reo-${q.id}`, label: 'Reopen', act: { type: 'reopen', id: q.id } }] : [])}
     </Box>
   )
 }
@@ -336,21 +371,30 @@ function titleRule(ctx: Ctx) {
 function tabBar(ctx: Ctx, s: AtlasSnapshot, scroll: { at: number; max: number; page: number }) {
   const { Box, Button, Text } = ctx.el
   const pending = s.suggestions.length + s.decisions.filter(d => d.status === 'observed').length + openQuestions(s).length
-  const narrow = ctx.width < 46
+  const tiers: { name: 'full' | 'mid' | 'tiny'; labels: string[] }[] = [
+    { name: 'full', labels: ['Map', 'Trail', pending ? `Open ${pending}` : 'Open', 'Evidence'] },
+    { name: 'mid', labels: ['Map', 'Trail', pending ? `Open ${pending}` : 'Open', 'Evid'] },
+    { name: 'tiny', labels: ['M', 'T', 'O', 'E'] },
+  ]
+  const gap = 1
+  const scrollNeed = scroll.max > 0 ? 4 : 0
+  const needed = (labels: string[]) => labels.reduce((n, label, i) => n + label.length + (ctx.view.tab === ['map', 'trail', 'open', 'evidence'][i] ? 1 : 0) + (i ? gap : 0), 0) + scrollNeed + (scroll.max > 0 ? gap : 0)
+  const tier = tiers.find(x => needed(x.labels) <= ctx.width)?.name ?? 'tiny'
+  const labels = tiers.find(x => x.name === tier)?.labels ?? ['M', 'T', 'O', 'E']
+  const wrapped = tier === 'tiny' && needed(labels) > ctx.width
   const list: { tab: AtlasTab; label: string; hotkey: string }[] = [
-    { tab: 'map', label: 'Map', hotkey: 'm' },
-    { tab: 'trail', label: 'Trail', hotkey: 't' },
-    { tab: 'open', label: pending ? `Open ${pending}` : 'Open', hotkey: 'o' },
-    { tab: 'evidence', label: narrow ? 'Evid' : 'Evidence', hotkey: 'e' },
+    { tab: 'map', label: labels[0] ?? 'M', hotkey: 'm' },
+    { tab: 'trail', label: labels[1] ?? 'T', hotkey: 't' },
+    { tab: 'open', label: labels[2] ?? 'O', hotkey: 'o' },
+    { tab: 'evidence', label: labels[3] ?? 'E', hotkey: 'e' },
   ]
   return (
     <Box flexDirection="column" flexShrink={0}>
-      <Box flexDirection="row" gap={narrow ? 1 : 2}>
+      <Box flexDirection="row" gap={gap} flexWrap={wrapped ? 'wrap' : 'nowrap'}>
         {list.map(t => {
           const on = ctx.view.tab === t.tab
-          return <Button key={`tab-${t.tab}`} plain hotkey={narrow ? undefined : t.hotkey} dimColor={!on} label={on ? `▸${t.label}` : t.label} onPress={() => ctx.act({ type: 'tab', tab: t.tab })} />
+          return <Button key={`tab-${t.tab}`} plain hotkey={tier === 'tiny' ? undefined : t.hotkey} dimColor={!on} label={on ? `▸${t.label}` : t.label} onPress={() => ctx.act({ type: 'tab', tab: t.tab })} />
         })}
-        <Box flexGrow={1} />
         {scroll.max > 0 ? (
           <Box flexDirection="row" gap={1}>
             <Button key="scroll-up" plain dimColor={scroll.at === 0} label="▲" onPress={() => ctx.act({ type: 'scroll', by: -scroll.page })} />
@@ -358,7 +402,7 @@ function tabBar(ctx: Ctx, s: AtlasSnapshot, scroll: { at: number; max: number; p
           </Box>
         ) : null}
       </Box>
-      {ctx.view.drawer === 'legend' ? (
+      {ctx.view.legend ? (
         <Text dimColor italic wrap="truncate-end">
           {fit(TAB_HELP[ctx.view.tab], ctx.width)}
         </Text>
@@ -367,40 +411,60 @@ function tabBar(ctx: Ctx, s: AtlasSnapshot, scroll: { at: number; max: number; p
   )
 }
 
-// ------------------------------------------------------------------ app bar + drawers
+function tabBarRows(ctx: Ctx, s: AtlasSnapshot, scroll: { max: number }): number {
+  const pending = s.suggestions.length + s.decisions.filter(d => d.status === 'observed').length + openQuestions(s).length
+  const gap = 1
+  const scrollNeed = scroll.max > 0 ? 4 : 0
+  const needed = (labels: string[]) => labels.reduce((n, label, i) => n + label.length + (ctx.view.tab === ['map', 'trail', 'open', 'evidence'][i] ? 1 : 0) + (i ? gap : 0), 0) + scrollNeed + (scroll.max > 0 ? gap : 0)
+  const full = ['Map', 'Trail', pending ? `Open ${pending}` : 'Open', 'Evidence']
+  const mid = ['Map', 'Trail', pending ? `Open ${pending}` : 'Open', 'Evid']
+  const tiny = ['M', 'T', 'O', 'E']
+  const wrapped = needed(full) > ctx.width && needed(mid) > ctx.width && needed(tiny) > ctx.width
+  return 1 + (wrapped ? 1 : 0) + (ctx.view.legend ? 1 : 0)
+}
+
+// ------------------------------------------------------------------ app bar + legend + popups
 
 function appBar(ctx: Ctx, s: AtlasSnapshot) {
   const { Box, Button } = ctx.el
   const decisions = activeDecisions(s).length
   const open = openQuestions(s).length
-  const checkpoints = s.checkpoints.length
-  const tier = ctx.width >= 60 ? 'full' : ctx.width >= 40 ? 'mid' : 'tiny'
-  const items: { drawer: AtlasDrawer; hotkey: string; full: string; mid: string; tiny: string }[] = [
-    { drawer: 'legend', hotkey: 'l', full: 'Legend', mid: 'Legend', tiny: '≡' },
-    { drawer: 'decisions', hotkey: 'd', full: `◇ ${decisions} decisions`, mid: `◇${decisions} dec`, tiny: `◇${decisions}` },
-    { drawer: 'questions', hotkey: 'q', full: `? ${open} open`, mid: `?${open} open`, tiny: `?${open}` },
-    { drawer: 'checkpoints', hotkey: 'c', full: `◆ ${checkpoints} checkpoints`, mid: `◆${checkpoints} chk`, tiny: `◆${checkpoints}` },
+  const tiers: { name: 'full' | 'mid' | 'tiny'; labels: string[] }[] = [
+    { name: 'full', labels: ['Legend', `◇ ${decisions} decisions →`, `? ${open} open →`, '+ Mark'] },
+    { name: 'mid', labels: ['Legend', `◇${decisions} dec →`, `?${open} open →`, '+ Mark'] },
+    { name: 'tiny', labels: ['≡', `◇${decisions}→`, `?${open}→`, '+ Mark'] },
+  ]
+  const gap = 1
+  const need = (labels: string[]) => labels.reduce((n, label, i) => n + label.length + (i ? gap : 0), 0)
+  const tier = tiers.find(x => need(x.labels) <= ctx.width)?.name ?? 'tiny'
+  const chosen = tiers.find(x => x.name === tier) ?? { name: 'tiny' as const, labels: ['≡', `◇${decisions}→`, `?${open}→`, '+ Mark'] }
+  const wrapped = tier === 'tiny' && need(chosen.labels) > ctx.width
+  const items: { kind: 'legend' | 'decisions' | 'questions'; hotkey?: string; label: string }[] = [
+    { kind: 'legend', hotkey: 'l', label: chosen.labels[0] ?? '≡' },
+    { kind: 'decisions', hotkey: 'd', label: chosen.labels[1] ?? `◇${decisions}→` },
+    { kind: 'questions', hotkey: 'q', label: chosen.labels[2] ?? `?${open}→` },
   ]
   return (
-    <Box flexDirection="row" gap={tier === 'tiny' ? 1 : 2} flexShrink={0} height={1} overflow="hidden">
+    <Box flexDirection="row" gap={gap} flexWrap={wrapped ? 'wrap' : 'nowrap'} flexShrink={0} height={wrapped ? 2 : 1} overflow="hidden">
       {items.map(i => {
-        const on = ctx.view.drawer === i.drawer
-        return <Button key={`bar-${i.drawer}`} plain hotkey={tier === 'tiny' ? undefined : i.hotkey} dimColor={!on} label={`${i[tier]}${on ? ' ^' : ''}`} onPress={() => ctx.act({ type: 'drawer', drawer: i.drawer })} />
+        const on = i.kind === 'legend' ? ctx.view.legend : ctx.view.popup?.kind === i.kind
+        const action: Action = i.kind === 'legend' ? { type: 'legend' } : { type: 'popup', popup: { kind: i.kind } }
+        return <Button key={`bar-${i.kind}`} plain hotkey={tier === 'tiny' ? undefined : i.hotkey} dimColor={!on} label={i.label} onPress={() => ctx.act(action)} />
       })}
-      <Box flexGrow={1} />
-      <Button key="mark" plain hotkey={tier === 'tiny' ? undefined : 'k'} label={tier === 'tiny' ? '+◆' : '+ Mark'} onPress={() => ctx.act({ type: 'mark' })} />
+      <Button key="mark" plain hotkey={tier === 'tiny' ? undefined : 'k'} label={chosen.labels[3] ?? '+ Mark'} onPress={() => ctx.act({ type: 'mark' })} />
     </Box>
   )
 }
 
-function legendDrawer(ctx: Ctx) {
+function legendPanel(ctx: Ctx) {
   const { Box, Text } = ctx.el
   const cols = ctx.width >= 64 ? 2 : 1
   const colWidth = Math.floor(ctx.width / cols) - 1
   const rows: [string, string, string | undefined][][] = []
   for (let i = 0; i < LEGEND.length; i += cols) rows.push(LEGEND.slice(i, i + cols))
   return (
-    <Box flexDirection="column">
+    <Box key="legend-panel" flexDirection="column" borderStyle="round" borderColor={C.path} paddingX={1} marginBottom={1}>
+      <Text bold>LEGEND</Text>
       {rows.map((row, r) => (
         <Box key={`lg-${r}`} flexDirection="row">
           {row.map(([glyph, meaning, color]) => (
@@ -411,44 +475,116 @@ function legendDrawer(ctx: Ctx) {
           ))}
         </Box>
       ))}
+      <Text bold>How to use</Text>
+      <Text dimColor wrap="wrap">Plain rows = click to expand structured details inline. [Bracketed] controls are actions. ◇ decisions and ? open questions open a boxed popup; ✕ Close or any other action dismisses it. Legend and Trail sort are toggles.</Text>
       <Text dimColor wrap="wrap">
-        Colors: violet path · amber detour · green decision · pink question · blue checkpoint. Click a row to read it in full. Nothing reaches Claude unless you add its chip to your message. Section notes show while this menu is open.
+        Colors: violet path · amber detour · green decision · pink question · blue checkpoint. Nothing reaches Claude unless you add its chip to your message.
       </Text>
     </Box>
   )
 }
 
-function listDrawer(ctx: Ctx, s: AtlasSnapshot, drawer: Exclude<AtlasDrawer, 'legend'>, room: number) {
-  const { Box, Text } = ctx.el
-  const max = Math.max(1, room - 1)
-  if (drawer === 'decisions') {
-    const list = activeDecisions(s).slice(-max).reverse()
-    return (
-      <Box flexDirection="column">
-        {list.length === 0 ? <Text dimColor>No decisions yet. ◇ = heard, ◆ = you settled it.</Text> : null}
-        {list.map(d => decisionRow(ctx, s, d, false))}
-        <Text dimColor>◇ heard · ◆ settled · settle them in Open</Text>
-      </Box>
-    )
+function popupHeight(ctx: Ctx): number {
+  return Math.max(5, Math.min(Math.floor(ctx.rows * 0.6), Math.max(5, ctx.rows - 4)))
+}
+
+function popupLines(text: string, width: number, max: number): string[] {
+  const room = Math.max(8, width)
+  const lines: string[] = []
+  for (const raw of text.split(/\r?\n/)) {
+    if (!raw) {
+      lines.push('')
+      continue
+    }
+    for (let at = 0; at < raw.length; at += room) lines.push(raw.slice(at, at + room))
   }
-  if (drawer === 'questions') {
-    const list = openQuestions(s).slice(-max).reverse()
-    return (
-      <Box flexDirection="column">
-        {list.length === 0 ? <Text dimColor>No open questions.</Text> : null}
-        {list.map(q => questionRow(ctx, s, q, false))}
-        <Text dimColor>click one to read it · resolve in Open</Text>
-      </Box>
-    )
-  }
-  const list = [...s.checkpoints].reverse().slice(0, max)
+  if (lines.length <= max) return lines
+  return [...lines.slice(0, Math.max(1, max - 1)), `…${lines.length - Math.max(1, max - 1)} more`]
+}
+
+function popupShell(ctx: Ctx, title: string, body: RenderElement, height: number, popupState: AtlasPopup) {
+  const { Box, Button, Text } = ctx.el
   return (
-    <Box flexDirection="column">
-      {list.length === 0 ? <Text dimColor>No checkpoints yet: commits, passing tests, milestones, + Mark.</Text> : null}
-      {list.map(c => checkpointLine(ctx, s, c))}
-      <Text dimColor>details in Evidence</Text>
+    <Box key="atlas-popup" position="absolute" top={0} left={0} right={0} height={height} overflow="hidden" borderStyle="round" borderColor={C.path} backgroundColor="#16161e" paddingX={1} flexDirection="column">
+      <Box flexDirection="row" justifyContent="space-between" flexShrink={0}>
+        <Text bold>{title}</Text>
+        <Button key="popup-close" role="dismiss" plain label="✕ Close" onPress={() => ctx.act({ type: 'popup', popup: popupState })} />
+      </Box>
+      <Box flexDirection="column" height={Math.max(1, height - 3)} overflow="hidden">
+        {body}
+      </Box>
     </Box>
   )
+}
+
+function allDecisions(s: AtlasSnapshot): AtlasItem[] {
+  const rank = (d: AtlasItem) => (d.status === 'settled' ? 0 : d.status === 'observed' ? 1 : 2)
+  return [...s.decisions].filter(d => d.status === 'settled' || d.status === 'observed' || d.status === 'excluded').sort((a, b) => rank(a) - rank(b) || b.at - a.at)
+}
+
+function decisionsPopup(ctx: Ctx, s: AtlasSnapshot, height: number) {
+  const { Box, Text } = ctx.el
+  const list = allDecisions(s)
+  const max = Math.max(1, height - 5)
+  const visible = list.slice(0, max)
+  return popupShell(
+    ctx,
+    'DECISIONS',
+    <Box flexDirection="column">
+      {visible.length === 0 ? <Text dimColor>No decisions yet.</Text> : null}
+      {visible.map(d => decisionRow(ctx, s, d, true))}
+      {list.length > visible.length ? <Text dimColor>{`…${list.length - visible.length} more`}</Text> : null}
+      <Text dimColor>◆ settled first · ◇ observed · excluded dim</Text>
+    </Box>,
+    height,
+    { kind: 'decisions' },
+  )
+}
+
+function questionsPopup(ctx: Ctx, s: AtlasSnapshot, height: number) {
+  const { Box, Text } = ctx.el
+  const list = [...openQuestions(s)].reverse()
+  const max = Math.max(1, height - 5)
+  const visible = list.slice(0, max)
+  return popupShell(
+    ctx,
+    'OPEN QUESTIONS',
+    <Box flexDirection="column">
+      {visible.length === 0 ? <Text dimColor>No open questions.</Text> : null}
+      {visible.map(q => questionRow(ctx, s, q, true))}
+      {list.length > visible.length ? <Text dimColor>{`…${list.length - visible.length} more`}</Text> : null}
+    </Box>,
+    height,
+    { kind: 'questions' },
+  )
+}
+
+function eventPopup(ctx: Ctx, ev: AtlasSnapshot['events'][number], height: number) {
+  const { Box, Button, Text } = ctx.el
+  const details = ev.kind === 'prompt' ? ev.detail ?? [] : ev.detail ?? []
+  return popupShell(
+    ctx,
+    'EVENT',
+    <Box flexDirection="column">
+      <Text dimColor>{`${ev.kind} · turn ${ev.turn} · ${ago(ctx.now - ev.at)}`}</Text>
+      {popupLines(ev.text, ctx.width - 4, Math.max(1, height - 8)).map((line, i) => <Text key={`popup-text-${ev.id}-${i}`} wrap="truncate-end">{line}</Text>)}
+      {ev.kind === 'prompt' && details.length ? <Text bold>Points</Text> : null}
+      {details.map((d, i) => <Text key={`popup-detail-${ev.id}-${i}`} dimColor wrap="wrap">{`• ${d}`}</Text>)}
+      {ev.kind === 'prompt' ? <Button key={`add-ev-${ev.id}`} label="Add to message" variant="primary" onPress={() => ctx.act({ type: 'attach', ref: { kind: 'Prompt', id: ev.id, text: [ev.text, ...details].join('\n') } })} /> : null}
+    </Box>,
+    height,
+    { kind: 'event', id: ev.id },
+  )
+}
+
+function popup(ctx: Ctx, s: AtlasSnapshot): RenderElement | null {
+  const p = ctx.view.popup
+  if (!p) return null
+  const height = popupHeight(ctx)
+  if (p.kind === 'decisions') return decisionsPopup(ctx, s, height)
+  if (p.kind === 'questions') return questionsPopup(ctx, s, height)
+  const ev = s.events.find(x => x.id === p.id)
+  return ev ? eventPopup(ctx, ev, height) : null
 }
 
 // ------------------------------------------------------------------ MAP
@@ -457,13 +593,23 @@ function goalSection(ctx: Ctx, s: AtlasSnapshot) {
   const { Box, Text, Input, Button } = ctx.el
   const suggestion = [...s.suggestions].reverse().find(x => x.kind === 'goal' || x.kind === 'resume')
   const editing = ctx.view.editingGoal || (!s.goal && !suggestion)
-  const note = ctx.view.drawer === 'legend' ? EXPLAIN.GOAL : undefined
+  const note = ctx.view.legend ? EXPLAIN.GOAL : undefined
+  const detected = s.detectedGoal && (!s.goal || s.detectedGoal.text !== s.goal.text) ? s.detectedGoal : null
+  const goalLabel = s.goal ? fit(s.goal.text, ctx.width - 6) : 'not confirmed yet'
+  const goalDetails = s.goal
+    ? [
+        `confirmed: ${s.goal.text}`,
+        `set by: ${sourceName(s.goal.source)} · ${ago(ctx.now - s.goal.at)} · turn ${s.goal.turn}`,
+        ...(detected ? [`Atlas currently reads your aim as: ${detected.text}`] : ['Atlas has no different detected aim.']),
+      ]
+    : [
+        'status: not confirmed',
+        ...(detected ? [`Atlas currently reads your aim as: ${detected.text}`] : ['Atlas has not detected an overall aim yet.']),
+      ]
   return (
     <Box flexDirection="column">
       <Box flexDirection="row">
-        <Text bold color={C.goal}>
-          ◎ GOAL
-        </Text>
+        <Text bold color={C.goal}>◎ GOAL</Text>
         <Box flexGrow={1} />
         {s.goal && !s.detour && !ctx.view.editingGoal ? <Button key="edit-goal" plain dimColor label="change" onPress={() => ctx.act({ type: 'edit-goal' })} /> : null}
       </Box>
@@ -472,13 +618,14 @@ function goalSection(ctx: Ctx, s: AtlasSnapshot) {
           {note}
         </Text>
       ) : null}
-      {s.goal ? (
-        <Text bold wrap="wrap">
-          {s.goal.text}
-        </Text>
-      ) : (
-        <Text dimColor>not confirmed yet</Text>
-      )}
+      {!editing ? <Button key="goal-row" plain dimColor={!s.goal} label={`◎ ${goalLabel}`} onPress={() => ctx.act({ type: 'expand', id: 'goal' })} /> : null}
+      {ctx.view.expanded === 'goal' && !editing ? (
+        <Box flexDirection="column" marginLeft={2}>
+          {goalDetails.map((line, i) => <Text key={`goal-detail-${i}`} dimColor wrap="wrap">{`│ ${line}`}</Text>)}
+          {detected ? <Button key="use-detected-goal" label="Use this as my goal" variant="primary" onPress={() => ctx.act({ type: 'goal', text: detected.text })} /> : null}
+          <Button key="close-goal" plain dimColor label="Close" onPress={() => ctx.act({ type: 'expand', id: 'goal' })} />
+        </Box>
+      ) : null}
       {!s.goal && suggestion ? suggestionRow(ctx, s, suggestion) : null}
       {editing && Input ? (
         <Input key="goal-input" label="◎ " placeholder={s.goal ? 'new goal, Enter to confirm' : 'type your goal, Enter to confirm'} submitLabel="set" onSubmit={(v: string) => ctx.act({ type: 'goal', text: v })} />
@@ -587,10 +734,17 @@ function activitySection(ctx: Ctx, s: AtlasSnapshot) {
 function fileLine(ctx: Ctx, s: AtlasSnapshot, f: AtlasSnapshot['files'][number], key: string, full: boolean) {
   const { Box, Text } = ctx.el
   const name = full ? rel(f.path, s.root) : base(f.path)
+  const details = [
+    ...(name.length > Math.max(24, ctx.width - 14) ? [`path: ${rel(f.path, s.root)}`] : []),
+    'kind: working-set file',
+    `last operation: ${f.lastOp}`,
+    `counts: ${f.reads} read · ${f.writes} written`,
+    whenLine(ctx, f.at, f.turn),
+  ]
   return (
     <Box key={key} flexDirection="row">
       <Text color={f.lastOp === 'write' ? C.write : C.read}>{f.lastOp === 'write' ? '✎ ' : '· '}</Text>
-      <Box flexShrink={1}>{selectable(ctx, `sel-${key}`, { kind: 'File', id: f.path, text: rel(f.path, s.root) }, fit(name, ctx.width - 14))}</Box>
+      <Box flexShrink={1}>{selectable(ctx, `sel-${key}`, { kind: 'File', id: f.path, text: rel(f.path, s.root) }, fit(name, ctx.width - 14), undefined, false, details)}</Box>
       <Box flexGrow={1} />
       <Text dimColor>{`${f.writes ? `✎${f.writes} ` : ''}${f.reads ? `·${f.reads}` : ''}`}</Text>
     </Box>
@@ -702,11 +856,23 @@ function trailTab(ctx: Ctx, s: AtlasSnapshot) {
         const isCur = t.id === cur?.id
         const glyph = isCur ? '●' : t.kind !== 'main' ? '↳' : t.status === 'returned' ? '↩' : '○'
         const color = t.kind !== 'main' ? C.detour : isCur ? C.path : undefined
+        const children = s.topics.filter(x => x.parentId === t.id).length
+        const decisions = s.decisions.filter(x => x.topicId === t.id).length
+        const questions = s.questions.filter(x => x.topicId === t.id).length
+        const details = [
+          ...(t.title.length > Math.max(24, ctx.width - depth * 2 - 10) ? [`title: ${t.title}`] : []),
+          `kind: ${t.kind}`,
+          `status: ${t.status}`,
+          `turns: ${t.firstTurn === t.lastTurn ? t.firstTurn : `${t.firstTurn}–${t.lastTurn}`}`,
+          `children: ${children}`,
+          `decisions: ${decisions} · questions: ${questions}`,
+          `source: ${sourceName(t.source)}`,
+        ]
         return (
           <Box key={`tr-${t.id}`} flexDirection="row">
             <Text dimColor>{'  '.repeat(depth)}</Text>
             <Text color={color} bold={isCur}>{`${glyph} `}</Text>
-            <Box flexShrink={1}>{selectable(ctx, `tsel-${t.id}`, { kind: t.kind === 'main' ? 'Topic' : 'Detour topic', id: t.id, text: t.title }, fit(t.title, ctx.width - depth * 2 - 10), color)}</Box>
+            <Box flexShrink={1}>{selectable(ctx, `tsel-${t.id}`, { kind: t.kind === 'main' ? 'Topic' : 'Detour topic', id: t.id, text: t.title }, fit(t.title, ctx.width - depth * 2 - 10), color, s.fresh.includes(t.id), details)}</Box>
             <Box flexGrow={1} />
             <Text dimColor>{t.firstTurn === t.lastTurn ? `t${t.firstTurn}` : `t${t.firstTurn}-${t.lastTurn}`}</Text>
           </Box>
@@ -715,49 +881,15 @@ function trailTab(ctx: Ctx, s: AtlasSnapshot) {
       {heading(ctx, 'TRAIL', undefined, sort)}
       {events.length === 0 ? <Text dimColor>Nothing recorded yet.</Text> : null}
       {events.map(ev => {
-        const [glyph, color] = EVENT_GLYPH[ev.kind] ?? ['·', undefined]
-        const detail = ev.detail ?? []
+        const [glyph] = EVENT_GLYPH[ev.kind] ?? ['·', undefined]
         const dim = ev.kind === 'prompt' || ev.kind === 'dismiss'
-        if (!detail.length) {
-          return (
-            <Box key={`ev-${ev.id}`} flexDirection="row">
-              <Text color={color}>{`${glyph} `}</Text>
-              <Box flexShrink={1}>
-                <Text dimColor={dim} wrap="truncate-end">
-                  {fit(ev.text, ctx.width - 8)}
-                </Text>
-              </Box>
-              <Box flexGrow={1} />
-              <Text dimColor>{ago(ctx.now - ev.at)}</Text>
-            </Box>
-          )
-        }
-        const open = ctx.view.expanded === ev.id
-        const row = (
+        return (
           <Box key={`ev-${ev.id}`} flexDirection="row">
-            <Text color={color}>{`${glyph} `}</Text>
-            <Text dimColor>{open ? '▾ ' : '+ '}</Text>
             <Box flexShrink={1}>
-              <Button key={`evb-${ev.id}`} plain dimColor={dim} label={fit(ev.text, ctx.width - 10)} onPress={() => ctx.act({ type: 'expand', id: ev.id })} />
+              <Button key={`evb-${ev.id}`} plain dimColor={dim} label={fit(`${glyph} ${ev.text}`, ctx.width - 10)} onPress={() => ctx.act({ type: 'popup', popup: { kind: 'event', id: ev.id } })} />
             </Box>
             <Box flexGrow={1} />
             <Text dimColor>{ago(ctx.now - ev.at)}</Text>
-          </Box>
-        )
-        if (!open) return row
-        return (
-          <Box key={`evx-${ev.id}`} flexDirection="column">
-            {row}
-            <Box flexDirection="column" marginLeft={2}>
-              {detail.map((b, i) => (
-                <Text key={`evd-${ev.id}-${i}`} dimColor wrap="wrap">
-                  {`• ${b}`}
-                </Text>
-              ))}
-            </Box>
-            <Box marginLeft={2}>
-              <Button key={`add-ev-${ev.id}`} label="Add to message" variant="primary" onPress={() => ctx.act({ type: 'attach', ref: { kind: 'Prompt', id: ev.id, text: [ev.text, ...detail].join('; ') } })} />
-            </Box>
           </Box>
         )
       })}
@@ -792,10 +924,19 @@ function checkpointLine(ctx: Ctx, s: AtlasSnapshot, c: AtlasCheckpoint) {
   const { Box, Text } = ctx.el
   const kind = c.kind === 'marked' ? 'mark' : c.kind === 'tests' ? 'tests ✓' : c.kind === 'claude' ? 'milestone' : c.kind
   const text = `${c.name}${c.topic ? ` (topic: ${c.topic})` : ''}${c.files.length ? `; files: ${c.files.map(base).join(', ')}` : ''}`
+  const details = [
+    ...(c.name.length > Math.max(24, ctx.width - 20) ? [`name: ${c.name}`] : []),
+    `kind: ${kind}`,
+    whenLine(ctx, c.at, c.turn),
+    ...(c.goal ? [`goal: ${c.goal}`] : []),
+    ...(c.topic ? [`topic: ${c.topic}`] : []),
+    ...(c.files.length ? [`files: ${c.files.map(base).join(', ')}`] : []),
+    ...(c.detail ? [`detail: ${c.detail}`] : []),
+  ]
   return (
     <Box key={`cpl-${c.id}`} flexDirection="row">
       <Text color={C.checkpoint}>◆ </Text>
-      <Box flexShrink={1}>{selectable(ctx, `csel-${c.id}`, { kind: 'Checkpoint', id: c.id, text }, fit(c.name, ctx.width - 20), C.checkpoint, s.fresh.includes(c.id))}</Box>
+      <Box flexShrink={1}>{selectable(ctx, `csel-${c.id}`, { kind: 'Checkpoint', id: c.id, text }, fit(c.name, ctx.width - 20), C.checkpoint, s.fresh.includes(c.id), details)}</Box>
       <Box flexGrow={1} />
       <Text dimColor>{`${kind} · ${ago(ctx.now - c.at)}`}</Text>
     </Box>
@@ -803,21 +944,7 @@ function checkpointLine(ctx: Ctx, s: AtlasSnapshot, c: AtlasCheckpoint) {
 }
 
 function checkpointRow(ctx: Ctx, s: AtlasSnapshot, c: AtlasCheckpoint) {
-  const { Box, Text } = ctx.el
-  const isOpen = ctx.view.expanded === c.id
-  return (
-    <Box key={`cp-${c.id}`} flexDirection="column">
-      {checkpointLine(ctx, s, c)}
-      {isOpen ? (
-        <Box flexDirection="column" marginLeft={2}>
-          {c.goal ? <Text dimColor wrap="truncate-end">{fit(`goal: ${c.goal}`, ctx.width - 2)}</Text> : null}
-          {c.topic ? <Text dimColor wrap="truncate-end">{fit(`topic: ${c.topic}`, ctx.width - 2)}</Text> : null}
-          {c.detail ? <Text dimColor wrap="truncate-end">{fit(c.detail, ctx.width - 2)}</Text> : null}
-          {c.files.length ? <Text dimColor wrap="wrap">{`files: ${c.files.map(base).join(', ')}`}</Text> : null}
-        </Box>
-      ) : null}
-    </Box>
-  )
+  return checkpointLine(ctx, s, c)
 }
 
 function recallRow(ctx: Ctx, s: AtlasSnapshot, r: AtlasRecall) {
@@ -895,12 +1022,19 @@ function scrollbarCells(ctx: Ctx, viewport: number, content: number, at: number,
 // module keeps to clamp the next wheel or page move.
 export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScroll: number } {
   const { Box, Text } = ctx.el
-  const build = (c: Ctx) => (c.view.tab === 'trail' ? trailTab(c, s) : c.view.tab === 'open' ? openTab(c, s) : c.view.tab === 'evidence' ? evidenceTab(c, s) : mapTab(c, s))
+  const build = (c: Ctx) => {
+    const content = c.view.tab === 'trail' ? trailTab(c, s) : c.view.tab === 'open' ? openTab(c, s) : c.view.tab === 'evidence' ? evidenceTab(c, s) : mapTab(c, s)
+    return c.view.legend ? <Box flexDirection="column">{legendPanel(c)}{content}</Box> : content
+  }
   let body = build(ctx)
-  const drawerRoom = Math.max(3, Math.min(14, Math.floor(ctx.rows * 0.45)))
-  const drawer = ctx.view.drawer ? (ctx.view.drawer === 'legend' ? legendDrawer(ctx) : listDrawer(ctx, s, ctx.view.drawer, drawerRoom)) : null
-  const drawerRows = drawer ? Math.min(drawerRoom, rowsOf(drawer, ctx.width)) + 1 : 0
-  const fixed = 2 + (ctx.view.drawer === 'legend' ? 1 : 0) + drawerRows + 2
+  const appRows = (() => {
+    const decisions = activeDecisions(s).length
+    const open = openQuestions(s).length
+    const need = (labels: string[]) => labels.reduce((n, label, i) => n + label.length + (i ? 1 : 0), 0)
+    const tiny = ['≡', `◇${decisions}→`, `?${open}→`, '+ Mark']
+    return 1 + (need(tiny) > ctx.width ? 1 : 0)
+  })()
+  const fixed = 1 + tabBarRows(ctx, s, { max: 1 }) + 1 + appRows
   const viewport = ctx.rows - fixed
   const pinned = viewport >= 4
   let content = rowsOf(body, ctx.width)
@@ -913,30 +1047,29 @@ export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScro
   const maxScroll = pinned ? Math.max(0, content - viewport) : 0
   const at = Math.min(Math.max(0, ctx.view.scroll), maxScroll)
   const scrollbar = bar && maxScroll > 0 ? scrollbarCells(ctx, viewport, content, at, maxScroll) : null
+  const overlay = popup(ctx, s)
   const rule = <Text dimColor>{'─'.repeat(Math.max(4, ctx.width))}</Text>
   const tree = (
     <Box flexDirection="column" paddingX={1} {...(pinned ? { height: ctx.rows } : {})}>
       {titleRule(ctx)}
       {tabBar(ctx, s, { at, max: maxScroll, page: Math.max(1, viewport - 2) })}
       {pinned ? (
-        <Box flexDirection="row" flexGrow={1} flexShrink={1} overflow="hidden">
+        <Box flexDirection="row" flexGrow={1} flexShrink={1} overflow="hidden" position="relative">
           <Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="hidden">
             <Box flexDirection="column" flexShrink={0} marginTop={-at}>
               {body}
             </Box>
           </Box>
           {scrollbar}
+          {overlay}
         </Box>
       ) : (
-        body
+        <Box flexDirection="column" position="relative">
+          {body}
+          {overlay}
+        </Box>
       )}
       {rule}
-      {drawer ? (
-        <Box flexDirection="column" flexShrink={0} height={drawerRows - 1} overflow="hidden">
-          {drawer}
-        </Box>
-      ) : null}
-      {drawer ? rule : null}
       {appBar(ctx, s)}
     </Box>
   )

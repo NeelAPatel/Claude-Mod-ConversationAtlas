@@ -83,6 +83,7 @@ export function emptySnapshot(sessionId: string, root: string, now: number): Atl
     turn: 0,
     seq: 0,
     goal: null,
+    detectedGoal: null,
     goalHistory: [],
     detour: null,
     detourHistory: [],
@@ -114,15 +115,15 @@ export function hydrate(raw: unknown, sessionId: string, root: string, now: numb
   return { ...base, ...s, detour, sessionId, root, fresh: [], activity: (s.activity ?? []).map(a => (a.state === 'running' ? { ...a, state: 'failed' as const, endedAt: a.endedAt ?? now } : a)) }
 }
 
-// A snapshot that survived a reload of an older build keeps its old shape in `$.state`:
+// A snapshot that survived a reload of an older build keeps its old shape in state:
 // fill every field added since, so no reader ever meets undefined. Cheap and idempotent.
 export function upgrade(s: AtlasSnapshot): AtlasSnapshot {
   const partial = s as Partial<AtlasSnapshot>
-  const needs = !Array.isArray(partial.recall) || !Array.isArray(partial.adopted) || !partial.scanned || (s.detour && !Array.isArray(s.detour.exclusions)) || s.detourHistory.some(d => !Array.isArray(d.exclusions))
+  const needs = partial.detectedGoal === undefined || !Array.isArray(partial.recall) || !Array.isArray(partial.adopted) || !partial.scanned || (s.detour && !Array.isArray(s.detour.exclusions)) || s.detourHistory.some(d => !Array.isArray(d.exclusions))
   if (!needs) return s
   const base = emptySnapshot(s.sessionId, s.root, s.startedAt)
   const withEx = <T extends { exclusions?: string[] }>(d: T) => ({ ...d, exclusions: d.exclusions ?? [] })
-  return { ...base, ...s, recall: partial.recall ?? [], adopted: partial.adopted ?? [], scanned: partial.scanned ?? 'none', detour: s.detour ? withEx(s.detour) : null, detourHistory: s.detourHistory.map(withEx) }
+  return { ...base, ...s, detectedGoal: partial.detectedGoal ?? null, recall: partial.recall ?? [], adopted: partial.adopted ?? [], scanned: partial.scanned ?? 'none', detour: s.detour ? withEx(s.detour) : null, detourHistory: s.detourHistory.map(withEx) }
 }
 
 function id(s: AtlasSnapshot, prefix: string): [string, AtlasSnapshot] {
@@ -136,7 +137,7 @@ function keep<T>(list: T[], max: number): T[] {
 
 function event(s: AtlasSnapshot, kind: AtlasEvent['kind'], text: string, now: number, detail?: string[]): AtlasSnapshot {
   const [eid, next] = id(s, 'e')
-  const made: AtlasEvent = { id: eid, at: now, turn: s.turn, kind, text: clip(text, 160), ...(detail?.length ? { detail } : {}) }
+  const made: AtlasEvent = { id: eid, at: now, turn: s.turn, kind, text: kind === 'prompt' ? text : clip(text, 160), ...(detail?.length ? { detail } : {}) }
   return { ...next, events: keep([...next.events, made], LIMITS.events) }
 }
 
@@ -340,6 +341,7 @@ export function observe(s: AtlasSnapshot, report: ObserveReport, now: number): A
   for (const q of report.questions ?? []) next = addQuestion(next, q, 'claude', now)
   if (report.next) next = suggest(next, 'next', report.next, null, 'claude', now)
   if (report.checkpoint) next = addCheckpoint(next, report.checkpoint, 'claude', null, now)
+  if (report.goal) next = { ...next, detectedGoal: { text: clip(report.goal, 140), source: 'claude', at: now } }
   // A proposed goal is only ever a suggestion, and only while nothing is confirmed.
   if (report.goal && !next.goal) next = suggest(next, 'goal', report.goal, 'Proposed by Claude', 'claude', now)
   return next
@@ -355,8 +357,9 @@ export function sentences(text: string): string[] {
   return (text.match(/[^.!?\n]+[.!?]*/g) ?? [text]).map(p => p.trim()).filter(Boolean)
 }
 
-// The points a longer prompt makes, after its first sentence (the event title): list
-// items as written, other lines split into sentences. Heuristic, no model; at most 6.
+// The points a longer prompt makes, after its first sentence: list items as written,
+// other lines split into sentences. The event keeps the full prompt separately.
+// Heuristic, no model; at most 6.
 export function promptBullets(text: string): string[] {
   const items: string[] = []
   let fenced = false
@@ -387,7 +390,7 @@ export function startTurn(s: AtlasSnapshot, text: string, now: number): AtlasSna
   const body = text.trim()
   let next: AtlasSnapshot = { ...s, turn: s.turn + 1 }
   if (!body) return next
-  next = event(next, 'prompt', sentences(body)[0] ?? body.split('\n')[0] ?? body, now, promptBullets(body))
+  next = event(next, 'prompt', body, now, promptBullets(body))
   if (body.startsWith('/') || body.startsWith('<')) return next
   if (!next.goal && !next.suggestions.some(x => x.kind === 'goal') && body.length >= 16) {
     const first = sentences(body)[0] ?? body

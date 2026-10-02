@@ -15,6 +15,12 @@ export type AtlasGoal = {
   source: AtlasSource
 }
 
+export type AtlasDetectedGoal = {
+  text: string
+  source: string
+  at: number
+}
+
 // Trailhead's departure snapshot, kept: what to come back to when a detour ends.
 export type AtlasDeparture = {
   goal: string | null
@@ -140,6 +146,7 @@ export type AtlasSnapshot = {
   turn: number
   seq: number
   goal: AtlasGoal | null
+  detectedGoal: AtlasDetectedGoal | null
   goalHistory: AtlasGoal[]
   detour: AtlasDetour | null
   detourHistory: AtlasDetour[]
@@ -168,8 +175,7 @@ export type AtlasTab = 'map' | 'trail' | 'open' | 'evidence'
 
 export type AtlasSelection = { kind: string; id: string; text: string }
 
-// The app bar's menus; at most one is open, drawn above the bar.
-export type AtlasDrawer = 'legend' | 'decisions' | 'questions' | 'checkpoints'
+export type AtlasPopup = { kind: 'event' | 'decisions' | 'questions'; id?: string }
 
 export type AtlasView = {
   tab: AtlasTab
@@ -178,7 +184,8 @@ export type AtlasView = {
   refs: Record<string, AtlasSelection>
   nextRef: number
   editingGoal: boolean
-  drawer: AtlasDrawer | null
+  legend: boolean
+  popup: AtlasPopup | null
   // First body row shown; the pane scrolls its own body so the app bar stays put.
   scroll: number
   // Trail events: true = newest at the top.

@@ -19,15 +19,20 @@ Atlas is the combined product and absorbs [Trailhead](../trailhead/README.md) (d
 ## UX
 
 - **Pane** (`Atlas`): opens unasked at session start. It docks beside the transcript in the fullscreen layout at ≥144 columns. Below that width it waits until you open it. The footer always shows an Atlas button (`● current topic · N`) that opens it at any width, inline if needed. `/atlas` does the same.
-- **Layout**: a centered `─── Conversation Atlas ───` rule (just `Atlas` under 34 columns) · tab bar · self-scrolling body (wheel, PgUp/PgDn, or ▲▼ buttons) · menu drawer · app bar pinned to the pane bottom.
-- **App bar menus**: hotkeys Legend `l`, ◇ decisions `d`, ? open questions `q`, ◆ checkpoints `c`, + Mark `k`. A menu opens in a drawer above the bar, its button shows ` ^` while open, press again to close, one menu at a time. The Legend explains every glyph and colour. While it is open every section heading shows a one-line note on what the section is for, and the tab bar says what the current tab answers.
-- **Resize-friendly**: the bar has full (`◇ 3 decisions`), mid (`◇3 dec`) and tiny (`◇3`, `≡` for Legend, no hotkey labels; under 40 cols) widths. Tab names shorten under 46 columns. If fewer than 4 body rows fit, the pane stops pinning and lets Claude Code scroll it.
+- **Layout**: a centered `─── Conversation Atlas ───` rule (just `Atlas` under 34 columns) · tab bar · self-scrolling body (wheel, PgUp/PgDn, or ▲▼ buttons) · absolute popup over the body when needed · app bar pinned to the pane bottom.
+- **Three UI paradigms**:
+  - **EXPANSION**: plain structured rows expand inline with indented dim `│` detail lines and actions. Evidence checkpoints, goal, topics, decisions, questions and files use this for metadata rather than repeating the row.
+  - **TOGGLES**: Legend and Trail sort flip state in place. Legend shows a `LEGEND` panel, glyph table, “How to use” guidance and `EXPLAIN` notes under section headings.
+  - **POPUPS / MENUS**: every Trail event opens a rounded EnvVault-style bordered popup with full text; prompt events also show bullets and **Add to message**. ◇ decisions and ? open questions open one popup at a time, each row expandable with its actions. `✕ Close` or any other action dismisses it.
+- **App bar**: hotkeys Legend `l`, ◇ decisions `d`, ? open questions `q`, + Mark `k`. The bottom bar always keeps Mark visible and drops the old checkpoints menu because Evidence already lists checkpoints. Labels adapt through full/mid/tiny tiers and wrap when even tiny labels do not fit.
+- **Resize-friendly**: the tab and bottom bars compute their needed width at full, mid and tiny labels; at 26, 34, 48 and 72 body columns their keys remain present, and a second row is accounted for when wrapping is required. If fewer than 4 body rows fit, the pane stops pinning and lets Claude Code scroll it.
 - **Tabs** (hotkeys `m t o e` while the pane is focused):
   - **Map**: ◎ goal, current path tree (current node pulses when it is new), ↳ possible detour / active detour, live activity (spinner and shimmer while a tool runs, ✓/✗ after), working set, latest decisions/questions, ▸ resume next.
   - **Trail**: the whole topic tree, then a chronological trail of prompts, topic shifts, decisions, detours, returns and checkpoints.
   - **Open**: everything waiting for a yes/no: suggestions (goal, detour, return, next step, resume), observed decisions (**Settle**/**Drop**; decisions observed during a detour get **Keep**/**Exclude** instead), open questions (**Resolved**).
   - **Evidence**: checkpoints (click one to expand goal/topic/files at that moment), the settled ledger, resolved questions, past detours, files, and earlier sessions (Atlas or Trailhead) with a **Resume this** button.
-- **Selection → context**: click any decision, question, topic, checkpoint or file. Your next message carries it to Claude once ("this" refers to it), the same way filetree passes its selected file. `✕` clears it.
+- **Detected goal**: `observe.goal` is always an observation. The Map goal expansion shows the confirmed goal’s source/time and Atlas’s differing detected aim; **Use this as my goal** is the explicit intent write.
+- **Selection → context**: click any decision, question, topic, checkpoint or file. Your next message carries it to Claude once (“this” refers to it), the same way filetree passes its selected file. `✕` clears it.
 - **Glyphs**: ◎ confirmed goal · ○ suggestion · ● current topic · ↳ detour · ↩ return · ◇ observed decision · ◆ settled decision / checkpoint · ? open question · ✦ just observed.
 
 ## Joining a conversation late
@@ -106,7 +111,7 @@ claude plugin validate .\MyMods\conversation-atlas
 claude plugin test .\MyMods\conversation-atlas
 ```
 
-Last result (2026-10-02, Claude Code 2.1.288): validate passed. Runtime tests **11/11 passed**, grouped as model invariants, hooks, merge (exclusions in the return packet; a Trailhead checkpoint listed and resumed via `/atlas recover`) and late join (free replay on launch, `/atlas scan` through one fork) and readability (title rule at two widths, Legend opens and shows ` ^`, section notes, one menu at a time, tiny-width bar, pinned bar with body scrolling). `tsc --strict` clean against the build's generated declarations.
+Last result (2026-10-02, Claude Code 2.1.288): validate passed. Runtime tests **23/23 passed**, covering model invariants, detected-goal observation and upgrade, hooks, merge/recovery, late join, inline expansion, bordered event/decision popups, Legend and Trail toggles, responsive bars at 26/34/48/72 columns, message-chip boundaries, and pinned scrolling. `tsc --strict` clean against the build's generated declarations.
 
 Live acceptance (2026-10-02): hot-reloaded into the authoring session. The engine loaded the module and generated its `.claude-plugin/types/`. Real Read/Edit/Bash/test calls in that session fed the pane. Claude's `observe` tool reaches the model from the prompt after a (re)load, not in the turn that loads it. On 2.1.288 the observe tool, `/atlas` and pane selection → prompt context were seen working live.
 

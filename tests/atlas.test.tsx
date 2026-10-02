@@ -44,6 +44,7 @@ describe('model: observation never writes intent', () => {
     s = observe(s, { topic: 'Plugin architecture', goal: 'Build Conversation Atlas' }, 1)
     s = observe(s, { topic: 'Investigating UI capabilities', shift: 'possible-detour', why: 'Side research' }, 2)
     expect(s.goal).toBeNull()
+    expect(s.detectedGoal?.text).toBe('Build Conversation Atlas')
     expect(s.detour).toBeNull()
     expect(s.suggestions.map(x => x.kind).sort()).toEqual(['detour', 'goal'])
     expect(s.topics.find(t => t.title === 'Investigating UI capabilities')?.kind).toBe('possible-detour')
@@ -98,7 +99,7 @@ describe('model: prompt bullets', () => {
     expect(out.at(-1)).toBe('+3 more')
     const s = startTurn(emptySnapshot('s', ROOT, 0), 'Refactor the loader. Keep going.\n- one more point', 1)
     const ev = s.events.find(e => e.kind === 'prompt')
-    expect(ev?.text).toBe('Refactor the loader.')
+    expect(ev?.text).toBe('Refactor the loader. Keep going.\n- one more point')
     expect(ev?.detail).toEqual(['Keep going.', 'one more point'])
   })
 })
@@ -214,25 +215,27 @@ describe('merge: Trailhead features inside Atlas', () => {
 })
 
 describe('readability: app bar, legend, resizing', () => {
-  test('the Legend opens above a pinned app bar, marks itself ^, and explains sections', { timeoutMs: 20_000 }, async ($, on) => {
+  test('Legend is a toggle panel, menus are boxed, and no label ends with a caret suffix', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await $.tool.call({ tool: OBSERVE, topic: 'Pane layout', decisions: ['Keep it native'] } as any)
     await clock.settle()
     for (const surface of ['terminal', 'desktop'] as const) {
       const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
-      expect(await drawn(ui)).not.toContain('Legend ^')
+      for (const button of await ui.findAll({ type: 'Button' })) expect(String(button.props.label ?? '')).not.toMatch(/ \^$/)
       await ui.press({ key: 'bar-legend' })
       const open = await drawn(ui)
-      expect(open).toContain('Legend ^')
+      expect(open).toContain('LEGEND')
+      expect(open).toContain('How to use')
       expect(open).toContain('your goal (confirmed)')
       expect(open).toContain('Topics from the start of the work to now')
       await ui.press({ key: 'bar-decisions' })
       const decisions = await drawn(ui)
-      expect(decisions).toContain('dec ^')
-      expect(decisions).not.toContain('Legend ^')
+      expect(decisions).toContain('DECISIONS')
+      expect(decisions).not.toContain('LEGEND')
       await ui.press({ key: 'bar-decisions' })
-      expect(await drawn(ui)).not.toContain(' ^"')
+      expect(await drawn(ui)).not.toContain('DECISIONS')
+      for (const button of await ui.findAll({ type: 'Button' })) expect(String(button.props.label ?? '')).not.toMatch(/ \^$/)
       await ui.unmount()
     }
   })
@@ -245,8 +248,8 @@ describe('readability: app bar, legend, resizing', () => {
     await clock.settle()
     const narrow = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: { ...PANE_PROPS, bodyColumns: 34 } })
     const tiny = await drawn(narrow)
-    expect(tiny).toContain('"label":"≡"')
-    expect(tiny).toContain('"label":"?1"')
+    expect(tiny).toContain('"label":"Legend"')
+    expect(tiny).toContain('"label":"?1 open →"')
     await narrow.unmount()
 
     const short = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: { ...PANE_PROPS, scroll: { offset: 0, bodyRows: 14 } } })
@@ -256,6 +259,35 @@ describe('readability: app bar, legend, resizing', () => {
     expect(await drawn(short)).toMatch(/"marginTop":-\d+/)
     expect(await short.find({ key: 'bar-legend' })).toBeDefined()
     await short.unmount()
+  })
+
+  test('at bodyColumns 26, 34, 48 and 72 every tab key and Mark remain drawn', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.tool.call({ tool: OBSERVE, topic: 'Responsive layout', decisions: ['Keep Mark visible'] } as any)
+    await clock.settle()
+    for (const bodyColumns of [26, 34, 48, 72]) {
+      const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: { ...PANE_PROPS, bodyColumns } })
+      for (const key of ['tab-map', 'tab-trail', 'tab-open', 'tab-evidence', 'mark']) expect(await ui.find({ key })).toBeDefined()
+      await ui.unmount()
+    }
+  })
+
+  test('the decisions popup lists settled before observed decisions', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.tool.call({ tool: OBSERVE, decisions: ['Observed decision'] } as any)
+    await $.command.run({ command: 'atlas', args: 'decision Settled decision', origin: { kind: 'composer' } } as any)
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    await ui.press({ key: 'bar-decisions' })
+    const t = await drawn(ui)
+    expect(t).toContain('DECISIONS')
+    expect(t).toContain('Settled decision')
+    expect(t).toContain('Observed decision')
+    const popup = t.slice(t.indexOf('"key":"atlas-popup"'))
+    expect(popup.indexOf('Settled decision')).toBeLessThan(popup.indexOf('Observed decision'))
+    await ui.unmount()
   })
 })
 
@@ -318,12 +350,13 @@ describe('joining a conversation late', () => {
 
 describe('upgrades', () => {
   test('a snapshot kept from an older build gains every newer field before anything reads it', async () => {
-    const { recall: _r, adopted: _a, scanned: _s, ...old } = emptySnapshot('s', ROOT, 0)
+    const { recall: _r, adopted: _a, scanned: _s, detectedGoal: _g, ...old } = emptySnapshot('s', ROOT, 0)
     const legacy = { ...old, detourHistory: [{ id: 'x1', reason: 'Old detour', at: 0, turn: 0, topicId: null, departure: { goal: null, topic: null, nextStep: null, checkpointId: null, decisions: [] }, outcomes: [], status: 'returned', endedAt: 1 }] } as any
     const up = upgrade(legacy)
     expect(up.recall).toEqual([])
     expect(up.adopted).toEqual([])
     expect(up.scanned).toBe('none')
+    expect(up.detectedGoal).toBeNull()
     expect(up.detourHistory[0]?.exclusions).toEqual([])
     expect(upgrade(up)).toBe(up)
   })
@@ -413,7 +446,7 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     await ui.unmount()
   })
 
-  test('the Trail expands a prompt with points on click for prompts with points', { timeoutMs: 20_000 }, async ($, on) => {
+  test('clicking any Trail event opens a boxed popup with full prompt text and bullets, and a tab closes it', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     on('turn.start', () => ({ turnId: 'turn-1' }))
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
@@ -427,8 +460,13 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     expect(btn).toBeDefined()
     await ui.press({ key: btn ?? '' })
     t = await drawn(ui)
+    expect(t).toContain('EVENT')
+    expect(t).toContain('Refactor the loader.')
+    expect(t.indexOf('add retries with backoff')).toBeGreaterThan(t.indexOf('EVENT'))
     expect(t).toContain('• keep the API stable')
     expect(t).toContain('"key":"add-ev-')
+    await ui.press({ key: 'tab-map' })
+    expect(await drawn(ui)).not.toContain('"children":["EVENT"]')
     await ui.unmount()
   })
 
@@ -451,6 +489,26 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     const close = (after.match(/"key":"(close-[^"]+)"/)?.[1]) ?? ''
     await ui.press({ key: close })
     expect(await drawn(ui)).not.toContain('Add to message')
+    await ui.unmount()
+  })
+
+  test('goal expansion shows a differing detected goal and adopts it only when pressed', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.tool.call({ tool: OBSERVE, goal: 'Build the original pane' } as any)
+    await clock.settle()
+    const ui = await mountPane($)
+    const suggestion = (await drawn(ui)).match(/"key":"(ok-s\d+)"/)?.[1]
+    expect(suggestion).toBeDefined()
+    await ui.press({ key: suggestion ?? '' })
+    await $.tool.call({ tool: OBSERVE, goal: 'Polish the popup UI' } as any)
+    await clock.settle()
+    await ui.press({ key: 'goal-row' })
+    const expanded = await drawn(ui)
+    expect(expanded).toContain('Atlas currently reads your aim as: Polish the popup UI')
+    expect(expanded).toContain('Use this as my goal')
+    await ui.press({ key: 'use-detected-goal' })
+    expect(await drawn(ui)).toContain('Polish the popup UI')
     await ui.unmount()
   })
 

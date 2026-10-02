@@ -60,10 +60,10 @@ const TOOL = 'mcp__conversation-atlas__observe'
 const FLASH_MS = 4_000
 const SAVE_MS = 2_000
 const KEEP_SESSIONS = 12
-const DEFAULT_VIEW: AtlasView = { tab: 'map', refs: {}, nextRef: 1, editingGoal: false, drawer: null, scroll: 0, trailNewest: true, expanded: null }
+const DEFAULT_VIEW: AtlasView = { tab: 'map', refs: {}, nextRef: 1, editingGoal: false, legend: false, popup: null, scroll: 0, trailNewest: true, expanded: null }
 
 const RULES = `# Conversation Atlas
-A side pane maps this session for the user. Keep it accurate with ${TOOL}: at the end of a turn where the topic moved, a decision was reached, a question opened or closed, or a milestone landed, call it once with only the fields that changed (short phrases, at most 6 words for a topic). shift: "same" (refining the current topic), "subtopic" (going deeper), "sibling" (next part of the same work), "possible-detour" (a side trip away from the user's goal), "return" (back to earlier work; name that topic). Skip it on trivial turns. It records observations only: never say the user's goal changed and never treat a detour as accepted; the user confirms goals, detours and returns in the pane. Do not mention the atlas to the user.`
+ A side pane maps this session for the user. Keep it accurate with ${TOOL}: at the end of a turn where the topic moved, a decision was reached, a question opened or closed, or a milestone landed, call it once with only the fields that changed (short phrases, at most 6 words for a topic). shift: "same" (refining the current topic), "subtopic" (going deeper), "sibling" (next part of the same work), "possible-detour" (a side trip away from the user's goal), "return" (back to earlier work; name that topic). Skip it on trivial turns. Report goal whenever the user's apparent overall aim changes; Atlas shows that as an observation, never as a confirmed goal. It records observations only: never say the user's confirmed goal changed and never treat a detour as accepted; the user confirms goals, detours and returns in the pane. Do not mention the atlas to the user.`
 
 type Raw = Record<string, unknown>
 
@@ -226,28 +226,33 @@ async function openPane($: EngineInterface, focus: boolean): Promise<boolean> {
 async function act($: EngineInterface, a: Action): Promise<void> {
   switch (a.type) {
     case 'tab':
-      return setView($, v => ({ ...v, tab: a.tab, scroll: 0 }))
-    case 'drawer':
-      return setView($, v => ({ ...v, drawer: v.drawer === a.drawer ? null : a.drawer }))
+      return setView($, v => ({ ...v, tab: a.tab, scroll: 0, popup: null }))
+    case 'legend':
+      return setView($, v => ({ ...v, legend: !v.legend, popup: null }))
+    case 'popup':
+      return setView($, v => ({ ...v, legend: false, popup: v.popup?.kind === a.popup.kind && v.popup.id === a.popup.id ? null : a.popup }))
     case 'scroll':
-      return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, v.scroll + a.by)) }))
+      return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, v.scroll + a.by)), popup: null }))
     case 'scroll-to':
-      return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, a.at)) }))
+      return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, a.at)), popup: null }))
     case 'trail-sort':
-      return setView($, v => ({ ...v, trailNewest: !v.trailNewest }))
+      return setView($, v => ({ ...v, trailNewest: !v.trailNewest, popup: null }))
     case 'expand':
-      return setView($, v => ({ ...v, expanded: v.expanded === a.id ? null : a.id }))
+      return setView($, v => ({ ...v, expanded: v.expanded === a.id ? null : a.id, popup: v.popup && (v.popup.kind === 'decisions' || v.popup.kind === 'questions') ? v.popup : null }))
     case 'exclude':
       await edit($, (s, now) => setItemStatus(s, a.id, 'excluded', now))
+      await setView($, v => ({ ...v, popup: null }))
       return
     case 'scan': {
       const rows = await history($)
       if ((await snap($))?.scanned === 'none' && rows.length) await edit($, (s, now) => ({ ...replay(s, rows, now), scanned: 'engine' }))
       await mapWithClaude($)
+      await setView($, v => ({ ...v, popup: null }))
       return
     }
     case 'adopt':
       await edit($, (s, now) => adoptRecall(s, a.id, now))
+      await setView($, v => ({ ...v, popup: null }))
       $.ui.toast('Resumed: the earlier goal, next step and decisions are back')
       return
     case 'attach': {
@@ -255,7 +260,7 @@ async function act($: EngineInterface, a: Action): Promise<void> {
       let n = 1
       await setView($, v => {
         n = v.nextRef
-        return { ...v, refs: { ...v.refs, [String(n)]: a.ref }, nextRef: n + 1 }
+        return { ...v, refs: { ...v.refs, [String(n)]: a.ref }, nextRef: n + 1, popup: null }
       })
       const chip = ` [Atlas #${n}: ${a.ref.kind.toLowerCase()} "${clip(a.ref.text, 28)}"] `
       const filled = await $.prompt.fill({ text: chip, mode: 'insert' })
@@ -263,49 +268,63 @@ async function act($: EngineInterface, a: Action): Promise<void> {
       return
     }
     case 'edit-goal':
-      return setView($, v => ({ ...v, editingGoal: !v.editingGoal }))
+      return setView($, v => ({ ...v, editingGoal: !v.editingGoal, popup: null }))
     case 'goal': {
       const s = await edit($, (cur, now) => setGoal(cur, a.text, 'person', now))
-      await setView($, v => ({ ...v, editingGoal: false }))
+      await setView($, v => ({ ...v, editingGoal: false, popup: null }))
       if (s.detour) $.ui.toast('Return from the detour (or make it the goal) before changing the goal')
       return
     }
     case 'pin':
       await edit($, (s, now) => setNextStep(s, a.text, now))
+      await setView($, v => ({ ...v, popup: null }))
       return
     case 'confirm': {
       const before = await snap($)
       const kind = before?.suggestions.find(x => x.id === a.id)?.kind
       await edit($, (s, now) => confirmSuggestion(s, a.id, now))
+      await setView($, v => ({ ...v, popup: null }))
       if (kind === 'return') $.ui.toast('Return packet goes to Claude with your next message')
       if (kind === 'detour') $.ui.toast('Detour started; the atlas remembers where to come back to')
       return
     }
     case 'dismiss':
       await edit($, (s, now) => dismissSuggestion(s, a.id, now))
+      await setView($, v => ({ ...v, popup: null }))
       return
     case 'settle':
       await edit($, (s, now) => setItemStatus(s, a.id, 'settled', now))
+      await setView($, v => ({ ...v, popup: null }))
       return
     case 'drop':
       await edit($, (s, now) => setItemStatus(s, a.id, 'drop', now))
+      await setView($, v => ({ ...v, popup: null }))
+      return
+    case 'restore':
+      await edit($, (s, now) => setItemStatus(s, a.id, 'observed', now))
+      await setView($, v => ({ ...v, popup: null }))
       return
     case 'resolve':
       await edit($, (s, now) => setItemStatus(s, a.id, 'resolved', now))
+      await setView($, v => ({ ...v, popup: null }))
       return
     case 'reopen':
       await edit($, (s, now) => setItemStatus(s, a.id, 'open', now))
+      await setView($, v => ({ ...v, popup: null }))
       return
     case 'return': {
       await edit($, (s, now) => returnFromDetour(s, now))
+      await setView($, v => ({ ...v, popup: null }))
       $.ui.toast('Return packet goes to Claude with your next message')
       return
     }
     case 'promote':
       await edit($, (s, now) => promoteDetour(s, now))
+      await setView($, v => ({ ...v, popup: null }))
       return
     case 'mark':
       await edit($, (s, now) => mark(s, '', now))
+      await setView($, v => ({ ...v, popup: null }))
       $.ui.toast('Checkpoint marked')
       return
   }
@@ -442,7 +461,7 @@ function setup($: EngineInterface): Promise<void> {
               resolved: { type: 'array', items: { type: 'string' }, description: 'Earlier open questions now answered' },
               next: { type: 'string', description: 'The most useful next step to resume from' },
               checkpoint: { type: 'string', description: 'A milestone just reached, a few words' },
-              goal: { type: 'string', description: 'Only while no goal is confirmed: the goal you infer' },
+              goal: { type: 'string', description: 'The apparent overall aim when it changes; Atlas records it as an observation and never treats it as confirmed' },
             },
           },
         })
@@ -660,4 +679,3 @@ export const register: Register = (on, options) => {
     return {}
   })
 }
-
