@@ -32,6 +32,8 @@ export type AtlasDetour = {
   topicId: string | null
   departure: AtlasDeparture
   outcomes: string[]
+  // Trailhead's /trail exclude: material from the detour that must not become an assumption.
+  exclusions: string[]
   status: 'active' | 'returned' | 'promoted'
   endedAt: number | null
 }
@@ -68,8 +70,9 @@ export type AtlasItem = {
   turn: number
   topicId: string | null
   source: AtlasSource
-  // decisions: observed -> settled (confirmed). questions: open -> resolved.
-  status: 'observed' | 'settled' | 'open' | 'resolved'
+  // decisions: observed -> settled (confirmed) or excluded (set aside during a detour).
+  // questions: open -> resolved.
+  status: 'observed' | 'settled' | 'excluded' | 'open' | 'resolved'
 }
 
 export type AtlasCheckpoint = {
@@ -113,6 +116,20 @@ export type AtlasEvent = {
   text: string
 }
 
+// An earlier session of this project that can be resumed: an Atlas save file or a
+// Trailhead checkpoint, both read from the project's .claude folder.
+export type AtlasRecall = {
+  id: string
+  source: 'atlas' | 'trailhead'
+  sessionId: string
+  at: number
+  goal: string | null
+  nextStep: string | null
+  detour: string | null
+  topic: string | null
+  decisions: string[]
+}
+
 export type AtlasSnapshot = {
   v: 1
   sessionId: string
@@ -136,6 +153,9 @@ export type AtlasSnapshot = {
   events: AtlasEvent[]
   // Text the next prompt from the composer carries to Claude once (a return packet, a selection).
   pendingContext: string[]
+  // Earlier sessions found on disk; adopting one is an explicit press.
+  recall: AtlasRecall[]
+  adopted: string[]
   // Freshly observed ids drawn highlighted until the flash expires.
   fresh: string[]
 }
@@ -144,10 +164,16 @@ export type AtlasTab = 'map' | 'trail' | 'open' | 'evidence'
 
 export type AtlasSelection = { kind: string; id: string; text: string }
 
+// The app bar's menus; at most one is open, drawn above the bar.
+export type AtlasDrawer = 'legend' | 'decisions' | 'questions' | 'checkpoints'
+
 export type AtlasView = {
   tab: AtlasTab
   selected: AtlasSelection | null
   editingGoal: boolean
+  drawer: AtlasDrawer | null
+  // First body row shown; the pane scrolls its own body so the app bar stays put.
+  scroll: number
 }
 
 declare module 'claude-code' {

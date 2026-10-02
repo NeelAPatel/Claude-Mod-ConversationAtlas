@@ -13,6 +13,7 @@ import type {
   AtlasEvent,
   AtlasFile,
   AtlasItem,
+  AtlasRecall,
   AtlasSnapshot,
   AtlasSource,
   AtlasSuggestion,
@@ -96,6 +97,8 @@ export function emptySnapshot(sessionId: string, root: string, now: number): Atl
     activity: [],
     events: [],
     pendingContext: [],
+    recall: [],
+    adopted: [],
     fresh: [],
   }
 }
@@ -106,7 +109,8 @@ export function hydrate(raw: unknown, sessionId: string, root: string, now: numb
   if (!raw || typeof raw !== 'object') return base
   const s = raw as Partial<AtlasSnapshot>
   if (s.v !== 1) return base
-  return { ...base, ...s, sessionId, root, fresh: [], activity: (s.activity ?? []).map(a => (a.state === 'running' ? { ...a, state: 'failed' as const, endedAt: a.endedAt ?? now } : a)) }
+  const detour = s.detour ? { ...s.detour, exclusions: s.detour.exclusions ?? [] } : null
+  return { ...base, ...s, detour, sessionId, root, fresh: [], activity: (s.activity ?? []).map(a => (a.state === 'running' ? { ...a, state: 'failed' as const, endedAt: a.endedAt ?? now } : a)) }
 }
 
 function id(s: AtlasSnapshot, prefix: string): [string, AtlasSnapshot] {
@@ -229,10 +233,14 @@ export function setItemStatus(s: AtlasSnapshot, iid: string, status: AtlasItem['
   const items = status === 'drop' ? s[list].filter(x => x.id !== iid) : s[list].map(x => (x.id === iid ? { ...x, status } : x))
   let next = { ...s, [list]: items } as AtlasSnapshot
   if (status === 'settled' && s.detour) {
-    // A decision the person settles during a detour is an accepted outcome of it (Trailhead's /trail outcome).
+    // A decision the person settles during a detour is an accepted outcome of it (Trailhead's outcome).
     next = { ...next, detour: { ...s.detour, outcomes: [...s.detour.outcomes, hit.text].slice(-20) } }
   }
-  const verb = status === 'settled' ? 'Settled' : status === 'resolved' ? 'Resolved' : status === 'open' ? 'Reopened' : status === 'drop' ? 'Dropped' : 'Marked'
+  if (status === 'excluded' && s.detour) {
+    // Trailhead's exclude: explored during the detour, must not become an assumption.
+    next = { ...next, detour: { ...s.detour, exclusions: [...s.detour.exclusions, hit.text].slice(-20) } }
+  }
+  const verb = status === 'settled' ? 'Settled' : status === 'excluded' ? 'Excluded' : status === 'resolved' ? 'Resolved' : status === 'open' ? 'Reopened' : status === 'drop' ? 'Dropped' : 'Marked'
   return event(next, status === 'resolved' ? 'resolved' : 'decision', `${verb}: ${hit.text}`, now)
 }
 
@@ -281,6 +289,8 @@ export function observeTopic(s: AtlasSnapshot, title: string, shift: Shift | und
   const cur = currentTopic(s)
   if (!cur) {
     if (!name) return s
+    // A first topic that already reads as a side trip is still only a suggestion.
+    if (shift === 'possible-detour' && !s.detour) return suggest(addTopic(s, name, null, 'possible-detour', source, now), 'detour', name, why, source, now)
     return addTopic(s, name, null, 'main', source, now)
   }
   const sameName = Boolean(name) && similar(cur.title, name)
@@ -442,6 +452,7 @@ export function startDetour(s: AtlasSnapshot, reason: string, topicId: string | 
       decisions: s.decisions.filter(d => d.status === 'settled').map(d => d.text).slice(-8),
     },
     outcomes: [],
+    exclusions: [],
     status: 'active',
     endedAt: null,
   }
@@ -467,6 +478,8 @@ export function returnPacket(s: AtlasSnapshot, d: AtlasDetour): string {
     ...list(d.departure.decisions),
     'Accepted detour outcomes:',
     ...list(d.outcomes),
+    'Excluded material (explored, do not rely on it):',
+    ...list(d.exclusions ?? []),
     'Observed during the detour, not confirmed (do not treat as settled):',
     ...list(observed.slice(-6)),
   ].join('\n')
@@ -494,6 +507,45 @@ export function promoteDetour(s: AtlasSnapshot, now: number): AtlasSnapshot {
   const promoted = setGoal(cleared, d.reason, 'person', now)
   const topics = promoted.topics.map(t => (t.id === d.topicId ? { ...t, kind: 'main' as const } : t))
   return event({ ...promoted, topics }, 'promote', `Detour became the goal: ${d.reason}`, now)
+}
+
+// /atlas decision: the person states a decision, so it is settled from the start.
+export function recordDecision(s: AtlasSnapshot, text: string, why: string | null, now: number): AtlasSnapshot {
+  const body = clip(why ? `${text} (because ${why})` : text, 160)
+  if (!body) return s
+  const added = addDecision(s, body, 'person', now)
+  const item = added.decisions[added.decisions.length - 1]
+  return item && item.text === body && item.status === 'observed' ? setItemStatus(added, item.id, 'settled', now) : added
+}
+
+// /atlas outcome and /atlas exclude: Trailhead's explicit detour findings.
+export function addDetourFinding(s: AtlasSnapshot, kind: 'outcomes' | 'exclusions', text: string, now: number): AtlasSnapshot {
+  const body = clip(text, 160)
+  if (!s.detour || !body) return s
+  const detour = { ...s.detour, [kind]: [...s.detour[kind], body].slice(-20) }
+  return event({ ...s, detour }, 'decision', `${kind === 'outcomes' ? 'Outcome' : 'Excluded'}: ${body}`, now)
+}
+
+export function setRecall(s: AtlasSnapshot, recall: AtlasRecall[]): AtlasSnapshot {
+  return { ...s, recall: recall.filter(r => r.sessionId !== s.sessionId).slice(0, 12) }
+}
+
+// Resume an earlier session (Atlas or Trailhead): its goal, next step and settled
+// decisions become yours because you pressed Resume; a detour it was on comes back
+// as a suggestion, so you choose whether to re-enter it.
+export function adoptRecall(s: AtlasSnapshot, rid: string, now: number): AtlasSnapshot {
+  const r = s.recall.find(x => x.id === rid)
+  if (!r || s.adopted.includes(rid)) return s
+  let next: AtlasSnapshot = { ...s, adopted: [...s.adopted, rid] }
+  if (r.goal && !next.detour) next = setGoal(next, r.goal, 'person', now)
+  if (r.nextStep) next = setNextStep(next, r.nextStep, now)
+  for (const d of r.decisions.slice(-8)) {
+    const added = addDecision(next, d, 'person', now)
+    const item = added.decisions[added.decisions.length - 1]
+    next = item && item !== next.decisions[next.decisions.length - 1] ? setItemStatus(added, item.id, 'settled', now) : added
+  }
+  if (r.detour && !next.detour) next = suggest(next, 'detour', r.detour, 'The earlier session was on this detour', 'engine', now)
+  return event(dropSuggestions(next, 'resume'), 'resume', `Resumed ${r.source === 'trailhead' ? 'Trailhead trail' : 'session'} ${r.sessionId.slice(0, 8)}: ${r.goal ?? 'no goal'}`, now)
 }
 
 export function confirmSuggestion(s: AtlasSnapshot, sid: string, now: number): AtlasSnapshot {

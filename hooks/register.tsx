@@ -42,7 +42,12 @@ import {
   takeContext,
   touchFile,
   addDecision,
+  addDetourFinding,
+  adoptRecall,
+  recordDecision,
+  setRecall,
 } from './model'
+import { ATLAS_DIR, fromAtlasFile, fromTrailheadFile, mergeRecall, safeName, saveFile, TRAILHEAD_DIR } from './recall'
 import { type Action, oneLine, pane, TONES } from './view'
 
 const PLUGIN = 'conversation-atlas'
@@ -53,7 +58,7 @@ const TOOL = 'mcp__conversation-atlas__observe'
 const FLASH_MS = 4_000
 const SAVE_MS = 2_000
 const KEEP_SESSIONS = 12
-const DEFAULT_VIEW: AtlasView = { tab: 'map', selected: null, editingGoal: false }
+const DEFAULT_VIEW: AtlasView = { tab: 'map', selected: null, editingGoal: false, drawer: null, scroll: 0 }
 
 const RULES = `# Conversation Atlas
 A side pane maps this session for the user. Keep it accurate with ${TOOL}: at the end of a turn where the topic moved, a decision was reached, a question opened or closed, or a milestone landed, call it once with only the fields that changed (short phrases, at most 6 words for a topic). shift: "same" (refining the current topic), "subtopic" (going deeper), "sibling" (next part of the same work), "possible-detour" (a side trip away from the user's goal), "return" (back to earlier work; name that topic). Skip it on trivial turns. It records observations only: never say the user's goal changed and never treat a detour as accepted; the user confirms goals, detours and returns in the pane. Do not mention the atlas to the user.`
@@ -71,6 +76,8 @@ let flashTimer: Timer | null = null
 let lastSaved: AtlasSnapshot | undefined
 let observedThisTurn = false
 let activitySeq = 0
+// How far the body could scroll at the last draw; clamps wheel and page moves.
+let maxScroll = 0
 const agentNames = new Map<string, string>()
 
 // ------------------------------------------------------------------ state
@@ -121,6 +128,36 @@ async function bind($: EngineInterface): Promise<void> {
   }
   await $.state.set(SNAP, next)
   lastSaved = saved ? next : undefined
+  void loadRecall($).catch(() => undefined)
+}
+
+// Earlier sessions of this project from its .claude folder: Atlas saves and Trailhead checkpoints.
+async function loadRecall($: EngineInterface): Promise<number> {
+  const found: Parameters<typeof mergeRecall>[0] = []
+  for (const [dir, parse] of [
+    [ATLAS_DIR, fromAtlasFile],
+    [TRAILHEAD_DIR, fromTrailheadFile],
+  ] as const) {
+    const path = `${root}/${dir}`
+    let entries: { name: string; kind: string }[] = []
+    try {
+      entries = await $.fs.list(path)
+    } catch {
+      continue
+    }
+    for (const entry of entries.filter(x => x.kind === 'file' && x.name.endsWith('.json')).slice(0, 80)) {
+      try {
+        const text = await $.fs.read(`${path}/${entry.name}`)
+        const hit = typeof text === 'string' ? parse(text, root) : null
+        if (hit) found.push(hit)
+      } catch {
+        continue
+      }
+    }
+  }
+  const recall = mergeRecall(found)
+  await edit($, s => setRecall(s, recall))
+  return recall.filter(r => r.sessionId !== sid).length
 }
 
 async function ensureBound($: EngineInterface): Promise<void> {
@@ -134,6 +171,8 @@ async function save($: EngineInterface): Promise<void> {
   lastSaved = s
   await $.store.set(`session:${s.sessionId}`, { ...s, fresh: [], pendingContext: [] })
   await $.store.set(`project:${s.root}`, { ...summary(s), sessionId: s.sessionId })
+  // The project-local copy, so a later session (or another tool) finds this trail on disk.
+  if (s.goal || s.topics.length || s.decisions.length) await $.fs.write(`${s.root}/${ATLAS_DIR}/${safeName(s.sessionId)}.json`, saveFile(s, await $.clock.now()))
   const sessions = (await $.store.keys()).filter(k => k.startsWith('session:'))
   for (const old of sessions.slice(0, Math.max(0, sessions.length - KEEP_SESSIONS))) await $.store.delete(old)
 }
@@ -148,7 +187,18 @@ async function openPane($: EngineInterface, focus: boolean): Promise<boolean> {
 async function act($: EngineInterface, a: Action): Promise<void> {
   switch (a.type) {
     case 'tab':
-      return setView($, v => ({ ...v, tab: a.tab }))
+      return setView($, v => ({ ...v, tab: a.tab, scroll: 0 }))
+    case 'drawer':
+      return setView($, v => ({ ...v, drawer: v.drawer === a.drawer ? null : a.drawer }))
+    case 'scroll':
+      return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, v.scroll + a.by)) }))
+    case 'exclude':
+      await edit($, (s, now) => setItemStatus(s, a.id, 'excluded', now))
+      return
+    case 'adopt':
+      await edit($, (s, now) => adoptRecall(s, a.id, now))
+      $.ui.toast('Resumed: the earlier goal, next step and decisions are back')
+      return
     case 'select':
       return setView($, v => ({ ...v, selected: a.selection }))
     case 'unselect':
@@ -202,7 +252,21 @@ async function act($: EngineInterface, a: Action): Promise<void> {
   }
 }
 
-const USAGE = 'Usage: /atlas [goal <text> | next <step> | detour <reason> | return | promote | mark [name] | reset]'
+const HELP = [
+  'Atlas commands (the pane buttons do the same):',
+  '  /atlas                          open the pane',
+  '  /atlas goal <text>              set your goal (alias: aim)',
+  '  /atlas next <step>              pin the next step',
+  '  /atlas mark [name]              mark a checkpoint to come back to',
+  '  /atlas decision <text> [--reason <why>]   record a settled decision',
+  '  /atlas detour <reason>          start a side trip from the latest mark',
+  '  /atlas outcome <finding>        keep a finding from the detour',
+  '  /atlas exclude <material>       set detour material aside',
+  '  /atlas return                   end the detour; Claude gets one recap',
+  '  /atlas promote                  make the detour your goal',
+  '  /atlas recover [n]              list earlier sessions (Atlas + Trailhead), or resume number n',
+  "  /atlas reset                    clear this session's map",
+].join('\n')
 
 async function command($: EngineInterface, args: string): Promise<string> {
   const [verb = '', ...rest] = args.trim().split(/\s+/)
@@ -211,20 +275,35 @@ async function command($: EngineInterface, args: string): Promise<string> {
   switch (verb) {
     case '':
       return (await openPane($, true)) ? 'Atlas opened.' : 'Atlas is waiting for room: widen the terminal or use /tui fullscreen.'
+    case 'help':
+      return HELP
     case 'goal':
-      if (!text) return USAGE
+    case 'aim':
+      if (!text) return HELP
       if (s?.detour) return 'Return from the detour (or /atlas promote) before changing the goal.'
       await edit($, (cur, now) => setGoal(cur, text, 'person', now))
       return `Goal confirmed: ${clip(text, 140)}`
     case 'next':
-      if (!text) return USAGE
+      if (!text) return HELP
       await edit($, (cur, now) => setNextStep(cur, text, now))
       return `Next step pinned: ${clip(text, 140)}`
+    case 'decision': {
+      const [what = '', why] = text.split(/\s--reason\s/)
+      if (!what.trim()) return HELP
+      await edit($, (cur, now) => recordDecision(cur, what.trim(), why?.trim() || null, now))
+      return `Decision settled: ${clip(what, 140)}`
+    }
     case 'detour':
-      if (!text) return USAGE
+      if (!text) return HELP
       if (s?.detour) return `Already on a detour: ${s.detour.reason}. /atlas return first.`
       await edit($, (cur, now) => startDetour(cur, text, null, now))
       return `Detour started: ${clip(text, 120)}`
+    case 'outcome':
+    case 'exclude':
+      if (!s?.detour) return 'No active detour.'
+      if (!text) return HELP
+      await edit($, (cur, now) => addDetourFinding(cur, verb === 'outcome' ? 'outcomes' : 'exclusions', text, now))
+      return `${verb === 'outcome' ? 'Outcome kept' : 'Excluded'}: ${clip(text, 140)}`
     case 'return':
       if (!s?.detour) return 'No active detour.'
       await edit($, (cur, now) => returnFromDetour(cur, now))
@@ -236,13 +315,29 @@ async function command($: EngineInterface, args: string): Promise<string> {
     case 'mark':
       await edit($, (cur, now) => mark(cur, text, now))
       return 'Checkpoint marked.'
+    case 'recover': {
+      await loadRecall($)
+      const list = (await snap($))?.recall ?? []
+      if (!list.length) return 'No earlier Atlas or Trailhead sessions found in this project.'
+      const n = Number(text)
+      if (text && Number.isInteger(n) && n >= 1 && n <= list.length) {
+        const pick = list[n - 1]
+        if (!pick) return 'No such session.'
+        await edit($, (cur, now) => adoptRecall(cur, pick.id, now))
+        return `Resumed ${pick.source} session ${pick.sessionId.slice(0, 8)}: ${pick.goal ?? 'no goal recorded'}`
+      }
+      return [
+        'Earlier sessions (resume with /atlas recover <n>, or in the Evidence tab):',
+        ...list.map((r, i) => `  ${i + 1}. ${r.goal ?? 'no goal'} · ${r.source} · ${r.sessionId.slice(0, 8)}${r.detour ? ` · on detour: ${r.detour}` : ''}${r.nextStep ? ` · next: ${r.nextStep}` : ''}`),
+      ].join('\n')
+    }
     case 'reset': {
       const now = await $.clock.now()
       await $.state.set(SNAP, emptySnapshot(sid, root, now))
       return 'Atlas cleared for this session.'
     }
     default:
-      return USAGE
+      return `Unknown: ${verb}\n${HELP}`
   }
 }
 
@@ -264,7 +359,7 @@ function setup($: EngineInterface): Promise<void> {
         $.ui.log(`${PLUGIN}: ${name} failed: ${err instanceof Error ? err.message : String(err)}`)
       }
     }
-    await step('command /atlas', () => $.command.register({ name: 'atlas', description: 'Open Conversation Atlas; or: goal, next, detour, return, promote, mark, reset', argumentHint: '[goal|next|detour|return|promote|mark|reset] [text]' }))
+    await step('command /atlas', () => $.command.register({ name: 'atlas', description: 'ConversationAtlas: open the pane, or goal, next, mark, decision, detour, outcome, exclude, return, promote, recover, help', argumentHint: '[goal|next|mark|decision|detour|outcome|exclude|return|promote|recover|help] [text]' }))
     await step('session binding', () => bind($))
     if (askClaude) {
       await step('observe tool', async () => {
@@ -476,7 +571,16 @@ export const register: Register = (on, options) => {
         </Box>
       )
     const el = { Box: t.Box, Text: t.Text, Button: t.Button, Input: 'Input' in t ? t.Input : undefined }
-    return pane({ el, width, now, view, live, act: a => void act($, a).catch(err => $.ui.toast(`atlas: ${err instanceof Error ? err.message : String(err)}`)) }, s)
+    const rows = Math.max(8, e.props.scroll?.bodyRows ?? e.viewport?.rows ?? 30)
+    const drawn = pane({ el, width, rows, now, view, live, act: a => void act($, a).catch(err => $.ui.toast(`atlas: ${err instanceof Error ? err.message : String(err)}`)) }, s)
+    maxScroll = drawn.maxScroll
+    return drawn.tree
+  })
+
+  // The pane scrolls its own body (the app bar stays pinned): wheel and page keys land here.
+  on('ui.scroll', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    await setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, v.scroll + e.by)) }))
+    return {}
   })
 }
 

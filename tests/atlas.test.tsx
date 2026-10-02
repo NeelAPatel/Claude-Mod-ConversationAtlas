@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { confirmSuggestion, emptySnapshot, observe, returnFromDetour, startTurn } from '../hooks/model'
+import { confirmSuggestion, emptySnapshot, observe, returnFromDetour, setItemStatus, startTurn } from '../hooks/model'
 
 const ROOT = 'F:/work/atlas'
 const OBSERVE = 'mcp__conversation-atlas__observe'
@@ -138,5 +138,107 @@ describe('hooks', () => {
     expect(JSON.stringify(second)).not.toContain('return packet')
     expect(JSON.stringify(second)).toContain('Build Conversation Atlas')
     await ui.unmount()
+  })
+})
+
+const TRAILHEAD_CHECKPOINT = JSON.stringify({
+  format: 'trailhead-checkpoint',
+  storageVersion: 1,
+  checkpointSequence: 3,
+  savedAt: '2026-10-01T12:00:00.000Z',
+  projectRoot: ROOT,
+  sessionId: 'old-trailhead-session',
+  snapshot: {
+    activeGoalId: 'goal-1',
+    activeDetourId: 'detour-1',
+    goals: [{ id: 'goal-1', objective: 'Ship the release checklist', intendedNextStep: 'Wire the checklist pane' }],
+    detours: [{ id: 'detour-1', reason: 'Investigate flaky tests' }],
+    decisions: [{ id: 'decision-1', conclusion: 'Keep the UI native', scope: 'active-goal' }],
+  },
+})
+
+describe('merge: Trailhead features inside Atlas', () => {
+  test('excluded detour material reaches the return packet, separately from outcomes', async () => {
+    let s = emptySnapshot('s', ROOT, 0)
+    s = startTurn(s, 'Build the atlas pane for long sessions.', 1)
+    s = confirmSuggestion(s, s.suggestions[0]?.id ?? '', 2)
+    s = observe(s, { topic: 'Flaky tests', shift: 'possible-detour' }, 3)
+    s = confirmSuggestion(s, s.suggestions.find(x => x.kind === 'detour')?.id ?? '', 4)
+    s = observe(s, { decisions: ['Retry wrapper fixes it', 'Rewrite the runner'] }, 5)
+    expect(s.detour?.reason).toBe('Flaky tests')
+    const [keep, toss] = s.decisions
+    expect(toss?.text).toBe('Rewrite the runner')
+    s = setItemStatus(s, keep?.id ?? '', 'settled', 6)
+    s = setItemStatus(s, toss?.id ?? '', 'excluded', 7)
+    s = returnFromDetour(s, 8)
+    const packet = s.pendingContext[0] ?? ''
+    expect(packet).toContain('Accepted detour outcomes:\n- Retry wrapper fixes it')
+    expect(packet).toContain('Excluded material (explored, do not rely on it):\n- Rewrite the runner')
+  })
+
+  test('/atlas recover lists a Trailhead trail and resuming restores goal, next step and decision', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    on('fs.list', (_$: any, e: any) => (/[\\/]\.claude[\\/]trailhead$/.test(String(e.path)) ? { value: [{ name: 'old-trailhead-session.a.json', kind: 'file', size: 1, mtimeMs: 0, isLink: false }] } : { value: [] }))
+    on('fs.read', () => ({ value: TRAILHEAD_CHECKPOINT }))
+    on('fs.write', () => ({ value: undefined }))
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await clock.settle()
+    const listed = await $.command.run({ command: 'atlas', args: 'recover', origin: { kind: 'composer' } } as any)
+    expect(listed.text).toContain('Ship the release checklist')
+    expect(listed.text).toContain('trailhead')
+    const resumed = await $.command.run({ command: 'atlas', args: 'recover 1', origin: { kind: 'composer' } } as any)
+    expect(resumed.text).toContain('Resumed trailhead session')
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    const text = await drawn(ui)
+    expect(text).toContain('Ship the release checklist')
+    expect(text).toContain('Wire the checklist pane')
+    expect(text).toContain('Investigate flaky tests')
+    await ui.unmount()
+  })
+})
+
+describe('readability: app bar, legend, resizing', () => {
+  test('the Legend opens above a pinned app bar, marks itself ^, and explains sections', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.tool.call({ tool: OBSERVE, topic: 'Pane layout', decisions: ['Keep it native'] } as any)
+    await clock.settle()
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+      expect(await drawn(ui)).not.toContain('Legend ^')
+      await ui.press({ key: 'bar-legend' })
+      const open = await drawn(ui)
+      expect(open).toContain('Legend ^')
+      expect(open).toContain('your goal (confirmed)')
+      expect(open).toContain('Topics from the start of the work to now')
+      await ui.press({ key: 'bar-decisions' })
+      const decisions = await drawn(ui)
+      expect(decisions).toContain('dec ^')
+      expect(decisions).not.toContain('Legend ^')
+      await ui.press({ key: 'bar-decisions' })
+      expect(await drawn(ui)).not.toContain(' ^"')
+      await ui.unmount()
+    }
+  })
+
+  test('narrow panes shorten the bar, short panes scroll the body and keep the bar', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    for (let i = 0; i < 8; i++) await $.tool.call({ tool: 'Read', file_path: `${ROOT}/src/file${i}.ts` } as any)
+    await $.tool.call({ tool: OBSERVE, topic: 'Scrolling', questions: ['Does it scroll?'], next: 'Check the bar' } as any)
+    await clock.settle()
+    const narrow = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: { ...PANE_PROPS, bodyColumns: 34 } })
+    const tiny = await drawn(narrow)
+    expect(tiny).toContain('"label":"≡"')
+    expect(tiny).toContain('"label":"?1"')
+    await narrow.unmount()
+
+    const short = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: { ...PANE_PROPS, scroll: { offset: 0, bodyRows: 14 } } })
+    expect(await short.find({ key: 'scroll-down' })).toBeDefined()
+    expect(await short.find({ key: 'bar-legend' })).toBeDefined()
+    await short.press({ key: 'scroll-down' })
+    expect(await drawn(short)).toMatch(/"marginTop":-\d+/)
+    expect(await short.find({ key: 'bar-legend' })).toBeDefined()
+    await short.unmount()
   })
 })
