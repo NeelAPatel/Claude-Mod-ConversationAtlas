@@ -19,7 +19,7 @@ Atlas is the combined product and absorbs [Trailhead](../trailhead/README.md) (d
 ## UX
 
 - **Pane** (`Atlas`): opens unasked at session start. It docks beside the transcript in the fullscreen layout at ≥144 columns. Below that width it waits until you open it. The footer always shows an Atlas button (`● current topic · N`) that opens it at any width, inline if needed. `/atlas` does the same.
-- **Layout**: tab bar · self-scrolling body (wheel, PgUp/PgDn, or ▲▼ buttons) · menu drawer · app bar pinned to the pane bottom.
+- **Layout**: a centered `─── Conversation Atlas ───` rule (just `Atlas` under 34 columns) · tab bar · self-scrolling body (wheel, PgUp/PgDn, or ▲▼ buttons) · menu drawer · app bar pinned to the pane bottom.
 - **App bar menus**: hotkeys Legend `l`, ◇ decisions `d`, ? open questions `q`, ◆ checkpoints `c`, + Mark `k`. A menu opens in a drawer above the bar, its button shows ` ^` while open, press again to close, one menu at a time. The Legend explains every glyph and colour. While it is open every section heading shows a one-line note on what the section is for, and the tab bar says what the current tab answers.
 - **Resize-friendly**: the bar has full (`◇ 3 decisions`), mid (`◇3 dec`) and tiny (`◇3`, `≡` for Legend, no hotkey labels; under 40 cols) widths. Tab names shorten under 46 columns. If fewer than 4 body rows fit, the pane stops pinning and lets Claude Code scroll it.
 - **Tabs** (hotkeys `m t o e` while the pane is focused):
@@ -29,6 +29,14 @@ Atlas is the combined product and absorbs [Trailhead](../trailhead/README.md) (d
   - **Evidence**: checkpoints (click one to expand goal/topic/files at that moment), the settled ledger, resolved questions, past detours, files, and earlier sessions (Atlas or Trailhead) with a **Resume this** button.
 - **Selection → context**: click any decision, question, topic, checkpoint or file. Your next message carries it to Claude once ("this" refers to it), the same way filetree passes its selected file. `✕` clears it.
 - **Glyphs**: ◎ confirmed goal · ○ suggestion · ● current topic · ↳ detour · ↩ return · ◇ observed decision · ◆ settled decision / checkpoint · ? open question · ✦ just observed.
+
+## Joining a conversation late
+
+Atlas is installed for your user, so it loads in every new session, and in a running one after `/reload-plugins`. When it joins a session that already has history (a pre-existing thread, a resume with no save, an install mid-session):
+
+- **On launch, free:** it replays the earlier messages (`$.session.messages()`): your prompts and their wording cues, the goal suggestion, files read and edited, test and commit checkpoints, and a question left open at the end.
+- **On request, one cached request:** `/atlas scan`, or **Map earlier conversation** in the Trail tab, asks Claude once over the session's own transcript (`$.model.fork`, mostly served from the prompt cache) for topics, decisions, open questions and a next step. Everything it returns is an observation, so confirm what is true in the Open tab.
+- **Setting `scanOnLaunch`:** `engine` (default, free replay), `claude` (replay plus the one-request map on launch) or `off`.
 
 ## Commands
 
@@ -45,7 +53,8 @@ Everything is under `/atlas`. `/atlas help` lists them.
 | `outcome <finding>` / `exclude <material>` | record a detour finding (detour only) |
 | `return` | return from the detour, emit the return packet |
 | `promote` | promote the detour to the goal |
-| `recover [n]` | list earlier Atlas + Trailhead sessions, or resume number n |
+| `scan` | map the conversation so far with Claude (one cached request) |
+| `/atlas recover [n]` | list earlier Atlas + Trailhead sessions, or resume number n |
 | `reset` | clear this session's map (saved files and earlier sessions are kept) |
 
 ## What updates itself vs. what needs you
@@ -97,7 +106,7 @@ claude plugin validate .\MyMods\conversation-atlas
 claude plugin test .\MyMods\conversation-atlas
 ```
 
-Last result (2026-10-02, Claude Code 2.1.288): validate passed. Runtime tests **9/9 passed**, grouped as model invariants, hooks, merge (exclusions in the return packet; a Trailhead checkpoint listed and resumed via `/atlas recover`) and readability (Legend opens and shows ` ^`, section notes, one menu at a time, tiny-width bar, pinned bar with body scrolling). `tsc --strict` clean against the build's generated declarations.
+Last result (2026-10-02, Claude Code 2.1.288): validate passed. Runtime tests **11/11 passed**, grouped as model invariants, hooks, merge (exclusions in the return packet; a Trailhead checkpoint listed and resumed via `/atlas recover`) and late join (free replay on launch, `/atlas scan` through one fork) and readability (title rule at two widths, Legend opens and shows ` ^`, section notes, one menu at a time, tiny-width bar, pinned bar with body scrolling). `tsc --strict` clean against the build's generated declarations.
 
 Live acceptance (2026-10-02): hot-reloaded into the authoring session. The engine loaded the module and generated its `.claude-plugin/types/`. Real Read/Edit/Bash/test calls in that session fed the pane. Claude's `observe` tool reaches the model from the prompt after a (re)load, not in the turn that loads it. On 2.1.288 the observe tool, `/atlas` and pane selection → prompt context were seen working live.
 
