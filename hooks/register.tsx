@@ -60,7 +60,7 @@ const TOOL = 'mcp__conversation-atlas__observe'
 const FLASH_MS = 4_000
 const SAVE_MS = 2_000
 const KEEP_SESSIONS = 12
-const DEFAULT_VIEW: AtlasView = { tab: 'map', selected: null, editingGoal: false, drawer: null, scroll: 0 }
+const DEFAULT_VIEW: AtlasView = { tab: 'map', selected: null, editingGoal: false, drawer: null, scroll: 0, trailNewest: true, expanded: null }
 
 const RULES = `# Conversation Atlas
 A side pane maps this session for the user. Keep it accurate with ${TOOL}: at the end of a turn where the topic moved, a decision was reached, a question opened or closed, or a milestone landed, call it once with only the fields that changed (short phrases, at most 6 words for a topic). shift: "same" (refining the current topic), "subtopic" (going deeper), "sibling" (next part of the same work), "possible-detour" (a side trip away from the user's goal), "return" (back to earlier work; name that topic). Skip it on trivial turns. It records observations only: never say the user's goal changed and never treat a detour as accepted; the user confirms goals, detours and returns in the pane. Do not mention the atlas to the user.`
@@ -231,6 +231,12 @@ async function act($: EngineInterface, a: Action): Promise<void> {
       return setView($, v => ({ ...v, drawer: v.drawer === a.drawer ? null : a.drawer }))
     case 'scroll':
       return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, v.scroll + a.by)) }))
+    case 'scroll-to':
+      return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, a.at)) }))
+    case 'trail-sort':
+      return setView($, v => ({ ...v, trailNewest: !v.trailNewest }))
+    case 'expand':
+      return setView($, v => ({ ...v, expanded: v.expanded === a.id ? null : a.id }))
     case 'exclude':
       await edit($, (s, now) => setItemStatus(s, a.id, 'excluded', now))
       return
@@ -594,10 +600,15 @@ export const register: Register = (on, options) => {
     const s = await snap($)
     const { Box, Button } = $.ui.resolve(e)
     const waiting = s ? s.suggestions.length + openQuestions(s).length : 0
-    const label = s ? clip(`${oneLine(s)}${waiting ? ` · ${waiting}` : ''}`, 36) : 'Atlas'
+    const topic = s ? oneLine(s).replace(/^[^\p{L}\p{N}]+/u, '') : ''
+    const label = s && topic && topic !== 'Atlas' ? clip(`Atlas: ${topic}${waiting ? ` · ${waiting} to review` : ''}`, 40) : waiting ? clip(`Atlas · ${waiting} to review`, 40) : 'Atlas'
+    const press = async () => {
+      await openPane($, true)
+      if (waiting > 0) await setView($, v => ({ ...v, tab: 'open', scroll: 0 }))
+    }
     return (
       <Box flexDirection="row" alignItems="center" gap={1}>
-        <Button key="atlas-open" dimColor={waiting === 0} label={label} onPress={() => void openPane($, true)} />
+        <Button key="atlas-open" dimColor={waiting === 0} label={label} onPress={() => void press().catch(() => undefined)} />
         {below}
       </Box>
     )

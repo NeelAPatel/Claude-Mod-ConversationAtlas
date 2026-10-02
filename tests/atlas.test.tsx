@@ -312,3 +312,84 @@ describe('upgrades', () => {
     expect(upgrade(up)).toBe(up)
   })
 })
+
+describe('pane interactions: sort, scrollbar, expand, footer', () => {
+  const mountPane = ($: any, props: any = PANE_PROPS) => $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props })
+
+  test('the trail sort button flips the order of events', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.tool.call({ tool: OBSERVE, topic: 'Alpha topic' } as any)
+    await $.tool.call({ tool: OBSERVE, topic: 'Omega topic', shift: 'sibling' } as any)
+    await clock.settle()
+    const ui = await mountPane($)
+    await ui.press({ key: 'tab-trail' })
+    const events = async () => {
+      const t = await drawn(ui)
+      return t.slice(t.indexOf('"trail-sort"'))
+    }
+    let t = await events()
+    expect(t).toContain('newest first')
+    expect(t.indexOf('Omega topic')).toBeLessThan(t.indexOf('Alpha topic'))
+    await ui.press({ key: 'trail-sort' })
+    t = await events()
+    expect(t).toContain('oldest first')
+    expect(t.indexOf('Alpha topic')).toBeLessThan(t.indexOf('Omega topic'))
+    await ui.unmount()
+  })
+
+  test('a scrollbar appears when the body overflows and its cells jump the scroll', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    for (let i = 0; i < 8; i++) await $.tool.call({ tool: 'Read', file_path: `${ROOT}/src/file${i}.ts` } as any)
+    await $.tool.call({ tool: OBSERVE, topic: 'Scrolling', questions: ['Does it scroll?'], next: 'Check the bar' } as any)
+    await clock.settle()
+    const ui = await mountPane($, { ...PANE_PROPS, scroll: { offset: 0, bodyRows: 14 } })
+    expect(await ui.find({ key: 'sb-0' })).toBeDefined()
+    expect(await drawn(ui)).not.toMatch(/"marginTop":-\d+/)
+    await ui.press({ key: 'sb-9' })
+    expect(await drawn(ui)).toMatch(/"marginTop":-\d+/)
+    await ui.unmount()
+  })
+
+  test('clicking a long item shows it in full, Send selects it, Close collapses', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    const long = `We will keep the pane native ${'and boring '.repeat(10)}ENDMARK`
+    await $.tool.call({ tool: OBSERVE, topic: 'Long text', decisions: [long] } as any)
+    await clock.settle()
+    const ui = await mountPane($)
+    await ui.press({ key: 'tab-open' })
+    expect(await drawn(ui)).not.toContain('ENDMARK')
+    const sel = (await drawn(ui)).match(/"key":"(dsel-[^"]+)"/)?.[1]
+    expect(sel).toBeDefined()
+    await ui.press({ key: sel ?? '' })
+    expect(await drawn(ui)).toContain('ENDMARK')
+    const send = (await drawn(ui)).match(/"key":"(send-[^"]+)"/)?.[1]
+    expect(send).toBeDefined()
+    await ui.press({ key: send ?? '' })
+    const after = await drawn(ui)
+    expect(after).toContain('goes to Claude with your next message')
+    expect(after).toContain('Sent with next message')
+    const close = (after.match(/"key":"(close-[^"]+)"/)?.[1]) ?? ''
+    await ui.press({ key: close })
+    expect(await drawn(ui)).not.toContain('"Send to Claude"')
+    await ui.unmount()
+  })
+
+  test('the footer button says what it is and opens Atlas', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock, seen } = world(on)
+    on('ui.render', () => ({ type: 'Text', props: {}, children: [] }) as any)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.tool.call({ tool: OBSERVE, topic: 'Footer work', decisions: ['Do the footer'] } as any)
+    await clock.settle()
+    const before = seen.opens.length
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'SessionMode', props: { modes: [] } } as any)
+    const t = await drawn(ui)
+    expect(t).toContain('"label":"Atlas: Footer work')
+    await ui.press({ key: 'atlas-open' })
+    await clock.settle()
+    expect(seen.opens.length).toBeGreaterThan(before)
+    await ui.unmount()
+  })
+})

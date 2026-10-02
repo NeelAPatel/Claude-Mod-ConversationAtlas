@@ -176,6 +176,10 @@ export type AtlasView = {
   drawer: AtlasDrawer | null
   // First body row shown; the pane scrolls its own body so the app bar stays put.
   scroll: number
+  // Trail events: true = newest at the top.
+  trailNewest: boolean
+  // Id of the item drawn open in full (click a truncated row), or null.
+  expanded: string | null
 }
 
 declare module 'claude-code' {

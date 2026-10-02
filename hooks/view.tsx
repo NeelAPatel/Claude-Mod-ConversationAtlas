@@ -40,6 +40,9 @@ export type Action =
   | { type: 'tab'; tab: AtlasTab }
   | { type: 'drawer'; drawer: AtlasDrawer }
   | { type: 'scroll'; by: number }
+  | { type: 'scroll-to'; at: number }
+  | { type: 'trail-sort' }
+  | { type: 'expand'; id: string }
   | { type: 'confirm'; id: string }
   | { type: 'dismiss'; id: string }
   | { type: 'settle'; id: string }
@@ -81,7 +84,7 @@ const EXPLAIN: Record<string, string> = {
   LATEST: 'Newest decisions (◇) and questions (?). Confirm them in the Open tab.',
   'RESUME NEXT': 'Where to pick up. "pinned" is yours; "suggested" is Claude\'s guess.',
   'MAP OF TOPICS': 'Every topic so far, nested where it branched. t3 = first seen on turn 3. "Map earlier conversation" asks Claude once to map what came before Atlas was watching.',
-  TRAIL: 'What happened, oldest first: › your prompts, ● topics, ◇ decisions, ◆ checkpoints.',
+  TRAIL: 'What happened: › your prompts, ● topics, ◇ decisions, ◆ checkpoints. The button beside the heading flips the order.',
   'NEEDS YOUR CALL': 'Suggestions from Claude or your wording. Nothing changes until you press.',
   'OBSERVED DECISIONS': 'Things that sounded decided. Settle = true from now on; Drop = it was not a decision.',
   'DETOUR FINDINGS': 'Keep = an outcome you take back; Exclude = explored, do not rely on it.',
@@ -192,7 +195,7 @@ export function rowsOf(v: unknown, width: number): number {
 
 // ------------------------------------------------------------------ small parts
 
-function heading(ctx: Ctx, label: string, color?: string, right?: string) {
+function heading(ctx: Ctx, label: string, color?: string, right?: string | RenderElement) {
   const { Box, Text } = ctx.el
   const note = ctx.view.drawer === 'legend' ? EXPLAIN[label] : undefined
   return (
@@ -202,7 +205,7 @@ function heading(ctx: Ctx, label: string, color?: string, right?: string) {
           {label}
         </Text>
         <Box flexGrow={1} />
-        {right ? <Text dimColor>{right}</Text> : null}
+        {right ? typeof right === 'string' ? <Text dimColor>{right}</Text> : right : null}
       </Box>
       {note ? (
         <Text dimColor italic wrap="wrap">
@@ -214,17 +217,37 @@ function heading(ctx: Ctx, label: string, color?: string, right?: string) {
 }
 
 function selectable(ctx: Ctx, key: string, selection: AtlasSelection, label: string, color?: string, fresh = false) {
-  const { Button } = ctx.el
+  const { Box, Text, Button } = ctx.el
   const isSelected = ctx.view.selected?.id === selection.id
+  const open = ctx.view.expanded === selection.id
   const text = fit(`${fresh ? '✦ ' : ''}${label}`, ctx.width - 2)
-  return (
+  const head = (
     <Button
       key={key}
       plain
-      dimColor={!isSelected && !fresh && !color}
-      label={isSelected ? `▸ ${text}` : text}
-      onPress={() => ctx.act(isSelected ? { type: 'unselect' } : { type: 'select', selection })}
+      dimColor={!isSelected && !open && !fresh && !color}
+      label={open ? `▾ ${text}` : isSelected ? `▸ ${text}` : text}
+      onPress={() => ctx.act({ type: 'expand', id: selection.id })}
     />
+  )
+  if (!open) return head
+  return (
+    <Box key={`x-${key}`} flexDirection="column">
+      {head}
+      <Box marginLeft={2}>
+        <Text wrap="wrap">{selection.text}</Text>
+      </Box>
+      <Box flexDirection="row" gap={1} marginLeft={2}>
+        <Button
+          key={`send-${key}`}
+          dimColor={isSelected}
+          label={isSelected ? 'Sent with next message ✓' : 'Send to Claude'}
+          variant={isSelected ? undefined : 'primary'}
+          onPress={() => ctx.act(isSelected ? { type: 'unselect' } : { type: 'select', selection })}
+        />
+        <Button key={`close-${key}`} label="Close" onPress={() => ctx.act({ type: 'expand', id: selection.id })} />
+      </Box>
+    </Box>
   )
 }
 
@@ -675,7 +698,9 @@ function trailTab(ctx: Ctx, s: AtlasSnapshot) {
   const { Box, Text } = ctx.el
   const tree = treeLines(s)
   const cur = currentTopic(s)
-  const events = s.events.slice(-40)
+  const events = ctx.view.trailNewest ? s.events.slice(-40).reverse() : s.events.slice(-40)
+  const { Button } = ctx.el
+  const sort = <Button key="trail-sort" plain dimColor label={ctx.view.trailNewest ? 'newest first' : 'oldest first'} onPress={() => ctx.act({ type: 'trail-sort' })} />
   return (
     <Box flexDirection="column">
       {heading(ctx, 'MAP OF TOPICS', C.path, `${s.topics.length}`)}
@@ -695,7 +720,7 @@ function trailTab(ctx: Ctx, s: AtlasSnapshot) {
           </Box>
         )
       })}
-      {heading(ctx, 'TRAIL', undefined, `turn ${s.turn}`)}
+      {heading(ctx, 'TRAIL', undefined, sort)}
       {events.length === 0 ? <Text dimColor>Nothing recorded yet.</Text> : null}
       {events.map(ev => {
         const [glyph, color] = EVENT_GLYPH[ev.kind] ?? ['·', undefined]
@@ -755,11 +780,11 @@ function checkpointLine(ctx: Ctx, s: AtlasSnapshot, c: AtlasCheckpoint) {
 
 function checkpointRow(ctx: Ctx, s: AtlasSnapshot, c: AtlasCheckpoint) {
   const { Box, Text } = ctx.el
-  const isSelected = ctx.view.selected?.id === c.id
+  const isOpen = ctx.view.expanded === c.id
   return (
     <Box key={`cp-${c.id}`} flexDirection="column">
       {checkpointLine(ctx, s, c)}
-      {isSelected ? (
+      {isOpen ? (
         <Box flexDirection="column" marginLeft={2}>
           {c.goal ? <Text dimColor wrap="truncate-end">{fit(`goal: ${c.goal}`, ctx.width - 2)}</Text> : null}
           {c.topic ? <Text dimColor wrap="truncate-end">{fit(`topic: ${c.topic}`, ctx.width - 2)}</Text> : null}
@@ -836,11 +861,35 @@ function selectionLine(ctx: Ctx) {
   )
 }
 
+// A one-column scrollbar: ┃ thumb, │ track. Each cell is a button that jumps there.
+function scrollbarCells(ctx: Ctx, viewport: number, content: number, at: number, maxScroll: number) {
+  const { Box, Button } = ctx.el
+  const size = Math.min(viewport, Math.max(1, Math.round((viewport * viewport) / content)))
+  const top = Math.round((at / maxScroll) * (viewport - size))
+  return (
+    <Box flexDirection="column" width={1} flexShrink={0} height={viewport} overflow="hidden">
+      {Array.from({ length: viewport }, (_, i) => {
+        const thumb = i >= top && i < top + size
+        return (
+          <Button
+            key={`sb-${i}`}
+            plain
+            dimColor={!thumb}
+            label={thumb ? '┃' : '│'}
+            onPress={() => ctx.act({ type: 'scroll-to', at: Math.round((i / Math.max(1, viewport - 1)) * maxScroll) })}
+          />
+        )
+      })}
+    </Box>
+  )
+}
+
 // The whole pane. Returns the tree and how far the body can scroll, which the hooks
 // module keeps to clamp the next wheel or page move.
 export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScroll: number } {
   const { Box, Text } = ctx.el
-  const body = ctx.view.tab === 'trail' ? trailTab(ctx, s) : ctx.view.tab === 'open' ? openTab(ctx, s) : ctx.view.tab === 'evidence' ? evidenceTab(ctx, s) : mapTab(ctx, s)
+  const build = (c: Ctx) => (c.view.tab === 'trail' ? trailTab(c, s) : c.view.tab === 'open' ? openTab(c, s) : c.view.tab === 'evidence' ? evidenceTab(c, s) : mapTab(c, s))
+  let body = build(ctx)
   const drawerRoom = Math.max(3, Math.min(14, Math.floor(ctx.rows * 0.45)))
   const drawer = ctx.view.drawer ? (ctx.view.drawer === 'legend' ? legendDrawer(ctx) : listDrawer(ctx, s, ctx.view.drawer, drawerRoom)) : null
   const selection = selectionLine(ctx)
@@ -848,19 +897,29 @@ export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScro
   const fixed = 2 + (ctx.view.drawer === 'legend' ? 1 : 0) + drawerRows + (selection ? 1 : 0) + 2
   const viewport = ctx.rows - fixed
   const pinned = viewport >= 4
-  const content = rowsOf(body, ctx.width)
+  let content = rowsOf(body, ctx.width)
+  const bar = pinned && content > viewport
+  if (bar) {
+    // Leave a column for the scrollbar: draw and measure the body at the narrower width.
+    body = build({ ...ctx, width: ctx.width - 2 })
+    content = rowsOf(body, ctx.width - 2)
+  }
   const maxScroll = pinned ? Math.max(0, content - viewport) : 0
   const at = Math.min(Math.max(0, ctx.view.scroll), maxScroll)
+  const scrollbar = bar && maxScroll > 0 ? scrollbarCells(ctx, viewport, content, at, maxScroll) : null
   const rule = <Text dimColor>{'─'.repeat(Math.max(4, ctx.width))}</Text>
   const tree = (
     <Box flexDirection="column" paddingX={1} {...(pinned ? { height: ctx.rows } : {})}>
       {titleRule(ctx)}
       {tabBar(ctx, s, { at, max: maxScroll, page: Math.max(1, viewport - 2) })}
       {pinned ? (
-        <Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="hidden">
-          <Box flexDirection="column" flexShrink={0} marginTop={-at}>
-            {body}
+        <Box flexDirection="row" flexGrow={1} flexShrink={1} overflow="hidden">
+          <Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="hidden">
+            <Box flexDirection="column" flexShrink={0} marginTop={-at}>
+              {body}
+            </Box>
           </Box>
+          {scrollbar}
         </Box>
       ) : (
         body
