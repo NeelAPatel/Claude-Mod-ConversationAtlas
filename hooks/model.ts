@@ -134,9 +134,10 @@ function keep<T>(list: T[], max: number): T[] {
   return list.length > max ? list.slice(list.length - max) : list
 }
 
-function event(s: AtlasSnapshot, kind: AtlasEvent['kind'], text: string, now: number): AtlasSnapshot {
+function event(s: AtlasSnapshot, kind: AtlasEvent['kind'], text: string, now: number, detail?: string[]): AtlasSnapshot {
   const [eid, next] = id(s, 'e')
-  return { ...next, events: keep([...next.events, { id: eid, at: now, turn: s.turn, kind, text: clip(text, 160) }], LIMITS.events) }
+  const made: AtlasEvent = { id: eid, at: now, turn: s.turn, kind, text: clip(text, 160), ...(detail?.length ? { detail } : {}) }
+  return { ...next, events: keep([...next.events, made], LIMITS.events) }
 }
 
 function flash(s: AtlasSnapshot, ...ids: string[]): AtlasSnapshot {
@@ -354,6 +355,30 @@ export function sentences(text: string): string[] {
   return (text.match(/[^.!?\n]+[.!?]*/g) ?? [text]).map(p => p.trim()).filter(Boolean)
 }
 
+// The points a longer prompt makes, after its first sentence (the event title): list
+// items as written, other lines split into sentences. Heuristic, no model; at most 6.
+export function promptBullets(text: string): string[] {
+  const items: string[] = []
+  let fenced = false
+  for (const raw of text.split('\n')) {
+    const line = raw.trim()
+    if (/^(```|~~~)/.test(line)) {
+      fenced = !fenced
+      continue
+    }
+    if (fenced || !line) continue
+    const bullet = /^(?:[-*•]|\d+[.)])\s+(.*)$/.exec(line)
+    if (bullet) items.push(bullet[1] ?? '')
+    else items.push(...sentences(line))
+  }
+  const kept = items
+    .slice(1)
+    .map(x => x.replace(/\s+/g, ' ').trim())
+    .filter(x => x.length >= 4)
+  const shown = kept.slice(0, 6).map(x => clip(x, 90))
+  return kept.length > 6 ? [...shown, `+${kept.length - 6} more`] : shown
+}
+
 function sentenceWith(text: string, cue: RegExp): string {
   return sentences(text).find(p => cue.test(p)) ?? text
 }
@@ -362,7 +387,7 @@ export function startTurn(s: AtlasSnapshot, text: string, now: number): AtlasSna
   const body = text.trim()
   let next: AtlasSnapshot = { ...s, turn: s.turn + 1 }
   if (!body) return next
-  next = event(next, 'prompt', body.split('\n')[0] ?? body, now)
+  next = event(next, 'prompt', sentences(body)[0] ?? body.split('\n')[0] ?? body, now, promptBullets(body))
   if (body.startsWith('/') || body.startsWith('<')) return next
   if (!next.goal && !next.suggestions.some(x => x.kind === 'goal') && body.length >= 16) {
     const first = sentences(body)[0] ?? body

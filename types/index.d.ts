@@ -114,6 +114,8 @@ export type AtlasEvent = {
   turn: number
   kind: 'prompt' | 'topic' | 'goal' | 'detour' | 'return' | 'promote' | 'decision' | 'question' | 'resolved' | 'checkpoint' | 'next' | 'resume' | 'dismiss'
   text: string
+  // A prompt's own bullets and sentences after the title, shown on hover or click in the Trail.
+  detail?: string[]
 }
 
 // An earlier session of this project that can be resumed: an Atlas save file or a
@@ -151,7 +153,7 @@ export type AtlasSnapshot = {
   files: AtlasFile[]
   activity: AtlasActivity[]
   events: AtlasEvent[]
-  // Text the next prompt from the composer carries to Claude once (a return packet, a selection).
+  // Text the next prompt from the composer carries to Claude once (a return packet).
   pendingContext: string[]
   // Earlier sessions found on disk; adopting one is an explicit press.
   recall: AtlasRecall[]
@@ -171,7 +173,10 @@ export type AtlasDrawer = 'legend' | 'decisions' | 'questions' | 'checkpoints'
 
 export type AtlasView = {
   tab: AtlasTab
-  selected: AtlasSelection | null
+  // Message chips: number -> what the chip stands for. A chip left in the draft resolves
+  // to its full text on submit; a deleted chip sends nothing.
+  refs: Record<string, AtlasSelection>
+  nextRef: number
   editingGoal: boolean
   drawer: AtlasDrawer | null
   // First body row shown; the pane scrolls its own body so the app bar stays put.

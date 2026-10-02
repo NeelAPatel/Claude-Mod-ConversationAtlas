@@ -60,7 +60,7 @@ const TOOL = 'mcp__conversation-atlas__observe'
 const FLASH_MS = 4_000
 const SAVE_MS = 2_000
 const KEEP_SESSIONS = 12
-const DEFAULT_VIEW: AtlasView = { tab: 'map', selected: null, editingGoal: false, drawer: null, scroll: 0, trailNewest: true, expanded: null }
+const DEFAULT_VIEW: AtlasView = { tab: 'map', refs: {}, nextRef: 1, editingGoal: false, drawer: null, scroll: 0, trailNewest: true, expanded: null }
 
 const RULES = `# Conversation Atlas
 A side pane maps this session for the user. Keep it accurate with ${TOOL}: at the end of a turn where the topic moved, a decision was reached, a question opened or closed, or a milestone landed, call it once with only the fields that changed (short phrases, at most 6 words for a topic). shift: "same" (refining the current topic), "subtopic" (going deeper), "sibling" (next part of the same work), "possible-detour" (a side trip away from the user's goal), "return" (back to earlier work; name that topic). Skip it on trivial turns. It records observations only: never say the user's goal changed and never treat a detour as accepted; the user confirms goals, detours and returns in the pane. Do not mention the atlas to the user.`
@@ -250,10 +250,18 @@ async function act($: EngineInterface, a: Action): Promise<void> {
       await edit($, (s, now) => adoptRecall(s, a.id, now))
       $.ui.toast('Resumed: the earlier goal, next step and decisions are back')
       return
-    case 'select':
-      return setView($, v => ({ ...v, selected: a.selection }))
-    case 'unselect':
-      return setView($, v => ({ ...v, selected: null }))
+    case 'attach': {
+      // A chip in the draft is the only way Atlas text reaches Claude from the pane.
+      let n = 1
+      await setView($, v => {
+        n = v.nextRef
+        return { ...v, refs: { ...v.refs, [String(n)]: a.ref }, nextRef: n + 1 }
+      })
+      const chip = ` [Atlas #${n}: ${a.ref.kind.toLowerCase()} "${clip(a.ref.text, 28)}"] `
+      const filled = await $.prompt.fill({ text: chip, mode: 'insert' })
+      $.ui.toast(filled.isFilled ? `Added to your message as Atlas #${n}; delete the chip to not send it` : 'Atlas: could not add to the message (a dialog is open?)')
+      return
+    }
     case 'edit-goal':
       return setView($, v => ({ ...v, editingGoal: !v.editingGoal }))
     case 'goal': {
@@ -491,9 +499,15 @@ export const register: Register = (on, options) => {
     })
     extra.push(...taken)
     const view = (await $.state.get(VIEW)).value
-    if (view?.selected) {
-      extra.push(`The user selected this in the Conversation Atlas pane; "this" or "it" in the prompt likely refers to it. ${view.selected.kind}: ${view.selected.text}`)
-      await setView($, v => ({ ...v, selected: null }))
+    // Only chips still in the text count: a deleted chip sends nothing.
+    const refs = view?.refs ?? {}
+    const seen = new Set<string>()
+    for (const m of e.text.matchAll(/\[Atlas #(\d+)[^\]]*\]/g)) {
+      const n = m[1] ?? ''
+      const ref = refs[n]
+      if (!ref || seen.has(n)) continue
+      seen.add(n)
+      extra.push(`Atlas reference #${n} (${ref.kind}), attached deliberately by the user: ${ref.text}`)
     }
     const s = await snap($)
     const line = s ? intentLine(s) : null

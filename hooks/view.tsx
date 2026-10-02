@@ -50,8 +50,7 @@ export type Action =
   | { type: 'drop'; id: string }
   | { type: 'resolve'; id: string }
   | { type: 'reopen'; id: string }
-  | { type: 'select'; selection: AtlasSelection }
-  | { type: 'unselect' }
+  | { type: 'attach'; ref: { kind: string; id: string; text: string } }
   | { type: 'return' }
   | { type: 'promote' }
   | { type: 'mark' }
@@ -84,7 +83,7 @@ const EXPLAIN: Record<string, string> = {
   LATEST: 'Newest decisions (◇) and questions (?). Confirm them in the Open tab.',
   'RESUME NEXT': 'Where to pick up. "pinned" is yours; "suggested" is Claude\'s guess.',
   'MAP OF TOPICS': 'Every topic so far, nested where it branched. t3 = first seen on turn 3. "Map earlier conversation" asks Claude once to map what came before Atlas was watching.',
-  TRAIL: 'What happened: › your prompts, ● topics, ◇ decisions, ◆ checkpoints. The button beside the heading flips the order.',
+  TRAIL: 'What happened: › your prompts, ● topics, ◇ decisions, ◆ checkpoints. A + marks a prompt with more points: click to read them. The button beside the heading flips the order.',
   'NEEDS YOUR CALL': 'Suggestions from Claude or your wording. Nothing changes until you press.',
   'OBSERVED DECISIONS': 'Things that sounded decided. Settle = true from now on; Drop = it was not a decision.',
   'DETOUR FINDINGS': 'Keep = an outcome you take back; Exclude = explored, do not rely on it.',
@@ -116,7 +115,7 @@ const LEGEND: [string, string, string | undefined][] = [
   ['✓ ✗', 'done · failed', undefined],
   ['✎ ·', 'file edited · read', C.write],
   ['✦', 'just changed', undefined],
-  ['▸', 'selected: goes to Claude', C.goal],
+  ['▾', 'expanded · Add to message puts a chip in your draft', C.goal],
 ]
 
 export function ago(ms: number): string {
@@ -218,15 +217,14 @@ function heading(ctx: Ctx, label: string, color?: string, right?: string | Rende
 
 function selectable(ctx: Ctx, key: string, selection: AtlasSelection, label: string, color?: string, fresh = false) {
   const { Box, Text, Button } = ctx.el
-  const isSelected = ctx.view.selected?.id === selection.id
   const open = ctx.view.expanded === selection.id
   const text = fit(`${fresh ? '✦ ' : ''}${label}`, ctx.width - 2)
   const head = (
     <Button
       key={key}
       plain
-      dimColor={!isSelected && !open && !fresh && !color}
-      label={open ? `▾ ${text}` : isSelected ? `▸ ${text}` : text}
+      dimColor={!open && !fresh && !color}
+      label={open ? `▾ ${text}` : text}
       onPress={() => ctx.act({ type: 'expand', id: selection.id })}
     />
   )
@@ -238,13 +236,7 @@ function selectable(ctx: Ctx, key: string, selection: AtlasSelection, label: str
         <Text wrap="wrap">{selection.text}</Text>
       </Box>
       <Box flexDirection="row" gap={1} marginLeft={2}>
-        <Button
-          key={`send-${key}`}
-          dimColor={isSelected}
-          label={isSelected ? 'Sent with next message ✓' : 'Send to Claude'}
-          variant={isSelected ? undefined : 'primary'}
-          onPress={() => ctx.act(isSelected ? { type: 'unselect' } : { type: 'select', selection })}
-        />
+        <Button key={`add-${key}`} label="Add to message" variant="primary" onPress={() => ctx.act({ type: 'attach', ref: { kind: selection.kind, id: selection.id, text: selection.text } })} />
         <Button key={`close-${key}`} label="Close" onPress={() => ctx.act({ type: 'expand', id: selection.id })} />
       </Box>
     </Box>
@@ -420,7 +412,7 @@ function legendDrawer(ctx: Ctx) {
         </Box>
       ))}
       <Text dimColor wrap="wrap">
-        Colors: violet path · amber detour · green decision · pink question · blue checkpoint. Click a row to send it to Claude. Section notes show while this menu is open.
+        Colors: violet path · amber detour · green decision · pink question · blue checkpoint. Click a row to read it in full. Nothing reaches Claude unless you add its chip to your message. Section notes show while this menu is open.
       </Text>
     </Box>
   )
@@ -445,7 +437,7 @@ function listDrawer(ctx: Ctx, s: AtlasSnapshot, drawer: Exclude<AtlasDrawer, 'le
       <Box flexDirection="column">
         {list.length === 0 ? <Text dimColor>No open questions.</Text> : null}
         {list.map(q => questionRow(ctx, s, q, false))}
-        <Text dimColor>click one to send it to Claude · resolve in Open</Text>
+        <Text dimColor>click one to read it · resolve in Open</Text>
       </Box>
     )
   }
@@ -724,16 +716,48 @@ function trailTab(ctx: Ctx, s: AtlasSnapshot) {
       {events.length === 0 ? <Text dimColor>Nothing recorded yet.</Text> : null}
       {events.map(ev => {
         const [glyph, color] = EVENT_GLYPH[ev.kind] ?? ['·', undefined]
-        return (
+        const detail = ev.detail ?? []
+        const dim = ev.kind === 'prompt' || ev.kind === 'dismiss'
+        if (!detail.length) {
+          return (
+            <Box key={`ev-${ev.id}`} flexDirection="row">
+              <Text color={color}>{`${glyph} `}</Text>
+              <Box flexShrink={1}>
+                <Text dimColor={dim} wrap="truncate-end">
+                  {fit(ev.text, ctx.width - 8)}
+                </Text>
+              </Box>
+              <Box flexGrow={1} />
+              <Text dimColor>{ago(ctx.now - ev.at)}</Text>
+            </Box>
+          )
+        }
+        const open = ctx.view.expanded === ev.id
+        const row = (
           <Box key={`ev-${ev.id}`} flexDirection="row">
             <Text color={color}>{`${glyph} `}</Text>
+            <Text dimColor>{open ? '▾ ' : '+ '}</Text>
             <Box flexShrink={1}>
-              <Text dimColor={ev.kind === 'prompt' || ev.kind === 'dismiss'} wrap="truncate-end">
-                {fit(ev.text, ctx.width - 8)}
-              </Text>
+              <Button key={`evb-${ev.id}`} plain dimColor={dim} label={fit(ev.text, ctx.width - 10)} onPress={() => ctx.act({ type: 'expand', id: ev.id })} />
             </Box>
             <Box flexGrow={1} />
             <Text dimColor>{ago(ctx.now - ev.at)}</Text>
+          </Box>
+        )
+        if (!open) return row
+        return (
+          <Box key={`evx-${ev.id}`} flexDirection="column">
+            {row}
+            <Box flexDirection="column" marginLeft={2}>
+              {detail.map((b, i) => (
+                <Text key={`evd-${ev.id}-${i}`} dimColor wrap="wrap">
+                  {`• ${b}`}
+                </Text>
+              ))}
+            </Box>
+            <Box marginLeft={2}>
+              <Button key={`add-ev-${ev.id}`} label="Add to message" variant="primary" onPress={() => ctx.act({ type: 'attach', ref: { kind: 'Prompt', id: ev.id, text: [ev.text, ...detail].join('; ') } })} />
+            </Box>
           </Box>
         )
       })}
@@ -844,23 +868,6 @@ function evidenceTab(ctx: Ctx, s: AtlasSnapshot) {
 
 // ------------------------------------------------------------------ pane
 
-function selectionLine(ctx: Ctx) {
-  const { Box, Text, Button } = ctx.el
-  const sel = ctx.view.selected
-  if (!sel) return null
-  return (
-    <Box flexDirection="row" flexShrink={0}>
-      <Box flexShrink={1}>
-        <Text color={C.goal} wrap="truncate-end">
-          {fit(`▸ goes to Claude with your next message: ${sel.kind.toLowerCase()} "${sel.text}"`, ctx.width - 4)}
-        </Text>
-      </Box>
-      <Box flexGrow={1} />
-      <Button key="unselect" plain label="✕" onPress={() => ctx.act({ type: 'unselect' })} />
-    </Box>
-  )
-}
-
 // A one-column scrollbar: ┃ thumb, │ track. Each cell is a button that jumps there.
 function scrollbarCells(ctx: Ctx, viewport: number, content: number, at: number, maxScroll: number) {
   const { Box, Button } = ctx.el
@@ -892,9 +899,8 @@ export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScro
   let body = build(ctx)
   const drawerRoom = Math.max(3, Math.min(14, Math.floor(ctx.rows * 0.45)))
   const drawer = ctx.view.drawer ? (ctx.view.drawer === 'legend' ? legendDrawer(ctx) : listDrawer(ctx, s, ctx.view.drawer, drawerRoom)) : null
-  const selection = selectionLine(ctx)
   const drawerRows = drawer ? Math.min(drawerRoom, rowsOf(drawer, ctx.width)) + 1 : 0
-  const fixed = 2 + (ctx.view.drawer === 'legend' ? 1 : 0) + drawerRows + (selection ? 1 : 0) + 2
+  const fixed = 2 + (ctx.view.drawer === 'legend' ? 1 : 0) + drawerRows + 2
   const viewport = ctx.rows - fixed
   const pinned = viewport >= 4
   let content = rowsOf(body, ctx.width)
@@ -924,7 +930,6 @@ export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScro
       ) : (
         body
       )}
-      {selection}
       {rule}
       {drawer ? (
         <Box flexDirection="column" flexShrink={0} height={drawerRows - 1} overflow="hidden">

@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { confirmSuggestion, emptySnapshot, observe, returnFromDetour, setItemStatus, startTurn, upgrade } from '../hooks/model'
+import { confirmSuggestion, emptySnapshot, observe, promptBullets, returnFromDetour, setItemStatus, startTurn, upgrade } from '../hooks/model'
 
 const ROOT = 'F:/work/atlas'
 const OBSERVE = 'mcp__conversation-atlas__observe'
@@ -84,6 +84,22 @@ describe('model: observation never writes intent', () => {
     expect(s.suggestions.some(x => x.kind === 'detour')).toBe(true)
     s = startTurn(s, "Let's go with the native pane.", 4)
     expect(s.decisions.at(-1)?.status).toBe('observed')
+  })
+})
+
+describe('model: prompt bullets', () => {
+  test('list items and later sentences become points; the first sentence is the title', () => {
+    const text = 'Refactor the loader. It is slow today.\n- keep the API stable\n* add retries with backoff\n1) write tests\n```\ncode here\n```\n- ok\nThen ship it.'
+    expect(promptBullets(text)).toEqual(['It is slow today.', 'keep the API stable', 'add retries with backoff', 'write tests', 'Then ship it.'])
+    expect(promptBullets('Just one sentence here.')).toEqual([])
+    const many = `Title line.\n${Array.from({ length: 9 }, (_, i) => `- point number ${i}`).join('\n')}`
+    const out = promptBullets(many)
+    expect(out).toHaveLength(7)
+    expect(out.at(-1)).toBe('+3 more')
+    const s = startTurn(emptySnapshot('s', ROOT, 0), 'Refactor the loader. Keep going.\n- one more point', 1)
+    const ev = s.events.find(e => e.kind === 'prompt')
+    expect(ev?.text).toBe('Refactor the loader.')
+    expect(ev?.detail).toEqual(['Keep going.', 'one more point'])
   })
 })
 
@@ -352,7 +368,71 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     await ui.unmount()
   })
 
-  test('clicking a long item shows it in full, Send selects it, Close collapses', { timeoutMs: 20_000 }, async ($, on) => {
+  test('Add to message puts a chip in the draft; only a chip left in the text sends the full item', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock, seen } = world(on)
+    const fills: string[] = []
+    on('prompt.fill', (_$: any, e: any) => {
+      fills.push(e.text)
+      return { isFilled: true }
+    })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    const long = `We keep the pane native ${'and boring '.repeat(10)}ENDMARK`
+    await $.tool.call({ tool: OBSERVE, topic: 'Long text', decisions: [long] } as any)
+    await clock.settle()
+    const ui = await mountPane($)
+    await ui.press({ key: 'tab-open' })
+    await ui.press({ key: (await drawn(ui)).match(/"key":"(dsel-[^"]+)"/)?.[1] ?? '' })
+    const add = (await drawn(ui)).match(/"key":"(add-[^"]+)"/)?.[1]
+    expect(add).toBeDefined()
+    await ui.press({ key: add ?? '' })
+    await clock.settle()
+    expect(fills).toHaveLength(1)
+    expect(fills[0]).toContain('[Atlas #1:')
+    expect(seen.toasts.join('|')).toContain('Added to your message as Atlas #1')
+
+    const withChip = await $.prompt.submit({ text: 'see [Atlas #1: decision "x"] please', wait: false, origin: { kind: 'composer' } } as any)
+    expect(JSON.stringify(withChip)).toContain('ENDMARK')
+    expect(JSON.stringify(withChip)).toContain('attached deliberately by the user')
+    const without = await $.prompt.submit({ text: 'see it please', wait: false, origin: { kind: 'composer' } } as any)
+    expect(JSON.stringify(without)).not.toContain('ENDMARK')
+    await ui.unmount()
+  })
+
+  test('a refused fill is reported, not silent', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock, seen } = world(on)
+    on('prompt.fill', () => ({ isFilled: false, refusal: 'dialog' as const }))
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.tool.call({ tool: OBSERVE, topic: 'T', decisions: [`Short one ${'x'.repeat(80)}`] } as any)
+    await clock.settle()
+    const ui = await mountPane($)
+    await ui.press({ key: 'tab-open' })
+    await ui.press({ key: (await drawn(ui)).match(/"key":"(dsel-[^"]+)"/)?.[1] ?? '' })
+    await ui.press({ key: (await drawn(ui)).match(/"key":"(add-[^"]+)"/)?.[1] ?? '' })
+    await clock.settle()
+    expect(seen.toasts.join('|')).toContain('could not add to the message')
+    await ui.unmount()
+  })
+
+  test('the Trail expands a prompt with points on click for prompts with points', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    on('turn.start', () => ({ turnId: 'turn-1' }))
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.turn.start({ turnId: 'turn-1', text: 'Refactor the loader.\n- keep the API stable\n- add retries with backoff' } as any)
+    await clock.settle()
+    const ui = await mountPane($)
+    await ui.press({ key: 'tab-trail' })
+    let t = await drawn(ui)
+    expect(t).not.toContain('add retries with backoff')
+    const btn = t.match(/"key":"(evb-[^"]+)"/)?.[1]
+    expect(btn).toBeDefined()
+    await ui.press({ key: btn ?? '' })
+    t = await drawn(ui)
+    expect(t).toContain('• keep the API stable')
+    expect(t).toContain('"key":"add-ev-')
+    await ui.unmount()
+  })
+
+  test('clicking a long item shows it in full and Close collapses', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     const long = `We will keep the pane native ${'and boring '.repeat(10)}ENDMARK`
@@ -360,20 +440,17 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     await clock.settle()
     const ui = await mountPane($)
     await ui.press({ key: 'tab-open' })
-    expect(await drawn(ui)).not.toContain('ENDMARK')
+    expect(await drawn(ui)).not.toContain('"key":"add-')
     const sel = (await drawn(ui)).match(/"key":"(dsel-[^"]+)"/)?.[1]
     expect(sel).toBeDefined()
     await ui.press({ key: sel ?? '' })
     expect(await drawn(ui)).toContain('ENDMARK')
-    const send = (await drawn(ui)).match(/"key":"(send-[^"]+)"/)?.[1]
-    expect(send).toBeDefined()
-    await ui.press({ key: send ?? '' })
     const after = await drawn(ui)
-    expect(after).toContain('goes to Claude with your next message')
-    expect(after).toContain('Sent with next message')
+    expect(after).toContain('Add to message')
+    expect(after).not.toContain('Send to Claude')
     const close = (after.match(/"key":"(close-[^"]+)"/)?.[1]) ?? ''
     await ui.press({ key: close })
-    expect(await drawn(ui)).not.toContain('"Send to Claude"')
+    expect(await drawn(ui)).not.toContain('Add to message')
     await ui.unmount()
   })
 
