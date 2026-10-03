@@ -1,6 +1,6 @@
 # Handoff: standardized UI architecture (engine · TUI · GUI)
 
-Start here. Read `AGENTS.md` and `README.md` first, then this file. It supersedes `docs/HANDOFF-desktop-ui.md`, which is now folded into milestone 1.
+Start here. Read `AGENTS.md` and `README.md` first, then `docs/DECISIONS.md` (the full decision log of the chat that built Atlas), then this file. It supersedes `docs/HANDOFF-desktop-ui.md`, which is now folded into milestone 1.
 
 ## Working rules (from the user)
 
@@ -51,6 +51,7 @@ The library starts inside this repo. Sharing it with EnvVault is a later, delibe
 - **TUI:** Trail popups bleed through to the rows beneath (rule 4).
 - **Both:** the Trail records engine noise as prompts: `<task-notification>`, `<agent-message …>`, `[Image #n]`, `<pasted_content>` markers, and duplicated "Tests passed: Tests passed". Only text the person typed should be a prompt event. Strip markers and keep the typed remainder.
 - **Both:** the Legend is too crowded (rule 3).
+- **Both:** `/atlas scan` (map earlier conversation) seems to produce little or no data on real earlier threads. Find out why (fork size or limits, the reply not parsing as JSON, or the replay missing user text) and fix it.
 
 ## Milestones
 
