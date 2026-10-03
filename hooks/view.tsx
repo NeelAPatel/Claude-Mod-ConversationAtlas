@@ -309,7 +309,20 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
     )
   }
   if (row.kind === 'activity') return <Box key={row.key}>{head}</Box>
-  if (row.kind === 'next' || row.kind === 'detour')
+  if (row.kind === 'detour')
+    return (
+      <Box key={row.key} flexDirection="column">
+        {head}
+        {open ? <Detail ctx={ctx} row={row} /> : null}
+        {open
+          ? actions(ctx, [
+              ...(row.actions ?? []),
+              { key: `close-${row.key}`, label: 'Close', action: { type: 'expand', id: row.id } },
+            ])
+          : null}
+      </Box>
+    )
+  if (row.kind === 'next')
     return (
       <Box key={row.key} flexDirection="column">
         {head}

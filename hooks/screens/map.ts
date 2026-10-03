@@ -1,6 +1,6 @@
 // Shows the current goal, observed path, detours, activity and resume cues. Pure; no `$`.
 
-import { activeDecisions, currentTopic, goalSuggestions, openQuestions, pathOf, resumeHint } from '../model'
+import { activeDecisions, goalSuggestions, openQuestions, pathOf, resumeHint } from '../model'
 import { base, rel } from '../activity'
 import type { AtlasSnapshot } from '../../types'
 import { action, ago, itemRow, popupModels, sourceName, suggestionRow, topicName, whenLine } from './shared'
@@ -8,8 +8,8 @@ import type { ScreenBuilder, ScreenModel, ScreenRow, ScreenSection, ScreenView }
 
 const explain: Record<string, string> = {
   GOAL: 'What you are trying to do. Only you set it: confirm a suggestion, type one, or explicitly adopt Atlas’s detected aim.',
-  'CURRENT PATH': 'Topics from the start of the work to now; the current topic is highlighted. Claude keeps it current.',
-  DETOUR: 'A side trip you chose. Return hands Claude a recap of where you left off.',
+  'CURRENT PATH': 'Topics from the start of the work to now; detour branches show where the main path paused. Claude keeps it current.',
+  DETOUR: 'A side trip you chose, with its departure and return target.',
   'POSSIBLE DETOUR': 'Looks like a side trip. Take it to get a return point, or say it is not one.',
   ACTIVITY: 'What Claude is doing: spinner = running, done, or failed.',
   'WORKING SET': 'Files touched lately: edited and read counts. Click one to point Claude at it.',
@@ -24,15 +24,17 @@ const help: Record<string, string[]> = {
     'Expand the goal row for its source and the action to use a detected aim.',
   ],
   'CURRENT PATH': [
-    'Observed topics from the start of this work to now.',
-    '● marks the current topic; ↳ marks a detour; ↩ marks a returned branch.',
+    'Observed topics from the start of this work to now, including branches.',
+    '↳ marks a detour branch; ↳ left here marks where the main path paused.',
+    'return: n back shows how many path levels the branch will return.',
+    'A dim italic branch is an unconfirmed suggestion until you press Take detour.',
     'The path is read-only; Claude keeps it current when observer mode is on.',
     'Claude-sourced rows dim in engine-only mode.',
   ],
   DETOUR: [
     'A side trip you explicitly chose from the main path.',
-    '↳ marks the detour; Return sends one recap to Claude with your next message.',
-    'Findings can be kept or excluded before you return.',
+    'Expand From or Detour for its checkpoint, timing, return target and findings.',
+    'Return sends one recap to Claude with your next message.',
     'Make it the goal to promote this work and keep its history.',
   ],
   'POSSIBLE DETOUR': [
@@ -139,22 +141,36 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
 
 function path(snapshot: AtlasSnapshot, view: ScreenView): ScreenSection {
   const chain = pathOf(snapshot)
+  const possible = [...snapshot.suggestions].reverse().find(item => item.kind === 'detour')
+  const branchId = snapshot.detour?.topicId ?? possible?.topicId ?? null
+  const branchIndex = branchId ? chain.findIndex(topic => topic.id === branchId) : -1
+  const departureIndex = branchIndex > 0 ? branchIndex - 1 : -1
+  const returnDepth = departureIndex >= 0 ? chain.length - 1 - departureIndex : 0
   const rows = chain.map((topic, index): ScreenRow => {
     const current = index === chain.length - 1
     const dim = view.mode === 'engine' && topic.source === 'claude'
+    const branch = branchIndex >= 0 && index >= branchIndex
+    const possibleBranch = branch && topic.kind === 'possible-detour' && !snapshot.detour
+    const departure = index === departureIndex
     return {
       id: topic.id,
       key: `path-${topic.id}`,
       kind: 'topic',
-      glyph: current ? 'currentTopic' : topic.kind !== 'main' ? 'detour' : undefined,
+      glyph: branch ? 'detour' : current ? 'currentTopic' : undefined,
       text: topic.title,
-      meta: topic.kind === 'main' ? undefined : topic.kind,
+      meta: topic.kind === 'main' ? undefined : possibleBranch ? 'unconfirmed' : topic.kind,
       source: sourceName(topic.source),
-      tone: topic.kind === 'main' ? (current ? 'path' : undefined) : 'detour',
-      dim,
-      bold: current && !dim,
+      tone: branch ? 'detour' : current ? 'path' : undefined,
+      dim: dim || possibleBranch,
+      bold: current && !dim && !possibleBranch,
+      italic: possibleBranch,
       fresh: snapshot.fresh.includes(topic.id),
       depth: index,
+      right: departure
+        ? '↳ left here'
+        : branch && index === branchIndex && returnDepth > 0
+          ? `return: ${returnDepth} back`
+          : undefined,
       live: 'path',
       interactive: false,
     }
@@ -176,33 +192,53 @@ function detour(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenS
   if (!active && !possible) return null
   if (active) {
     const checkpoint = snapshot.checkpoints.find(item => item.id === active.departure.checkpointId)
-    const found = [
-      active.outcomes.length ? `${active.outcomes.length} kept` : '',
-      active.exclusions.length ? `${active.exclusions.length} excluded` : '',
+    const chain = pathOf(snapshot)
+    const branchIndex = active.topicId ? chain.findIndex(topic => topic.id === active.topicId) : -1
+    const departureIndex = branchIndex > 0 ? branchIndex - 1 : -1
+    const returnDepth = departureIndex >= 0 ? chain.length - 1 - departureIndex : 0
+    const departure = active.departure.topic ?? active.departure.goal ?? 'the main path'
+    const topic = topicName(snapshot, active.topicId) ?? active.reason
+    const returnTarget = active.departure.topic ?? active.departure.goal ?? 'the main path'
+    const details = [
+      `text: ${active.reason}`,
+      `departure: ${departure}`,
+      `checkpoint: ${checkpoint?.name ?? 'not recorded'}`,
+      whenLine(now, active.at, active.turn),
+      `why: ${active.reason}`,
+      `return target: ${returnTarget}`,
+      `outcomes: ${active.outcomes.length ? active.outcomes.join(' · ') : 'not recorded'}`,
+      `exclusions: ${active.exclusions.length ? active.exclusions.join(' · ') : 'not recorded'}`,
     ]
-      .filter(Boolean)
-      .join(' · ')
+    const actions = [
+      action('return', 'Return', { type: 'return' }, true),
+      action('promote', 'Make it the goal', { type: 'promote' }),
+      ...(returned ? [action(`stay-${returned.id}`, 'Stay', { type: 'dismiss', id: returned.id })] : []),
+    ]
     const rows: ScreenRow[] = [
       {
-        id: active.id,
-        key: `detour-${active.id}`,
+        id: `${active.id}-from`,
+        key: `detour-from-${active.id}`,
+        kind: 'detour',
+        glyph: 'currentTopic',
+        text: `From ${departure}`,
+        meta: checkpoint ? `checkpoint: ${checkpoint.name}` : 'main path',
+        tone: 'path',
+        actions,
+        detail: details,
+        expandable: true,
+        interactive: true,
+      },
+      {
+        id: `${active.id}-topic`,
+        key: `detour-topic-${active.id}`,
         kind: 'detour',
         glyph: 'detour',
-        text: active.reason,
-        meta: `returns to ${active.departure.topic ?? active.departure.goal ?? 'the main path'}${checkpoint ? ` · ${checkpoint.name}` : ''}`,
+        text: `Detour ${topic}`,
+        meta: 'active',
         tone: 'detour',
-        right: ago(now - active.at),
-        actions: [
-          action('return', 'Return', { type: 'return' }, true),
-          action('promote', 'Make it the goal', { type: 'promote' }),
-          ...(returned ? [action(`stay-${returned.id}`, 'Stay', { type: 'dismiss', id: returned.id })] : []),
-        ],
-        detail: [
-          ...(found ? [found] : []),
-          ...(returned ? [`${returned.why ?? 'Looks like you are heading back'}`] : []),
-          `departure: ${active.departure.topic ?? active.departure.goal ?? 'not recorded'}`,
-          ...(checkpoint ? [`checkpoint: ${checkpoint.name}`] : []),
-        ],
+        right: returnDepth > 0 ? `return: ${returnDepth} back` : `started ${ago(now - active.at)}`,
+        actions,
+        detail: details,
         expandable: true,
         interactive: true,
       },
@@ -210,6 +246,7 @@ function detour(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenS
     return section('detour', 'DETOUR', rows, { tone: 'detour' })
   }
   const dim = possible?.source === 'claude' && view.mode === 'engine'
+  const rowDim = possible?.source === 'claude'
   return section(
     'possible-detour',
     'POSSIBLE DETOUR',
@@ -217,7 +254,8 @@ function detour(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenS
       ? [
           {
             ...suggestionRow(snapshot, possible, view),
-            dim,
+            dim: rowDim,
+            italic: true,
             actions: dim
               ? [action('turn-on-detour-observer', 'Turn on', { type: 'open-setup' }, true)]
               : suggestionRow(snapshot, possible, view).actions,

@@ -4,11 +4,11 @@
 ◎ Build a dependable Conversation Atlas pane for long sessions.· 3 suggestions  {0:color:#7dcfff|63:dim}
 [ CURRENT PATH ]3 earlier  {16:dim}
 Atlas foundations
-  Map rendering  {0:dim}
-    ↳ Desktop paritypossible-detour  {0:dim|4:color:#e0af68|20:dim}
-      ● Color tokenspossible-detour  {0:dim|6:color:#bb9af7,bold|8:bold|20:dim}
+  Map rendering↳ left here  {0:dim|15:dim}
+    ↳ Desktop parityunconfirmed · return: 2 back  {0:dim|4:color:#e0af68,dim|6:italic,dim|20:dim|32:dim|34:dim}
+      ↳ Color tokensunconfirmed  {0:dim|6:color:#e0af68,dim|8:italic,dim|20:dim}
 [ POSSIBLE DETOUR ]
-↳ Desktop paritydetour suggestion · from Claude · Compare native labels before returning.  {0:color:#e0af68|16:dim}
+↳ Desktop paritydetour suggestion · from Claude · Compare native labels before returning.  {0:color:#e0af68,dim|2:italic,dim|16:dim}
 Take detour Not a detour
 [ ACTIVITY ]
 × Codex · Reviewing the golden diffnow  {0:color:#f7768e|35:dim}

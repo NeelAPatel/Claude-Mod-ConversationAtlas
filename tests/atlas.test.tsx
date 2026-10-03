@@ -247,6 +247,9 @@ describe('hooks', () => {
     const take = (await drawn(ui)).match(/"key":"(ok-s\d+)"/)?.[1]
     await ui.press({ key: take ?? '' })
     expect(await drawn(ui)).toContain('DETOUR')
+    const detourRow = (await ui.findAll({ type: 'Button' })).find((button: any) => String(button.props.label ?? '').startsWith('From '))
+    expect(detourRow).toBeDefined()
+    await ui.press({ key: String(detourRow?.props.key ?? '') })
     await ui.press({ key: 'return' })
 
     const first = await $.prompt.submit({ text: 'continue', wait: false, origin: { kind: 'composer' } } as any)
@@ -256,6 +259,54 @@ describe('hooks', () => {
     expect(JSON.stringify(second)).toContain('Build Conversation Atlas')
     await ui.unmount()
   })
+
+  test(
+    'active detours show their departure and branch rows, with actions in the expansion',
+    { timeoutMs: 20_000 },
+    async ($, on) => {
+      const { clock } = world(on)
+      await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+      await $.tool.call({ tool: OBSERVE, topic: 'Main path' } as any)
+      await $.tool.call({ tool: OBSERVE, topic: 'Side investigation', shift: 'possible-detour', why: 'Check a separate question' } as any)
+      await clock.settle()
+
+      const ui = await $.ui.mount({
+        plugin: 'conversation-atlas',
+        surface: 'terminal',
+        component: 'Pane',
+        requestId: 'atlas',
+        props: PANE_PROPS,
+      })
+      const suggestion = (await drawn(ui)).match(/"key":"(ok-s\d+)"/)?.[1]
+      expect(suggestion).toBeDefined()
+      await ui.press({ key: suggestion ?? '' })
+
+      const collapsed = await drawn(ui)
+      expect(collapsed).toContain('From Main path')
+      expect(collapsed).toContain('Detour Side investigation')
+      expect(collapsed).not.toContain('Make it the goal')
+
+      const from = (await ui.findAll({ type: 'Button' })).find((button: any) => button.props.label === 'From Main path')
+      expect(from).toBeDefined()
+      await ui.press({ key: String(from?.props.key ?? '') })
+      const expanded = await drawn(ui)
+      for (const text of [
+        'text: Side investigation',
+        'checkpoint:',
+        'when:',
+        'why: Side investigation',
+        'return target: Main path',
+        'outcomes:',
+        'exclusions:',
+        'Return',
+        'Make it the goal',
+        'Close',
+      ]) {
+        expect(expanded).toContain(text)
+      }
+      await ui.unmount()
+    }
+  )
 })
 
 const TRAILHEAD_CHECKPOINT = JSON.stringify({
