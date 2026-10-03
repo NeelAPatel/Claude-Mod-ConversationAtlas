@@ -1,0 +1,14 @@
+──────────── Conversation Atlas ────────────  {0:dim|12:color:#7dcfff,bold|32:dim}
+Map Trail ▸Open 4 Evidence  {10:color:#f7768e,bold}
+NEEDS YOUR CALL2  {0:color:#7dcfff,bold|15:dim}
+○ Check whether the native controls stay legible.next suggestion · from Claude  {49:dim}
+Pin next [ Dismiss ]  {9:color:#7dcfff|19:color:#7dcfff}
+↳ Desktop paritydetour suggestion · from Claude · Compare native labels before returning.  {0:color:#e0af68|16:dim}
+Take detour [ Not a detour ]  {12:color:#7dcfff|27:color:#7dcfff}
+OBSERVED DECISIONS1  {0:color:#9ece6a,bold|18:dim}
+◇ Use text goldens for visual review  {0:color:#9ece6a|2:italic}
+Settle [ Drop ]  {7:color:#7dcfff|14:color:#7dcfff}
+OPEN QUESTIONS1  {0:color:#f7768e,bold|14:dim}
+? Which surface gets the first manual check?  {0:color:#f7768e}
+────────────────────────────────────────────  {0:dim}
+Legend + Mark  {0:dim|7:dim}

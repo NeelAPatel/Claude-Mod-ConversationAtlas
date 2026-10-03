@@ -1,0 +1,17 @@
+ Conversation Atlas   {0:color:#7dcfff,bold}
+Map Trail Open 4 ▸Evid  {17:color:#7aa2f7,bold}
+CHECKPOINTS5  {0:color:#7aa2f7,bold|11:dim}
+⚑ Post-prompt milestonemilestone · now  {0:color:#7aa2f7|23:dim|33:dim|35:dim}
+⚑ Post-prompt commitcommit · now  {0:color:#7aa2f7|20:dim|27:dim|29:dim}
+⚑ Pane snapshot milestonemilestone · 1m  {0:color:#7aa2f7|25:dim|35:dim|37:dim}
+⚑ Review commit abc1234commit · 1m  {0:color:#7aa2f7|23:dim|30:dim|32:dim}
+⚑ Baseline capturedmark · 1m  {0:color:#7aa2f7|19:dim|24:dim|26:dim}
+SETTLED (LEDGER)1  {0:color:#9ece6a,bold|16:dim}
+◆ Keep renderers pure  {0:color:#9ece6a}
+RESOLVED  {0:color:#f7768e,bold}
+✓ Should the popup keep its compact width?  {0:color:#9ece6a}
+FILES3  {0:bold|5:dim}
+✎ tests/golden.test.tsx1 0 1m  {0:color:#ff9e64|23:color:#bb9af7|25:color:#ff9e64|27:dim}
+✎ hooks/view.tsx1 1 1m  {0:color:#ff9e64|16:color:#bb9af7|18:color:#ff9e64|20:dim}
+· tests/atlas.test.tsx0 1 1m  {0:color:#bb9af7|22:color:#bb9af7|24:color:#ff9e64|26:dim}
+Legend + Mark  {0:dim|7:dim}
