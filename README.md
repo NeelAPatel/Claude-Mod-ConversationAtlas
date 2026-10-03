@@ -156,7 +156,7 @@ way, and their keys stay present at 26, 34, 48 and 72 body columns.
 - **Expansion.** Rows (goal, topics, decisions, questions, checkpoints, files) expand inline
   with indented dim `│` detail lines. The details show metadata, not a repeat of the row. Each
   action group has one primary action where it makes sense, and the other actions are cyan
-  `[ label ]` controls.
+  `[ label ]` controls whose label lights up on hover.
 - **Toggles.** Flip state in place.
   - **Legend** shows a panel pinned above the bottom bar, with **HOW TO USE** first and then
     the **LEGEND** glyph table. Under section headings, `EXPLAIN` notes describe each part. The
