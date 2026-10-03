@@ -50,6 +50,9 @@ The library starts inside this repo. Sharing it with EnvVault is a later, delibe
 - **GUI:** in the expanded file detail, `·1 7m` floats mid-row next to the `│` lines.
 - **TUI:** Trail popups bleed through to the rows beneath (rule 4).
 - **Both:** the Trail records engine noise as prompts: `<task-notification>`, `<agent-message …>`, `[Image #n]`, `<pasted_content>` markers, and duplicated "Tests passed: Tests passed". Only text the person typed should be a prompt event. Strip markers and keep the typed remainder.
+- **Both:** the Claude observer goes silent. In the original chat, after Atlas was reinstalled or reloaded, the `mcp__conversation-atlas__observe` tool never returned to Claude's tool list, though setup was Claude. For hours the Trail held only engine events (prompts, `Tests passed`) and no topics, decisions or questions. Find out why: tool registration after reload or install, deferred-tool surfacing, or the mode gate. Make it visible in the pane: a status line such as "Claude observer: on · last report 2h ago" with a warning when there are no reports while on.
+- **Both:** Trail checkpoint rows read `Tests passed: Tests passed`. The event text repeats the checkpoint name. Show `Tests passed · <command>`.
+- **Both:** checkpoints share ◆ with settled decisions. **The user wants a distinct checkpoint icon.** Proposed: ⚑ (a return point) for checkpoints, ◆ for settled decisions only. Update the GLYPH table, the Legend and the tests.
 - **Both:** the Legend is too crowded (rule 3).
 - **Both:** `/atlas scan` (map earlier conversation) seems to produce little or no data on real earlier threads. Find out why (fork size or limits, the reply not parsing as JSON, or the replay missing user text) and fix it.
 
