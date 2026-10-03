@@ -2,6 +2,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 
 import {
   addCheckpoint,
+  adoptRecall,
   closeUnverifiedHandoffs,
   collapseEvents,
   confirmSuggestion,
@@ -27,6 +28,7 @@ import {
 } from '../hooks/model'
 import { expectedReportPath, handoffStart, parseHandoffReport, reportChanged, reportFingerprint } from '../hooks/delegation'
 import { atlasFullFileError, fromAtlasFullFile, saveFile, sessionsToDelete } from '../hooks/recall'
+import { replay } from '../hooks/scan'
 import { cellWidth, collapseBarLabels, layoutRow, measuredBarItemWidth, truncateMiddleCells } from '../hooks/ui'
 import { C, rowsOf } from '../hooks/view'
 import { buildEvidence } from '../hooks/screens/evidence'
@@ -194,7 +196,24 @@ describe('model: observation never writes intent', () => {
       seq: 99,
       activity: [{ id: 'a98', kind: 'edit', label: 'Saved edit', state: 'done', at: 3, endedAt: 3, agent: null }],
     }
-    const current = { ...emptySnapshot('current-session', ROOT, 10), fresh: ['current-fresh'] }
+    const currentRecall = [{
+      id: 'atlas:other-session',
+      source: 'atlas' as const,
+      sessionId: 'other-session',
+      at: 9,
+      goal: 'Other goal',
+      nextStep: null,
+      detour: null,
+      topic: null,
+      decisions: [],
+    }]
+    const current = {
+      ...emptySnapshot('current-session', ROOT, 10),
+      fresh: ['current-fresh'],
+      recall: currentRecall,
+      adopted: ['atlas:discarded-session'],
+      pendingContext: ['stale return packet'],
+    }
     const savedText = saveFile(source, 20)
     const full = fromAtlasFullFile(savedText, ROOT)
     expect(full?.sessionId).toBe('source-session')
@@ -203,7 +222,9 @@ describe('model: observation never writes intent', () => {
     const restored = recoverFull(current, full ?? { id: '', sessionId: '', snapshot: {} }, 30)
     expect(restored.sessionId).toBe('current-session')
     expect(restored.root).toBe(ROOT)
-    expect(restored.fresh).toEqual(['current-fresh'])
+    expect(restored.fresh).toEqual([])
+    expect(restored.recall).toEqual(currentRecall)
+    expect(restored.pendingContext).toEqual([])
     expect(restored.topics).toHaveLength(source.topics.length)
     expect(restored.decisions).toHaveLength(source.decisions.length)
     expect(restored.questions).toHaveLength(source.questions.length)
@@ -211,11 +232,95 @@ describe('model: observation never writes intent', () => {
     expect(restored.events).toHaveLength(source.events.length + 1)
     expect(restored.activity).toHaveLength(source.activity.length)
     expect(restored.goal?.text).toBe('Recovered full goal')
-    expect(restored.adopted).toContain('atlas:source-session')
+    expect(restored.adopted).toEqual(['atlas:source-session'])
     expect(restored.events.at(-1)?.text).toBe('Loaded full map from session source-s')
     expect(restored.seq).toBe(100)
     const withNewId = addCheckpoint(restored, 'After recovery', 'marked', null, 31)
     expect(withNewId.checkpoints.at(-1)?.id).toBe('c101')
+  })
+
+  test('full recovery clears freshness even when a restored id collides with it', () => {
+    const source = addCheckpoint(emptySnapshot('source-session', ROOT, 0), 'Restored milestone', 'marked', null, 1)
+    const current = { ...emptySnapshot('current-session', ROOT, 0), fresh: ['c1'] }
+    const restored = recoverFull(current, { id: 'atlas:source-session', sessionId: 'source-session', snapshot: source }, 2)
+
+    expect(restored.checkpoints[0]?.id).toBe('c1')
+    expect(restored.fresh).toEqual([])
+  })
+
+  test('full recovery replaces adopted lineage and deduplicates a source already in it', () => {
+    const loaded = { ...emptySnapshot('loaded-session', ROOT, 0), adopted: ['atlas:loaded-session'] }
+    const current = { ...emptySnapshot('current-session', ROOT, 0), adopted: ['atlas:discarded-session'] }
+    const source = { id: 'atlas:source-session', sessionId: 'loaded-session', snapshot: loaded }
+
+    expect(recoverFull(current, source, 1).adopted).toEqual(['atlas:loaded-session', 'atlas:source-session'])
+    expect(recoverFull(current, { ...source, id: 'atlas:loaded-session' }, 1).adopted).toEqual(['atlas:loaded-session'])
+  })
+
+  test('plain Resume appends an earlier session once and never reads its loaded lineage', () => {
+    const current = {
+      ...emptySnapshot('current-session', ROOT, 0),
+      adopted: ['atlas:current-session'],
+      recall: [{
+        id: 'atlas:resume-session',
+        source: 'atlas' as const,
+        sessionId: 'resume-session',
+        at: 1,
+        goal: null,
+        nextStep: null,
+        detour: null,
+        topic: null,
+        decisions: [],
+      }],
+    }
+    const resumed = adoptRecall(current, 'atlas:resume-session', 2)
+
+    expect(resumed.adopted).toEqual(['atlas:current-session', 'atlas:resume-session'])
+    expect(adoptRecall(resumed, 'atlas:resume-session', 3)).toBe(resumed)
+  })
+
+  test('only explicit Resume and full Resume change adopted lineage', () => {
+    const current = {
+      ...emptySnapshot('current-session', ROOT, 0),
+      adopted: ['atlas:current-session'],
+      recall: [{
+        id: 'atlas:resume-session',
+        source: 'atlas' as const,
+        sessionId: 'resume-session',
+        at: 1,
+        goal: null,
+        nextStep: null,
+        detour: null,
+        topic: null,
+        decisions: [],
+      }],
+    }
+    const observed = observe(current, { topic: 'Observed topic' }, 1)
+    const replayed = replay(current, [{ role: 'user', text: 'Replay this prompt.' }], 2)
+    const resumed = adoptRecall(current, 'atlas:resume-session', 3)
+    const full = recoverFull(
+      current,
+      { id: 'atlas:full-session', sessionId: 'full-session', snapshot: { ...emptySnapshot('full-session', ROOT, 0), adopted: ['atlas:loaded-session'] } },
+      4,
+    )
+
+    expect(observed.adopted).toEqual(['atlas:current-session'])
+    expect(replayed.adopted).toEqual(['atlas:current-session'])
+    expect(resumed.adopted).toEqual(['atlas:current-session', 'atlas:resume-session'])
+    expect(full.adopted).toEqual(['atlas:loaded-session', 'atlas:full-session'])
+  })
+
+  test('save and full-recover round trip keeps loaded lineage and adds the source id', () => {
+    const loaded = { ...emptySnapshot('loaded-session', ROOT, 0), adopted: ['atlas:earlier-session'] }
+    const source = fromAtlasFullFile(saveFile(loaded, 1), ROOT)
+    expect(source).not.toBeNull()
+
+    const recovered = recoverFull(
+      { ...emptySnapshot('current-session', ROOT, 0), adopted: ['atlas:discarded-session'] },
+      source ?? { id: '', sessionId: '', snapshot: {} },
+      2,
+    )
+    expect(recovered.adopted).toEqual(['atlas:earlier-session', 'atlas:loaded-session'])
   })
 
   test('full recovery rejects unsupported and malformed snapshots without replacing current state', () => {
@@ -1171,6 +1276,36 @@ describe('milestone 2: screens and surface parity', () => {
       .find(candidate => candidate.id === 'atlas:source-session')
     expect(pending?.actions?.map(item => item.label)).toEqual(['Resume this', 'Confirm full resume'])
     expect(pending?.detail).toContain('this replaces your current map; press Confirm full resume to proceed')
+  })
+
+  test('Evidence marks every adopted earlier session unavailable and leaves the rest actionable', () => {
+    const snapshot = {
+      ...emptySnapshot('current', ROOT, 0),
+      adopted: ['atlas:adopted-a', 'atlas:adopted-c'],
+      recall: ['adopted-a', 'adopted-b', 'adopted-c'].map((name, index) => ({
+        id: `atlas:${name}`,
+        source: 'atlas' as const,
+        sessionId: name,
+        at: index,
+        goal: `${name} goal`,
+        nextStep: null,
+        detour: null,
+        topic: null,
+        decisions: [],
+      })),
+    }
+    const rows = buildEvidence(snapshot, screenView('evidence'), 1).sections.find(section => section.key === 'recall')?.rows ?? []
+
+    for (const id of ['atlas:adopted-a', 'atlas:adopted-c']) {
+      const row = rows.find(candidate => candidate.id === id)
+      expect(row?.glyph).toBe('ok')
+      expect(row?.dim).toBe(true)
+      expect(row?.actions).toEqual([])
+    }
+    const available = rows.find(candidate => candidate.id === 'atlas:adopted-b')
+    expect(available?.glyph).toBe('resume')
+    expect(available?.dim).toBe(false)
+    expect(available?.actions?.map(action => action.label)).toEqual(['Resume this', 'Resume full'])
   })
 
   test('Trail Story groups a turn, keeps the full prompt in its expansion, and marks sources', () => {

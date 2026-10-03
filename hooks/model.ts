@@ -902,7 +902,7 @@ export function recoverFull(
     ...loaded,
     sessionId: current.sessionId,
     root: current.root,
-    fresh: current.fresh,
+    fresh: [],
     recall: current.recall,
     adopted,
     pendingContext: [],
