@@ -72,7 +72,19 @@ The user feels the Trail is not right yet. Today it is a flat, mixed log: engine
 7. **Observer health,** shown on the Trail: "Claude observer on · last report 2h ago" with a warning when silent. Without it the Trail looks broken when the cause is a missing tool.
 8. **Optional, costs usage:** a per-turn one-line summary from Claude (folded into `observe` or a cheap fork), shown instead of the raw first sentence. Off by default; part of the observer consent.
 
-Suggested order: 2 and 7 (fixes) → 1 (turn grouping) → 4 (engine semantics) → 3, 5, 6 → 8 (only if the user wants it).
+**User idea (2026-10-03): put this behind a Trail "View" menu instead of choosing one design.** A `[ View ]` button on the TRAIL heading opens a small popup (the standard popup paradigm) with two separate choices:
+- **How to show (layout, pick one):** `Story` (grouped by turn, the default once built) · `Log` (today's flat chronological list) · `Compact` (milestones only: goal, topics, decisions, checkpoints, returns).
+- **What to show (filters, toggles):** Prompts · Topics · Decisions · Questions · Checkpoints · Detours · Activity summaries · Source marks.
+- The sort toggle (newest/oldest first) moves into this menu too.
+
+Keep it from getting complex:
+- Ship **presets first**, with filters as an "Advanced" section of the same popup.
+- Remember the choice plugin-wide in `$.store`, as setup does.
+- Show the active view in the heading ("TRAIL · Story").
+- Make every layout a pure function over the same event list, so a new layout adds no new state.
+- Test each layout at narrow and wide widths, on TUI and GUI.
+
+Suggested order: 2 and 7 (fixes) → 1 (turn grouping) → 4 (engine semantics) → the View menu with the Log and Story layouts → 3, 5, 6 as filters and options inside it → 8 (only if the user wants it).
 
 ## Milestones
 
