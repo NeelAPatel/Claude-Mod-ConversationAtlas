@@ -8,7 +8,7 @@
     "observer": {
       "type": "string",
       "title": "Observer",
-      "description": "claude and engine: Claude reports topic shifts, decisions and questions through a small tool (a few tokens per turn) besides the free engine events. engine only: files, activity, tests, commits and your own wording only; no tool, no system-prompt rules.",
+      "description": "claude and engine: Claude reports topic shifts, decisions and questions through a small tool (a few tokens per changed turn) besides the free engine events. engine only: files, activity, tests, commits and your own wording only; no observer rules or recorded Claude observations. First-run setup asks before the stored choice takes effect.",
       "default": "claude and engine",
       "options": ["claude and engine", "engine only"]
     },

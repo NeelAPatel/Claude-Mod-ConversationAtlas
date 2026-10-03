@@ -1,14 +1,15 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { confirmSuggestion, emptySnapshot, observe, promptBullets, returnFromDetour, setItemStatus, startTurn, upgrade } from '../hooks/model'
+import { C } from '../hooks/view'
 
 const ROOT = 'F:/work/atlas'
 const OBSERVE = 'mcp__conversation-atlas__observe'
 const PANE_PROPS = { title: 'Atlas', isFocused: true, bodyColumns: 56, placement: 'dock', scroll: { offset: 0, bodyRows: 60 }, view: {} } as any
 
-function world(on: any) {
+function world(on: any, entries: Record<string, unknown> = { setup: { observer: 'claude', at: 1_800_000_000_000 } }) {
   const clock = mock.clock(on, { now: 1_800_000_000_000 })
-  mock.store(on)
+  mock.store(on, entries)
   const seen = { tools: [] as string[], commands: [] as string[], opens: [] as unknown[], toasts: [] as string[] }
   on('session.start', (_$: any, e: any) => ({ cwd: e.cwd }))
   on('session.id', () => ({ value: 'atlas-test-session' }))
@@ -105,6 +106,41 @@ describe('model: prompt bullets', () => {
 })
 
 describe('hooks', () => {
+  test('first run is engine-only until setup, then Claude observation can be enabled and disabled', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on, {})
+    const engine = $ as any
+    on('prompt.compose', () => ({ sections: [] }))
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await clock.settle()
+
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    const setup = await drawn(ui)
+    expect(setup).toContain('Set up Atlas')
+    expect(setup).toContain('Use Claude observer')
+    expect(setup).toContain('Engine only (free)')
+
+    const compose = { model: 'test', promptModel: 'test', surfaces: ['terminal'], tools: [], outputStyle: null, traits: [] }
+    const before = await engine.prompt.compose(compose)
+    expect(JSON.stringify(before)).not.toContain('conversation-atlas:rules')
+    const off = await $.tool.call({ tool: OBSERVE, topic: 'Must not record' } as any)
+    expect(JSON.stringify(off)).toContain('observer is off')
+    expect(setup).not.toContain('Must not record')
+
+    await ui.press({ key: 'setup-claude' })
+    expect(await drawn(ui)).not.toContain('Set up Atlas')
+    const enabled = await engine.prompt.compose(compose)
+    expect(JSON.stringify(enabled)).toContain('conversation-atlas:rules')
+    await $.tool.call({ tool: OBSERVE, topic: 'Claude observed topic' } as any)
+    expect(await drawn(ui)).toContain('Claude observed topic')
+
+    const switched = await $.command.run({ command: 'atlas', args: 'observer engine', origin: { kind: 'composer' } } as any)
+    expect(switched.text).toContain('Engine only')
+    const dimmed = await drawn(ui)
+    expect(dimmed).toContain('CURRENT PATH')
+    expect(dimmed).toContain('Needs the Claude observer')
+    await ui.unmount()
+  })
+
   test('registers its tool and command, opens the pane, and maps engine events', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock, seen } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
@@ -215,6 +251,8 @@ describe('merge: Trailhead features inside Atlas', () => {
 })
 
 describe('readability: app bar, legend, resizing', () => {
+  const mountPane = ($: any, props: any = PANE_PROPS) => $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props })
+
   test('Legend is a toggle panel, menus are boxed, and no label ends with a caret suffix', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
@@ -232,6 +270,10 @@ describe('readability: app bar, legend, resizing', () => {
       expect(open.indexOf('legend-panel')).toBeLessThan(open.indexOf('bar-legend'))
       expect(open).toContain('your goal (confirmed)')
       expect(open).toContain('Topics from the start of the work to now')
+      expect(open).toContain('Observer: Claude')
+      await ui.press({ key: 'observer-toggle' })
+      expect(await drawn(ui)).toContain('Observer: Engine only')
+      await ui.press({ key: 'observer-toggle' })
       await ui.press({ key: 'bar-decisions' })
       const decisions = await drawn(ui)
       expect(decisions).toContain('DECISIONS')
@@ -252,7 +294,7 @@ describe('readability: app bar, legend, resizing', () => {
     const narrow = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: { ...PANE_PROPS, bodyColumns: 34 } })
     const tiny = await drawn(narrow)
     expect(tiny).toContain('"label":"Legend"')
-    expect(tiny).toContain('"label":"?1 open →"')
+    expect(tiny).toContain('"label":"1 open →"')
     await narrow.unmount()
 
     const short = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: { ...PANE_PROPS, scroll: { offset: 0, bodyRows: 14 } } })
@@ -271,9 +313,77 @@ describe('readability: app bar, legend, resizing', () => {
     await clock.settle()
     for (const bodyColumns of [26, 34, 48, 72]) {
       const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: { ...PANE_PROPS, bodyColumns } })
-      for (const key of ['tab-map', 'tab-trail', 'tab-open', 'tab-evidence', 'mark']) expect(await ui.find({ key })).toBeDefined()
+      expect(await ui.find({ key: 'tab-map', type: 'Button' })).toBeUndefined()
+      for (const key of ['tab-trail', 'tab-open', 'tab-evidence', 'mark']) expect(await ui.find({ key })).toBeDefined()
+      expect(await drawn(ui)).toContain('▸')
       await ui.unmount()
     }
+  })
+
+  test('expanded decision actions use a primary Button and bracketed secondary controls', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.tool.call({ tool: OBSERVE, decisions: ['Keep the pane native'] } as any)
+    await clock.settle()
+    const ui = await mountPane($)
+    await ui.press({ key: 'tab-open' })
+    const row = (await drawn(ui)).match(/"key":"(dsel-[^"]+)"/)?.[1]
+    expect(row).toBeDefined()
+    await ui.press({ key: row ?? '' })
+    const buttons = await ui.findAll({ type: 'Button' })
+    const settle = buttons.find((b: any) => String(b.props.key ?? '').startsWith('set-'))
+    const drop = buttons.find((b: any) => String(b.props.key ?? '').startsWith('drp-'))
+    expect(settle?.props.variant).toBe('primary')
+    expect(drop?.props.plain).toBe(true)
+    expect(drop?.props.label).toBe(' Drop ')
+    const t = await drawn(ui)
+    expect(t).toContain(`"color":"${C.action}"`)
+    expect(t).toContain(`"hover":{"color":"${C.action}"}`)
+    expect(t).toContain('"children":["["]')
+    await ui.unmount()
+  })
+
+  test('the expanded goal Close control uses the bracketed action style', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.command.run({ command: 'atlas', args: 'goal Ship the pane', origin: { kind: 'composer' } } as any)
+    await clock.settle()
+    const ui = await mountPane($)
+    await ui.press({ key: 'goal-row' })
+    const close = await ui.find({ key: 'close-goal', type: 'Button' })
+    expect(close?.props.plain).toBe(true)
+    expect(close?.props.label).toBe(' Close ')
+    const t = await drawn(ui)
+    expect(t).toContain(`"color":"${C.action}"`)
+    expect(t).toContain('"children":["["]')
+    await ui.unmount()
+  })
+
+  test('active Trail is coloured Text and its heading uses the Trail accent', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await clock.settle()
+    const ui = await mountPane($)
+    await ui.press({ key: 'tab-trail' })
+    expect(await ui.find({ key: 'tab-trail', type: 'Button' })).toBeUndefined()
+    const t = await drawn(ui)
+    expect(t).toContain('"children":["▸Trail"]')
+    expect(t).toContain(`"color":"${C.trail}"`)
+    expect(t).toContain('"children":["TRAIL"]')
+    await ui.unmount()
+  })
+
+  test('settled decisions draw the checkpoint glyph in checkpoint blue', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.command.run({ command: 'atlas', args: 'decision Keep the pane native', origin: { kind: 'composer' } } as any)
+    await clock.settle()
+    const ui = await mountPane($)
+    await ui.press({ key: 'tab-evidence' })
+    const t = await drawn(ui)
+    expect(t).toContain(`"color":"${C.checkpoint}"`)
+    expect(t).toContain('"children":["◆"]')
+    await ui.unmount()
   })
 
   test('the decisions popup lists settled before observed decisions', { timeoutMs: 20_000 }, async ($, on) => {

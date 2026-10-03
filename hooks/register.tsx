@@ -9,7 +9,7 @@
 
 import { type EngineInterface, type Register, type Timer, update } from 'claude-code'
 
-import type { AtlasSnapshot, AtlasView } from '../types'
+import type { AtlasMode, AtlasSnapshot, AtlasView } from '../types'
 import { askedQuestions, classify, planTitle, posix } from './activity'
 import type { LiveRow } from './live'
 import {
@@ -60,7 +60,8 @@ const TOOL = 'mcp__conversation-atlas__observe'
 const FLASH_MS = 4_000
 const SAVE_MS = 2_000
 const KEEP_SESSIONS = 12
-const DEFAULT_VIEW: AtlasView = { tab: 'map', refs: {}, nextRef: 1, editingGoal: false, legend: false, popup: null, popupScroll: 0, scroll: 0, trailNewest: true, expanded: null }
+const MODE = { plugin: 'conversation-atlas', key: 'mode' } as const
+const DEFAULT_VIEW: AtlasView = { setup: false, tab: 'map', refs: {}, nextRef: 1, editingGoal: false, legend: false, popup: null, popupScroll: 0, scroll: 0, trailNewest: true, expanded: null }
 
 const RULES = `# Conversation Atlas
  A side pane maps this session for the user. Keep it accurate with ${TOOL}: at the end of a turn where the topic moved, a decision was reached, a question opened or closed, or a milestone landed, call it once with only the fields that changed (short phrases, at most 6 words for a topic). shift: "same" (refining the current topic), "subtopic" (going deeper), "sibling" (next part of the same work), "possible-detour" (a side trip away from the user's goal), "return" (back to earlier work; name that topic). Skip it on trivial turns. Report goal whenever the user's apparent overall aim changes; Atlas shows that as an observation, never as a confirmed goal. It records observations only: never say the user's confirmed goal changed and never treat a detour as accepted; the user confirms goals, detours and returns in the pane. Do not mention the atlas to the user.`
@@ -84,6 +85,8 @@ let maxScroll = 0
 let maxPopupScroll = 0
 let scanOnLaunch: 'off' | 'engine' | 'claude' = 'engine'
 let scanning = false
+let configuredMode: AtlasMode = 'claude'
+let observerToolRegistered = false
 const agentNames = new Map<string, string>()
 
 // ------------------------------------------------------------------ state
@@ -118,12 +121,76 @@ async function setView($: EngineInterface, fn: (v: AtlasView) => AtlasView): Pro
   await update($, VIEW, cur => fn({ ...DEFAULT_VIEW, ...(cur ?? {}) }))
 }
 
+type SetupChoice = { observer: AtlasMode; at: number }
+
+function isMode(value: unknown): value is AtlasMode {
+  return value === 'claude' || value === 'engine'
+}
+
+async function setupChoice($: EngineInterface): Promise<SetupChoice | undefined> {
+  const value = await $.store.get('setup')
+  if (!value || typeof value !== 'object') return undefined
+  const raw = value as Raw
+  return isMode(raw.observer) && typeof raw.at === 'number' ? { observer: raw.observer, at: raw.at } : undefined
+}
+
+// Before consent, engine-only is always the effective mode. The userConfig value
+// is only the setup screen's default; a stored choice is authoritative thereafter.
+async function syncMode($: EngineInterface): Promise<AtlasMode> {
+  const choice = await setupChoice($)
+  const mode: AtlasMode = choice?.observer ?? 'engine'
+  await $.state.set(MODE, mode)
+  await setView($, v => ({ ...v, setup: !choice }))
+  return mode
+}
+
+async function modeOf($: EngineInterface): Promise<AtlasMode> {
+  const value = (await $.state.get(MODE)).value
+  if (isMode(value)) return value
+  const choice = await setupChoice($)
+  return choice?.observer ?? 'engine'
+}
+
+const OBSERVER_TOOL = {
+  name: 'observe',
+  description: 'Record what moved in this session on the Conversation Atlas pane: topic and shift, decisions, open or resolved questions, the next step, a milestone. Observations only; the user confirms intent.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      topic: { type: 'string', description: 'What the conversation is about now, at most 6 words' },
+      shift: { type: 'string', enum: ['same', 'subtopic', 'sibling', 'possible-detour', 'return'] },
+      why: { type: 'string', description: 'One line, for possible-detour or return' },
+      decisions: { type: 'array', items: { type: 'string' }, description: 'Conclusions reached this turn' },
+      questions: { type: 'array', items: { type: 'string' }, description: 'Questions left open for the user' },
+      resolved: { type: 'array', items: { type: 'string' }, description: 'Earlier open questions now answered' },
+      next: { type: 'string', description: 'The most useful next step to resume from' },
+      checkpoint: { type: 'string', description: 'A milestone just reached, a few words' },
+      goal: { type: 'string', description: 'The apparent overall aim when it changes; Atlas records it as an observation and never treats it as confirmed' },
+    },
+  },
+} as const
+
+async function registerObserverTool($: EngineInterface): Promise<void> {
+  if (observerToolRegistered) return
+  await $.tool.register(OBSERVER_TOOL)
+  observerToolRegistered = true
+}
+
+async function chooseObserver($: EngineInterface, mode: AtlasMode): Promise<void> {
+  const at = await $.clock.now()
+  await $.store.set('setup', { observer: mode, at })
+  await $.state.set(MODE, mode)
+  await setView($, v => ({ ...v, setup: false, popup: null, popupScroll: 0, scroll: 0 }))
+  if (mode === 'claude') await registerObserverTool($)
+}
+
 // Binds the snapshot to the live session: same id keeps it (a hot reload), a saved one is
 // restored (a resume), otherwise a fresh map that offers the project's last goal.
 async function bind($: EngineInterface): Promise<void> {
   const who = await identity($)
   sid = who.sid
   root = who.root
+  const mode = await syncMode($)
   const cur = await snap($)
   if (cur?.sessionId === sid) return
   const now = await $.clock.now()
@@ -138,7 +205,7 @@ async function bind($: EngineInterface): Promise<void> {
   const rows = scanOnLaunch === 'off' || next.scanned !== 'none' ? [] : await history($)
   if (rows.length) next = { ...replay(next, rows, now), scanned: 'engine' }
   await $.state.set(SNAP, next)
-  if (rows.length > 2 && scanOnLaunch === 'claude') void mapWithClaude($).catch(() => undefined)
+  if (rows.length > 2 && scanOnLaunch === 'claude' && mode === 'claude') void mapWithClaude($).catch(() => undefined)
   lastSaved = saved ? next : undefined
   void loadRecall($).catch(() => undefined)
 }
@@ -231,6 +298,16 @@ async function act($: EngineInterface, a: Action): Promise<void> {
       return setView($, v => ({ ...v, tab: a.tab, scroll: 0, popup: null, popupScroll: 0 }))
     case 'legend':
       return setView($, v => ({ ...v, legend: !v.legend, popup: null, popupScroll: 0 }))
+    case 'open-setup':
+      return setView($, v => ({ ...v, setup: true, legend: false, popup: null, popupScroll: 0, scroll: 0 }))
+    case 'set-observer':
+      await chooseObserver($, a.mode)
+      return
+    case 'toggle-observer': {
+      const current = await modeOf($)
+      await chooseObserver($, current === 'claude' ? 'engine' : 'claude')
+      return
+    }
     case 'popup':
       return setView($, v => ({ ...v, legend: false, popup: v.popup?.kind === a.popup.kind && v.popup.id === a.popup.id ? null : a.popup, popupScroll: 0 }))
     case 'popup-scroll':
@@ -346,6 +423,8 @@ const HELP = [
   '  /atlas exclude <material>       set detour material aside',
   '  /atlas return                   end the detour; Claude gets one recap',
   '  /atlas promote                  make the detour your goal',
+  '  /atlas observer [claude|engine] show or change the observer mode',
+  '  /atlas setup                    show the first-run setup screen again',
   '  /atlas scan                     map the conversation so far with Claude (one cached request)',
   '  /atlas recover [n]              list earlier sessions (Atlas + Trailhead), or resume number n',
   "  /atlas reset                    clear this session's map",
@@ -360,6 +439,22 @@ async function command($: EngineInterface, args: string): Promise<string> {
       return (await openPane($, true)) ? 'Atlas opened.' : 'Atlas is waiting for room: widen the terminal or use /tui fullscreen.'
     case 'help':
       return HELP
+    case 'observer': {
+      const current = await modeOf($)
+      if (!text) {
+        const saved = await setupChoice($)
+        return `Observer: ${current === 'claude' ? 'Claude' : 'Engine only'}${saved ? '' : ` (setup not chosen; /atlas setup, default: ${configuredMode === 'claude' ? 'Claude' : 'Engine only'})`}`
+      }
+      const requested = text.toLowerCase()
+      const mode = requested === 'claude' ? 'claude' : requested === 'engine' || requested === 'engine only' ? 'engine' : null
+      if (!mode) return 'Usage: /atlas observer [claude|engine]'
+      await chooseObserver($, mode)
+      return `Observer set to ${mode === 'claude' ? 'Claude' : 'Engine only'}.`
+    }
+    case 'setup':
+      await setView($, v => ({ ...v, setup: true, legend: false, popup: null, popupScroll: 0, scroll: 0 }))
+      await openPane($, true)
+      return 'Atlas setup opened.'
     case 'goal':
     case 'aim':
       if (!text) return HELP
@@ -432,7 +527,6 @@ async function command($: EngineInterface, args: string): Promise<string> {
 // Registration runs once per load, on whichever event reaches the module first. A hot
 // reload does not always raise session.start, so every hook below also calls this.
 let ready: Promise<void> | null = null
-let askClaude = true
 let lastProblem: string | null = null
 let saving: Timer | null = null
 
@@ -449,28 +543,9 @@ function setup($: EngineInterface): Promise<void> {
     }
     await step('command /atlas', () => $.command.register({ name: 'atlas', description: 'ConversationAtlas: open the pane, or goal, next, mark, decision, detour, outcome, exclude, return, promote, scan, recover, help', argumentHint: '[goal|next|mark|decision|detour|outcome|exclude|return|promote|scan|recover|help] [text]' }))
     await step('session binding', () => bind($))
-    if (askClaude) {
-      await step('observe tool', async () => {
-        await $.tool.register({
-          name: 'observe',
-          description: 'Record what moved in this session on the Conversation Atlas pane: topic and shift, decisions, open or resolved questions, the next step, a milestone. Observations only; the user confirms intent.',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              topic: { type: 'string', description: 'What the conversation is about now, at most 6 words' },
-              shift: { type: 'string', enum: ['same', 'subtopic', 'sibling', 'possible-detour', 'return'] },
-              why: { type: 'string', description: 'One line, for possible-detour or return' },
-              decisions: { type: 'array', items: { type: 'string' }, description: 'Conclusions reached this turn' },
-              questions: { type: 'array', items: { type: 'string' }, description: 'Questions left open for the user' },
-              resolved: { type: 'array', items: { type: 'string' }, description: 'Earlier open questions now answered' },
-              next: { type: 'string', description: 'The most useful next step to resume from' },
-              checkpoint: { type: 'string', description: 'A milestone just reached, a few words' },
-              goal: { type: 'string', description: 'The apparent overall aim when it changes; Atlas records it as an observation and never treats it as confirmed' },
-            },
-          },
-        })
-      })
-    }
+    // The tool is inert until setup consent. Registration itself does not call Claude;
+    // this lets tests and an already-equipped model receive the short "off" result.
+    await step('observe tool', () => registerObserverTool($))
     saving?.cancel()
     saving = $.clock.every(SAVE_MS, () => void save($).catch(() => undefined))
     await step('pane', () => openPane($, false))
@@ -486,7 +561,8 @@ function setup($: EngineInterface): Promise<void> {
 // ------------------------------------------------------------------ hooks
 
 export const register: Register = (on, options) => {
-  askClaude = options?.observer !== 'engine only'
+  configuredMode = options?.observer === 'engine only' ? 'engine' : 'claude'
+  observerToolRegistered = false
   scanOnLaunch = options?.scanOnLaunch === 'off' || options?.scanOnLaunch === 'claude' ? options.scanOnLaunch : 'engine'
   ready = null
 
@@ -504,7 +580,7 @@ export const register: Register = (on, options) => {
 
   on('prompt.compose', async ($, e, next) => {
     const result = await next(e)
-    if (!askClaude) return result
+    if ((await modeOf($)) !== 'claude') return result
     return { sections: [...result.sections, { id: `${PLUGIN}:rules`, text: RULES, scope: 'session' as const }] }
   })
 
@@ -533,7 +609,7 @@ export const register: Register = (on, options) => {
       extra.push(`Atlas reference #${n} (${ref.kind}), attached deliberately by the user: ${ref.text}`)
     }
     const s = await snap($)
-    const line = s ? intentLine(s) : null
+    const line = (await modeOf($)) === 'claude' && s ? intentLine(s) : null
     if (line) extra.push(line)
     return next(extra.length ? { ...e, context: [...(e.context ?? []), ...extra] } : e)
   })
@@ -565,6 +641,7 @@ export const register: Register = (on, options) => {
   })
 
   on('tool.call', { tool: TOOL }, async ($, e) => {
+    if ((await modeOf($)) !== 'claude') return { result: 'Conversation Atlas observer is off; use /atlas observer claude to turn it on.' }
     const raw = e as unknown as Raw
     const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').map(x => clip(x, 160)).filter(Boolean).slice(0, 6) : undefined)
     const shift = typeof raw.shift === 'string' && ['same', 'subtopic', 'sibling', 'possible-detour', 'return'].includes(raw.shift) ? (raw.shift as ObserveReport['shift']) : undefined
@@ -657,6 +734,9 @@ export const register: Register = (on, options) => {
     const s = await snap($)
     if (!s) return <Text dimColor>Atlas is starting…</Text>
     const view = { ...DEFAULT_VIEW, ...((await $.state.get(VIEW)).value ?? {}) }
+    const choice = await setupChoice($)
+    const renderView = { ...view, setup: view.setup || !choice }
+    const mode = await modeOf($)
     const now = await $.clock.now()
     const width = Math.max(20, (e.props.bodyColumns || 48) - 2)
     const Client = 'Client' in t ? t.Client : undefined
@@ -672,7 +752,7 @@ export const register: Register = (on, options) => {
       )
     const el = { Box: t.Box, Text: t.Text, Button: t.Button, Input: 'Input' in t ? t.Input : undefined }
     const rows = Math.max(8, e.props.scroll?.bodyRows ?? e.viewport?.rows ?? 30)
-    const drawn = pane({ el, width, rows, now, view, live, act: a => void act($, a).catch(err => $.ui.toast(`atlas: ${err instanceof Error ? err.message : String(err)}`)) }, s)
+    const drawn = pane({ el, width, rows, now, mode, setupDefault: configuredMode, view: renderView, live, act: a => void act($, a).catch(err => $.ui.toast(`atlas: ${err instanceof Error ? err.message : String(err)}`)) }, s)
     maxScroll = drawn.maxScroll
     maxPopupScroll = drawn.maxPopupScroll
     return drawn.tree

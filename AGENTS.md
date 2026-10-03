@@ -13,3 +13,4 @@
 - The pane is sized to `bodyRows` and scrolls its own body via `ui.scroll` → `view.scroll`, so the app bar stays pinned. `rowsOf` estimates the body height. Built elements keep children on `el.children` (see `childrenOf`).
 - UI has three explicit paradigms: EXPANSION is inline structured detail under a row; TOGGLES flip state in place (Legend and Trail sort); POPUPS/MENUS are bordered, over-body panels for Trail events, Decisions and Open questions with `✕ Close`. Every Button is an action and every interactive row is a Button. Only one popup is open at a time, and any other action dismisses it. While Legend is on headings show `EXPLAIN` notes. Any new section needs an `EXPLAIN` entry.
 - Recovery reads `<root>/.claude/atlas/*.json` (`saveFile` format) and Trailhead envelopes in `.claude/trailhead/`. Adopting one is always an explicit press or `/atlas recover n`.
+- No Claude-usage-costing behaviour before the user's setup choice.

@@ -6,6 +6,7 @@
 // Observations can become intent only through an explicit confirmation (a pane button or /atlas).
 
 export type AtlasSource = 'person' | 'claude' | 'engine' | 'cue'
+export type AtlasMode = 'claude' | 'engine'
 
 export type AtlasGoal = {
   id: string
@@ -178,6 +179,8 @@ export type AtlasSelection = { kind: string; id: string; text: string }
 export type AtlasPopup = { kind: 'event' | 'decisions' | 'questions'; id?: string }
 
 export type AtlasView = {
+  // The first-run consent screen is explicit UI state; render hooks only read it.
+  setup: boolean
   tab: AtlasTab
   // Message chips: number -> what the chip stands for. A chip left in the draft resolves
   // to its full text on submit; a deleted chip sends nothing.
@@ -201,6 +204,7 @@ declare module 'claude-code' {
     'conversation-atlas': {
       snapshot: AtlasSnapshot
       view: AtlasView
+      mode: AtlasMode
     }
   }
 }

@@ -4,7 +4,8 @@ A self-updating companion pane for long Claude Code sessions. As you work normal
 where the session is: your goal, the current path through topics, possible detours, decisions,
 open questions, checkpoints, the files in play, live activity and what to resume next.
 
-**Core rule: it observes on its own and never rewrites your intent on its own.** Claude and the engine
+**Core rule: it observes on its own only after you choose that setup, and never rewrites your intent on its own.**
+Until then Atlas runs engine-only, with no observer rules or recorded Claude observations. Claude and the engine
 can *propose* a goal, a detour or a return. Only you turn a proposal into intent, by pressing a button in the pane or typing `/atlas …`.
 
 Atlas is the combined product and absorbs [Trailhead](../trailhead/README.md) (decided 2026-10-02). Kept from Trailhead: explicit goal → detour → return, departure snapshot, one-shot return packet, promote, marks, detour outcomes and exclusions, explicit decisions, project-folder save files, and recovery from earlier sessions including Trailhead's own checkpoints. Trailhead stays installed until the user retires it.
@@ -21,27 +22,29 @@ Atlas is the combined product and absorbs [Trailhead](../trailhead/README.md) (d
 - **Pane** (`Atlas`): opens unasked at session start. It docks beside the transcript in the fullscreen layout at ≥144 columns. Below that width it waits until you open it. The footer always shows an Atlas button (`● current topic · N`) that opens it at any width, inline if needed. `/atlas` does the same.
 - **Layout**: a centered `─── Conversation Atlas ───` rule (just `Atlas` under 34 columns) · tab bar · self-scrolling body (wheel, PgUp/PgDn, or ▲▼ buttons) · small absolute popups anchored to their source · app bar pinned to the pane bottom.
 - **Three UI paradigms**:
-  - **EXPANSION**: plain structured rows expand inline with indented dim `│` detail lines and actions. Evidence checkpoints, goal, topics, decisions, questions and files use this for metadata rather than repeating the row.
+  - **EXPANSION**: plain structured rows expand inline with indented dim `│` detail lines and actions. Evidence checkpoints, goal, topics, decisions, questions and files use this for metadata rather than repeating the row. Each action group has one `variant="primary"` main action where appropriate; other actions use cyan `[ label ]` controls that light on hover.
   - **TOGGLES**: Legend and Trail sort flip state in place. Legend shows a `LEGEND` panel, glyph table, “How to use” guidance and `EXPLAIN` notes under section headings.
   - **POPUPS / MENUS**: every Trail event opens a small, rounded EnvVault-style bordered popup anchored below or above that event row; prompt events also show full text, bullets and **Add to message**. ◇ decisions and ? open questions open one small popup above their bottom-bar button, each row expandable with its actions. Popups cap at 52 columns and 10 rows, scroll their own content with ▲▼ or the wheel, and show an `n/m` position. `✕ Close` or any other action dismisses it.
 - **App bar**: hotkeys Legend `l`, ◇ decisions `d`, ? open questions `q`, + Mark `k`. The bottom bar always keeps Mark visible and drops the old checkpoints menu because Evidence already lists checkpoints. Labels adapt through full/mid/tiny tiers and wrap when even tiny labels do not fit.
 - **Resize-friendly**: the tab and bottom bars compute their needed width at full, mid and tiny labels; at 26, 34, 48 and 72 body columns their keys remain present, and a second row is accounted for when wrapping is required. If fewer than 4 body rows fit, the pane stops pinning and lets Claude Code scroll it.
 - **Tabs** (hotkeys `m t o e` while the pane is focused):
+  - The active tab is bold coloured text and does not press; inactive tabs remain dim plain buttons. Accents are Map violet (`#bb9af7`), Trail light green (`#b9f27c`), Open pink (`#f7768e`) and Evidence blue (`#7aa2f7`).
   - **Map**: ◎ goal, current path tree (current node pulses when it is new), ↳ possible detour / active detour, live activity (spinner and shimmer while a tool runs, ✓/✗ after), working set, latest decisions/questions, ▸ resume next.
   - **Trail**: the whole topic tree, then a chronological trail of prompts, topic shifts, decisions, detours, returns and checkpoints.
   - **Open**: everything waiting for a yes/no: suggestions (goal, detour, return, next step, resume), observed decisions (**Settle**/**Drop**; decisions observed during a detour get **Keep**/**Exclude** instead), open questions (**Resolved**).
   - **Evidence**: checkpoints (click one to expand goal/topic/files at that moment), the settled ledger, resolved questions, past detours, files, and earlier sessions (Atlas or Trailhead) with a **Resume this** button.
 - **Detected goal**: `observe.goal` is always an observation. The Map goal expansion shows the confirmed goal’s source/time and Atlas’s differing detected aim; **Use this as my goal** is the explicit intent write.
+- **First run**: Atlas opens a short **Set up Atlas** screen before it asks Claude for observations. Claude observer adds topics/path, possible detours, Claude-reported decisions and questions, a detected goal and a suggested next step. On turns where something changed it costs a small amount of Claude usage (one extra tool step plus a cached rules section); that choice applies in every project. Engine-only mode is free.
 - **Selection → context**: click any decision, question, topic, checkpoint or file. Your next message carries it to Claude once (“this” refers to it), the same way filetree passes its selected file. `✕` clears it.
-- **Glyphs**: ◎ confirmed goal · ○ suggestion · ● current topic · ↳ detour · ↩ return · ◇ observed decision · ◆ settled decision / checkpoint · ? open question · ✦ just observed.
+- **Glyphs**: ◎ goal cyan · ○ suggestion · ● current topic violet · ↳/↩ detour amber · ◇ observed decision green · ◆ settled decision/checkpoint blue · ? open question pink · ✓ success green · ✗ failure pink · ✎ edited file orange · · read file violet · ✦ just changed. The Legend and rows use one shared glyph table.
 
 ## Joining a conversation late
 
 Atlas is installed for your user, so it loads in every new session, and in a running one after `/reload-plugins`. When it joins a session that already has history (a pre-existing thread, a resume with no save, an install mid-session):
 
 - **On launch, free:** it replays the earlier messages (`$.session.messages()`): your prompts and their wording cues, the goal suggestion, files read and edited, test and commit checkpoints, and a question left open at the end.
-- **On request, one cached request:** `/atlas scan`, or **Map earlier conversation** in the Trail tab, asks Claude once over the session's own transcript (`$.model.fork`, mostly served from the prompt cache) for topics, decisions, open questions and a next step. Everything it returns is an observation, so confirm what is true in the Open tab.
-- **Setting `scanOnLaunch`:** `engine` (default, free replay), `claude` (replay plus the one-request map on launch) or `off`.
+- **On request, one cached request:** `/atlas scan`, or **Map earlier conversation (1 Claude request)** in the Trail tab, asks Claude once over the session's own transcript (`$.model.fork`, mostly served from the prompt cache) for topics, decisions, open questions and a next step. This deliberate action is still available in engine-only mode. Everything it returns is an observation, so confirm what is true in the Open tab.
+- **Setting `scanOnLaunch`:** `engine` (default, free replay), `claude` (replay plus the one-request map on launch after Claude observer setup) or `off`.
 
 ## Commands
 
@@ -59,6 +62,8 @@ Everything is under `/atlas`. `/atlas help` lists them.
 | `return` | return from the detour, emit the return packet |
 | `promote` | promote the detour to the goal |
 | `scan` | map the conversation so far with Claude (one cached request) |
+| `observer [claude|engine]` | show or change the observer mode; the stored setup choice is authoritative |
+| `setup` | show the setup screen again |
 | `recover [n]` | list earlier Atlas + Trailhead sessions, or resume number n |
 | `reset` | clear this session's map (saved files and earlier sessions are kept) |
 
@@ -66,11 +71,11 @@ Everything is under `/atlas`. `/atlas help` lists them.
 
 | Automatic (observation) | Needs your confirmation (intent) |
 |---|---|
-| Topic path and possible detours (from Claude's `observe` calls) | Goal (Set as goal / type it / `/atlas goal`) |
+| Topic path and possible detours (from Claude's `observe` calls after setup) | Goal (Set as goal / type it / `/atlas goal`) |
 | Activity: reads, searches, edits, Bash, tests, git, web, subagents (engine) | Taking a detour (Take detour / `/atlas detour`) |
 | Working set: files read/written, counts (engine) | Returning: emits the return packet (Return / `/atlas return`) |
 | Checkpoints: commits, passing tests after edits, milestones | Promoting a detour to the goal |
-| Observed decisions and open questions (Claude, your wording, AskUserQuestion, a reply ending in "?") | Settling a decision into the ledger |
+| Observed decisions and open questions (Claude after setup, your wording, AskUserQuestion, a reply ending in "?") | Settling a decision into the ledger |
 | Suggested next step, goal suggestion from your first request | Pinning a next step, adopting last session's goal (Resume) |
 | Earlier sessions found on disk | Resuming one (Resume this / `/atlas recover n`) |
 | | Keep / Exclude for detour findings |
@@ -79,16 +84,16 @@ Everything is under `/atlas`. `/atlas help` lists them.
 
 One hooks module (`hooks/register.tsx`) plus pure `model.ts` (reducers), `activity.ts` (tool classification), `view.tsx` (pane tree), `recall.ts` (save-file format, Atlas/Trailhead readers) and the surface module `live.tsx` (animation).
 
-- `session.start`: bind/restore state, `$.tool.register` (`observe`), `$.command.register` (`atlas`), `$.ui.open`, `$.clock.every` for saving.
-- `prompt.compose`: one static rules section (`scope: 'session'`) telling Claude when to call `observe`.
-- `prompt.submit` (composer/bridge only): attaches the pending return packet and the pane selection once. While you have confirmed intent, it also adds one line: `Conversation Atlas, confirmed by the user: goal …; on a detour …`.
+- `session.start`: bind/restore state, read the plugin-wide `setup` choice, set the render-readable `conversation-atlas.mode`, register the inert `observe` tool, `$.command.register` (`atlas`), `$.ui.open`, and `$.clock.every` for saving.
+- `prompt.compose`: adds one static rules section (`scope: 'session'`) only while the stored mode is Claude; before setup and in engine-only mode it adds nothing.
+- `prompt.submit` (composer/bridge only): attaches the pending return packet and the pane selection once. While you have confirmed intent and Claude mode is on, it also adds one line: `Conversation Atlas, confirmed by the user: goal …; on a detour …`.
 - `turn.start`: turn count, prompt trail, wording cues. `turn.complete`: a reply ending in a question that Claude did not report.
 - `tool.call` (all tools): activity rows, files, test and commit checkpoints (`gitOperation.commit`), AskUserQuestion questions, ExitPlanMode decisions. `tool.call {observe}` answers Claude's report. `agent.spawn` names subagents.
 - `ui.render` `Pane {atlas}` and `SessionMode` (footer button). `Client` module `live.tsx` for spinners and shimmer on terminal and desktop; plain text on vscode/mobile.
 - `ui.scroll` on `Pane {atlas}`: with no popup, the pane scrolls its own body (`view.scroll`, clamped to an estimate of the body's rows from `rowsOf`) so the app bar stays pinned. With a popup open, the same event adjusts `view.popupScroll` and leaves the body offset unchanged. Body scrolling is a height=bodyRows column with an overflow-hidden window and negative `marginTop`; popup content is windowed independently.
-- State: `$.state` `conversation-atlas.snapshot` / `.view`, written with `update` (CAS). Durable: `$.store` `session:<id>` (restored on resume) and `project:<root>` (offered as **Resume** in the next new session of the same project). Keeps the last 12 sessions. Project-local copy `<project>/.claude/atlas/<session>.json`, written on the 2 s save timer when there is a goal, topics or decisions. Earlier sessions are read from there and from Trailhead's `.claude/trailhead/*.json` (highest checkpoint per session).
+- State: `$.state` `conversation-atlas.snapshot` via `update` (CAS), plus render-readable `.view` and `.mode` values; render hooks only read it. Durable: `$.store` `setup` (plugin-wide observer choice), `session:<id>` (restored on resume) and `project:<root>` (offered as **Resume** in the next new session of the same project). Keeps the last 12 sessions. Project-local copy `<project>/.claude/atlas/<session>.json`, written on the 2 s save timer when there is a goal, topics or decisions. Earlier sessions are read from there and from Trailhead's `.claude/trailhead/*.json` (highest checkpoint per session).
 
-No network, no telemetry. The only model cost is Claude's own `observe` tool calls in the normal session, about a few dozen tokens per call. Its rules sit in the cached system prompt. The `engine only` setting turns that off.
+No network, no telemetry. Before the first-run choice there is no Claude-usage-costing behavior. In Claude mode, the only ongoing model cost is Claude's own `observe` tool calls in the normal session, about a few dozen tokens per call; its rules sit in the cached system prompt. Engine-only mode turns those observations and rules off. Claude-sourced current path, possible detours, detected goals, topic maps and suggested resume steps are dimmed with a `/atlas observer claude` note; engine and cue sources remain normal.
 
 ## Install and run
 
@@ -102,7 +107,9 @@ Then `/reload-plugins` in a running session. To try a change without installing 
 
 Configuration (`/config` → conversation-atlas, or `pluginConfigs` in settings):
 
-- **Observer**: `claude and engine` (default) or `engine only` (no tool, no rules, no tokens; topics then stay empty).
+- **First-run setup**: the pane opens with **Use Claude observer** and **Engine only (free)**. Until one is pressed, Atlas behaves as engine-only. The selection is saved plugin-wide in `$.store` under `setup` as `{ observer: 'claude' | 'engine', at }`, so it applies to every project and session.
+- **Observer**: existing `claude and engine` or `engine only` userConfig values remain. They provide the setup screen's initial default only; once setup is chosen, the stored `setup` choice is authoritative. `/atlas observer` shows the current mode, `/atlas observer claude` or `/atlas observer engine` changes it, and `/atlas setup` shows the choice screen again. The Legend panel also has an **Observer: Claude / Engine only** toggle.
+- **Engine-only dimming**: Claude-sourced current path, possible detours, detected-goal text, topic map and Claude-suggested **RESUME NEXT** are dimmed. **Map earlier conversation** remains an explicit one-request action and is labelled accordingly. Cue-sourced detours and engine observations stay normal.
 
 ## Validation
 
@@ -111,7 +118,7 @@ claude plugin validate .\MyMods\conversation-atlas
 claude plugin test .\MyMods\conversation-atlas
 ```
 
-Last result (2026-10-02, Claude Code 2.1.288): validate passed. Runtime tests **25/25 passed**, covering model invariants, detected-goal observation and upgrade, hooks, merge/recovery, late join, inline expansion, small anchored absolute event popups, scrollable decision menus, popup-vs-body `ui.scroll`, Legend and Trail toggles, responsive bars at 26/34/48/72 columns, message-chip boundaries, and pinned scrolling. `tsc --strict` clean against the build's generated declarations.
+Last result (2026-10-02, Claude Code 2.1.288): validate passed. Runtime tests **30/30 passed**, covering model invariants, first-run consent and mode switching, detected-goal observation and upgrade, hooks, merge/recovery, late join, inline expansion, primary and bracketed action controls, active-tab accents, shared glyph colours, small anchored absolute event popups, scrollable decision menus, popup-vs-body `ui.scroll`, Legend and Trail toggles, responsive bars at 26/34/48/72 columns, message-chip boundaries, and pinned scrolling. `tsc --strict` clean against the build's generated declarations.
 
 Live acceptance (2026-10-02): hot-reloaded into the authoring session. The engine loaded the module and generated its `.claude-plugin/types/`. Real Read/Edit/Bash/test calls in that session fed the pane. Claude's `observe` tool reaches the model from the prompt after a (re)load, not in the turn that loads it. On 2.1.288 the observe tool, `/atlas` and pane selection → prompt context were seen working live.
 
