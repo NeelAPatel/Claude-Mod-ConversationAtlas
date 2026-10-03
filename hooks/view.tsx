@@ -13,7 +13,7 @@ import type { Elements, RenderElement } from 'claude-code'
 import type { AtlasCheckpoint, AtlasItem, AtlasPopup, AtlasRecall, AtlasSelection, AtlasSnapshot, AtlasSuggestion, AtlasTab, AtlasTopic, AtlasView } from '../types'
 import { base, rel } from './activity'
 import type { LiveRow, LiveSeg } from './live'
-import { activeDecisions, currentTopic, openQuestions, pathOf, resumeHint } from './model'
+import { activeDecisions, currentTopic, openQuestions, pathOf, resumeHint, sentences } from './model'
 
 export const C = {
   goal: '#7dcfff',
@@ -170,7 +170,8 @@ export function rowsOf(v: unknown, width: number): number {
   const extra = (Number(p.marginTop) || 0) + (Number(p.marginBottom) || 0) + 2 * (Number(p.marginY) || 0) + 2 * (Number(p.paddingY) || 0)
   switch (el.type) {
     case 'Text':
-      return p.wrap === 'wrap' ? Math.max(1, Math.ceil(textOf(childrenOf(el)).length / Math.max(8, width))) + extra : 1 + extra
+      if (p.wrap !== 'wrap') return Math.max(1, textOf(childrenOf(el)).split('\n').length) + extra
+      return textOf(childrenOf(el)).split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / Math.max(8, width))), 0) + extra
     case 'Button':
     case 'Input':
     case 'Select':
@@ -612,9 +613,16 @@ function eventPopupContent(ctx: Ctx, ev: AtlasSnapshot['events'][number]): Popup
   const details = ev.detail ?? []
   const items = [
     <Text dimColor>{`${ev.kind} · turn ${ev.turn} · ${ago(ctx.now - ev.at)}`}</Text>,
+    // The summary first (it is what the popup is for), the full text below it.
+    ...(details.length
+      ? [
+          <Text bold wrap="wrap">{sentences(ev.text)[0] ?? ev.text}</Text>,
+          <Text bold>Points</Text>,
+          <Text dimColor wrap="wrap">{details.map(d => `• ${d}`).join('\n')}</Text>,
+          <Text bold>Full text</Text>,
+        ]
+      : []),
     <Text wrap="wrap">{ev.text}</Text>,
-    ...(ev.kind === 'prompt' && details.length ? [<Text bold>Points</Text>] : []),
-    ...(details.length ? [<Text dimColor wrap="wrap">{details.map(d => `• ${d}`).join('\n')}</Text>] : []),
   ]
   const footer = ev.kind === 'prompt' ? <Button key={`add-ev-${ev.id}`} label="Add to message" variant="primary" onPress={() => ctx.act({ type: 'attach', ref: { kind: 'Prompt', id: ev.id, text: [ev.text, ...details].join('\n') } })} /> : undefined
   return { items, itemCount: items.length, footer }
@@ -626,7 +634,11 @@ function eventPopup(ctx: Ctx, ev: AtlasSnapshot['events'][number], anchorOffset:
   const geometry = popupGeometry(ctx, items)
   const viewport = Math.max(1, ctx.bodyViewport ?? ctx.rows)
   const visibleRow = anchorOffset - ctx.view.scroll
-  const top = visibleRow + 1 + geometry.height > viewport ? -geometry.height : 1
+  const below = visibleRow + 1 + geometry.height <= viewport
+  const above = visibleRow - geometry.height >= 0
+  const preferred = below ? 1 : above ? -geometry.height : 1
+  // `top` is relative to the row; clamp so the popup's absolute top stays in [0, viewport - height].
+  const top = Math.max(-visibleRow, Math.min(preferred, viewport - geometry.height - visibleRow))
   const left = Math.max(0, Math.min(2, ctx.width - popupWidth(ctx)))
   return popupShell(ctx, 'EVENT', items, { kind: 'event', id: ev.id }, { top, left }, content.itemCount, content.footer)
 }
