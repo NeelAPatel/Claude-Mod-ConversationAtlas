@@ -115,18 +115,18 @@ export function hydrate(raw: unknown, sessionId: string, root: string, now: numb
   const s = raw as Partial<AtlasSnapshot>
   if (s.v !== 1) return base
   const detour = s.detour ? { ...s.detour, exclusions: s.detour.exclusions ?? [] } : null
-  return { ...base, ...s, detour, sessionId, root, fresh: [], activity: (s.activity ?? []).map(a => (a.state === 'running' ? { ...a, state: 'failed' as const, endedAt: a.endedAt ?? now } : a)), handoffs: (s.handoffs ?? []).map(h => h.status === 'open' ? { ...h, status: 'closed' as const, summary: h.summary ?? 'session ended', tests: h.tests ?? null } : h) }
+  return { ...base, ...s, detour, sessionId, root, fresh: [], activity: (s.activity ?? []).map(a => (a.state === 'running' ? { ...a, state: 'failed' as const, endedAt: a.endedAt ?? now } : a)), handoffs: (s.handoffs ?? []).map(h => ({ ...h, reportFingerprint: h.reportFingerprint ?? null, ...(h.status === 'open' ? { status: 'closed' as const, summary: h.summary ?? 'session ended', tests: h.tests ?? null } : {}) })) }
 }
 
 // A snapshot that survived a reload of an older build keeps its old shape in state:
 // fill every field added since, so no reader ever meets undefined. Cheap and idempotent.
 export function upgrade(s: AtlasSnapshot): AtlasSnapshot {
   const partial = s as Partial<AtlasSnapshot>
-  const needs = partial.detectedGoal === undefined || !Array.isArray(partial.recall) || !Array.isArray(partial.adopted) || !partial.scanned || !Array.isArray(partial.handoffs) || (s.detour && !Array.isArray(s.detour.exclusions)) || s.detourHistory.some(d => !Array.isArray(d.exclusions))
+  const needs = partial.detectedGoal === undefined || !Array.isArray(partial.recall) || !Array.isArray(partial.adopted) || !partial.scanned || !Array.isArray(partial.handoffs) || s.handoffs.some(h => h.reportFingerprint === undefined) || (s.detour && !Array.isArray(s.detour.exclusions)) || s.detourHistory.some(d => !Array.isArray(d.exclusions))
   if (!needs) return s
   const base = emptySnapshot(s.sessionId, s.root, s.startedAt)
   const withEx = <T extends { exclusions?: string[] }>(d: T) => ({ ...d, exclusions: d.exclusions ?? [] })
-  return { ...base, ...s, detectedGoal: partial.detectedGoal ?? null, recall: partial.recall ?? [], adopted: partial.adopted ?? [], scanned: partial.scanned ?? 'none', handoffs: partial.handoffs ?? [], detour: s.detour ? withEx(s.detour) : null, detourHistory: s.detourHistory.map(withEx) }
+  return { ...base, ...s, detectedGoal: partial.detectedGoal ?? null, recall: partial.recall ?? [], adopted: partial.adopted ?? [], scanned: partial.scanned ?? 'none', handoffs: (partial.handoffs ?? []).map(h => ({ ...h, reportFingerprint: h.reportFingerprint ?? null })), detour: s.detour ? withEx(s.detour) : null, detourHistory: s.detourHistory.map(withEx) }
 }
 
 function id(s: AtlasSnapshot, prefix: string): [string, AtlasSnapshot] {
@@ -468,10 +468,10 @@ export function endActivity(s: AtlasSnapshot, aid: string, state: 'done' | 'fail
   return { ...s, activity: s.activity.map(a => (a.id === aid ? { ...a, state, endedAt: now, label: label ?? a.label } : a)) }
 }
 
-export function startHandoff(s: AtlasSnapshot, label: string, agent: string, brief: string | null, reportPath: string | null, now: number): AtlasSnapshot {
+export function startHandoff(s: AtlasSnapshot, label: string, agent: string, brief: string | null, reportPath: string | null, now: number, reportFingerprint: string | null = null): AtlasSnapshot {
   const body = clip(label, 120) || agent || 'external agent'
   const [hid, next] = id(s, 'h')
-  const handoff: AtlasHandoff = { id: hid, label: body, agent: clip(agent, 40) || 'agent', brief: brief ? clip(brief, 240) : null, reportPath: reportPath ? clip(reportPath, 400) : null, at: now, turn: s.turn, status: 'open', summary: null, tests: null, files: [] }
+  const handoff: AtlasHandoff = { id: hid, label: body, agent: clip(agent, 40) || 'agent', brief: brief ? clip(brief, 240) : null, reportPath: reportPath ? clip(reportPath, 400) : null, at: now, turn: s.turn, status: 'open', summary: null, tests: null, files: [], reportFingerprint }
   const path = brief ? ` · ${brief}` : ''
   return flash(event({ ...next, handoffs: keep([...next.handoffs, handoff], LIMITS.handoffs) }, 'handoff', `→ ${body}${path}`, now), hid)
 }
@@ -502,13 +502,22 @@ export function closeUnverifiedHandoffs(s: AtlasSnapshot, now: number): AtlasSna
   return next
 }
 
+export function resolveRepoPath(root: string, path: string): string {
+  const value = path.trim().replace(/\\/g, '/')
+  if (!value) return ''
+  if (value.startsWith('/') || /^[A-Za-z]:\//.test(value)) return value
+  const base = root.replace(/\\/g, '/').replace(/\/+$/, '')
+  return `${base}/${value.replace(/^\.\//, '')}`
+}
+
 export function touchFile(s: AtlasSnapshot, path: string, op: 'read' | 'write', now: number, source?: string): AtlasSnapshot {
-  if (!path) return s
-  const hit = s.files.find(f => f.path === path)
+  const resolved = resolveRepoPath(s.root, path)
+  if (!resolved) return s
+  const hit = s.files.find(f => f.path === resolved)
   const file: AtlasFile = hit
     ? { ...hit, reads: hit.reads + (op === 'read' ? 1 : 0), writes: hit.writes + (op === 'write' ? 1 : 0), lastOp: op, at: now, turn: s.turn, ...(source ? { source } : {}) }
-    : { path, reads: op === 'read' ? 1 : 0, writes: op === 'write' ? 1 : 0, lastOp: op, at: now, turn: s.turn, ...(source ? { source } : {}) }
-  const rest = s.files.filter(f => f.path !== path)
+    : { path: resolved, reads: op === 'read' ? 1 : 0, writes: op === 'write' ? 1 : 0, lastOp: op, at: now, turn: s.turn, ...(source ? { source } : {}) }
+  const rest = s.files.filter(f => f.path !== resolved)
   return { ...s, files: keep([...rest, file], LIMITS.files) }
 }
 

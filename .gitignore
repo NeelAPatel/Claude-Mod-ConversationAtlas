@@ -4,4 +4,5 @@ tsconfig.json
 # Local Atlas data for this repo's own sessions (save files, Trailhead checkpoints).
 .claude/
 node_modules/
+.tmp-npm-cache/
 *.log

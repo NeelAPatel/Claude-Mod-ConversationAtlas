@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { addCheckpoint, closeUnverifiedHandoffs, collapseEvents, confirmSuggestion, emptySnapshot, observe, promptBullets, reportHandoff, reportMarker, returnFromDetour, setItemStatus, startHandoff, startTurn, stripPromptMarkers, touchFile, upgrade } from '../hooks/model'
-import { expectedReportPath, handoffStart, parseHandoffReport } from '../hooks/delegation'
+import { addCheckpoint, closeUnverifiedHandoffs, collapseEvents, confirmSuggestion, emptySnapshot, observe, promptBullets, reportHandoff, reportMarker, resolveRepoPath, returnFromDetour, setItemStatus, startHandoff, startTurn, stripPromptMarkers, touchFile, upgrade } from '../hooks/model'
+import { expectedReportPath, handoffStart, parseHandoffReport, reportChanged, reportFingerprint } from '../hooks/delegation'
 import { barWidth, collapseBarLabels } from '../hooks/ui'
 import { C } from '../hooks/view'
 
@@ -39,6 +39,10 @@ function world(on: any, entries: Record<string, unknown> = { setup: { observer: 
 
 async function drawn(ui: any): Promise<string> {
   return JSON.stringify(await ui.drawn())
+}
+
+function childrenOf(node: any): any[] {
+  return Array.isArray(node?.children) ? node.children.filter(Boolean) : []
 }
 
 describe('model: observation never writes intent', () => {
@@ -444,12 +448,19 @@ describe('readability: app bar, legend, resizing', () => {
   test('delegation rows cover in-session agents, visible terminal tabs, report files and unverified return', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     on('turn.start', (_$: any, e: any) => ({ turnId: e.turnId ?? 'test' }))
+    let report = 'status: done\nsummary: stale report\nbranch: feat/m1-ui-library\ntests: old\nfiles:\n- hooks/view.tsx'
     on('fs.read', (_$: any, e: any) => /atlas-m1\.md$/i.test(String(e.path))
-      ? { value: 'status: done\nsummary: UI work complete\nbranch: feat/m1-ui-library\ntests: 42 pass\nfiles:\n- hooks/view.tsx\n- hooks/model.ts' }
+      ? { value: report }
       : { value: '' })
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await $.tool.call({ tool: 'Agent', description: 'Build the UI', subagent_type: 'general-purpose' } as any)
     await $.tool.call({ tool: 'PowerShell', command: 'wt -w 0 new-tab --title "Codex: Atlas M1" codex "Read C:/tmp/atlas-m1.md"', run_in_background: true } as any)
+    await clock.advance(2_000)
+    await clock.settle()
+    const beforeReport = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    expect(await drawn(beforeReport)).not.toContain('← stale report')
+    await beforeReport.unmount()
+    report = 'status: done\nsummary: UI work complete\nbranch: feat/m1-ui-library\ntests: 42 pass\nfiles:\n- hooks/view.tsx\n- hooks/model.ts'
     await clock.advance(2_000)
     await clock.settle()
     const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
@@ -503,6 +514,25 @@ describe('milestone 1: UI primitives and engine noise', () => {
     }
   })
 
+  test('rendered bars keep every tab and Mark at narrow and wide widths without wrapping', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await clock.settle()
+    for (const surface of ['terminal', 'desktop'] as const) {
+      for (const bodyColumns of [24, 40, 60, 100]) {
+        const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'atlas', props: { ...PANE_PROPS, bodyColumns } })
+        const text = await drawn(ui)
+        expect(text).toMatch(/▸(?:Map|M)/)
+        for (const tab of ['trail', 'open', 'evidence']) expect(text).toContain(`"key":"tab-${tab}"`)
+        for (const key of ['bar-legend', 'bar-decisions', 'bar-questions', 'mark']) expect(text).toContain(`"key":"${key}"`)
+        for (const key of ['bar-legend', 'bar-decisions', 'bar-questions', 'mark']) expect(await ui.find({ key, type: 'Button' })).toBeDefined()
+        expect((await ui.find({ key: 'tab-bar' }))?.props.flexWrap).not.toBe('wrap')
+        expect((await ui.find({ key: 'bottom-bar' }))?.props.flexWrap).not.toBe('wrap')
+        await ui.unmount()
+      }
+    }
+  })
+
   test('prompt markers leave only typed text and marker-only turns make no prompt event', () => {
     expect(stripPromptMarkers('<task-notification>done</task-notification>')).toBe('')
     expect(stripPromptMarkers('<agent-message from="Codex">done</agent-message>')).toBe('')
@@ -535,10 +565,46 @@ describe('milestone 1: UI primitives and engine noise', () => {
     const external = handoffStart('PowerShell', { command: 'wt -w 0 new-tab --title "Codex: Atlas" codex "Read C:/tmp/atlas-m1.md"', run_in_background: true })
     expect(external?.label).toBe('Codex: Atlas')
     expect(expectedReportPath(ROOT, external?.brief ?? null)).toBe(`${ROOT}/.claude/atlas/handoffs/atlas-m1.md`)
+    const watcher = handoffStart('PowerShell', { command: 'Get-Content .\\generated\\atlas.json -Wait\nWrite-Output still-watching', description: 'Watch generated Atlas files', run_in_background: true })
+    expect(watcher?.label).toBe('Watch generated Atlas files')
+    expect(watcher?.agent).toBe('background')
+    const fallback = handoffStart('PowerShell', { command: 'Get-Content .\\generated\\atlas.json -Wait\nWrite-Output still-watching', run_in_background: true })
+    expect(fallback?.label).toBe('Get-Content .\\generated\\atlas.json -Wait')
+    expect(fallback?.agent).toBe('background')
     expect(parseHandoffReport('status: pending')).toBeNull()
     const partial = parseHandoffReport('status: done\nfiles:\n- hooks/view.tsx')
     expect(partial?.summary).toBe('No summary provided')
     expect(partial?.files).toEqual(['hooks/view.tsx'])
+    const realShape = parseHandoffReport(`status: done
+summary: Atlas M1 review fixes
+branch: feat/m1-ui-library
+tests: pending
+files:
+hooks/ui/index.tsx
+hooks/delegation.ts
+hooks/model.ts
+hooks/register.tsx
+hooks/view.tsx
+types/index.d.ts
+tests/atlas.test.tsx
+
+A: The prose body must not become a file.`)
+    expect(realShape?.files).toHaveLength(7)
+    expect(realShape?.files).toEqual(['hooks/ui/index.tsx', 'hooks/delegation.ts', 'hooks/model.ts', 'hooks/register.tsx', 'hooks/view.tsx', 'types/index.d.ts', 'tests/atlas.test.tsx'])
+
+    let files = emptySnapshot('s', ROOT, 0)
+    files = touchFile(files, `${ROOT}/hooks/view.tsx`, 'write', 1)
+    files = touchFile(files, 'hooks/view.tsx', 'write', 2, 'Codex')
+    expect(resolveRepoPath(ROOT, 'hooks/view.tsx')).toBe(`${ROOT}/hooks/view.tsx`)
+    expect(resolveRepoPath(ROOT, `${ROOT}\\hooks\\view.tsx`)).toBe(`${ROOT}/hooks/view.tsx`)
+    expect(files.files).toHaveLength(1)
+    expect(files.files[0]?.path).toBe(`${ROOT}/hooks/view.tsx`)
+    expect(files.files[0]?.writes).toBe(2)
+
+    const oldReport = 'status: done\nsummary: old\n'
+    const newReport = 'status: done\nsummary: new\n'
+    expect(reportChanged(reportFingerprint(oldReport), oldReport)).toBe(false)
+    expect(reportChanged(reportFingerprint(oldReport), newReport)).toBe(true)
 
     let s = emptySnapshot('s', ROOT, 0)
     s = startHandoff(s, external?.label ?? 'Codex', external?.agent ?? 'Codex', external?.brief ?? null, expectedReportPath(ROOT, external?.brief ?? null), 1)
@@ -743,6 +809,18 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     const popup = await ui.find({ key: 'atlas-popup' })
     expect(popup?.props.position).toBe('absolute')
     expect(Number(popup?.props.width)).toBeLessThan(72)
+    expect(Number(popup?.props.width)).toBeGreaterThan(0)
+    expect(Number(popup?.props.height)).toBeGreaterThan(0)
+    expect(popup?.props.overflow).toBe('hidden')
+    expect(popup?.props.backgroundColor).toBe('#16161e')
+    const popupChildren = childrenOf(popup)
+    expect(popupChildren.length).toBe(3)
+    for (const child of popupChildren) expect(child.props.backgroundColor).toBe('#16161e')
+    const popupBody = popupChildren[1]
+    expect(popupBody?.props.backgroundColor).toBe('#16161e')
+    for (const row of childrenOf(popupBody)) expect(row.props.backgroundColor).toBe('#16161e')
+    // The runtime exposes the render tree, not terminal cells. These structural
+    // guarantees are the strongest opacity/flush-width check available here.
     expect(t).toContain('Refactor the loader.')
     expect(t.indexOf('add retries with backoff')).toBeGreaterThan(t.indexOf('EVENT'))
     expect(t).toContain('• keep the API stable')

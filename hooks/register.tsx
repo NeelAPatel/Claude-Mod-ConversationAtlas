@@ -12,7 +12,7 @@ import { type EngineInterface, type Register, type Timer, update } from 'claude-
 import type { AtlasMode, AtlasScanState, AtlasSnapshot, AtlasView } from '../types'
 import { askedQuestions, classify, planTitle, posix } from './activity'
 import type { LiveRow } from './live'
-import { expectedReportPath, handoffStart, parseHandoffReport } from './delegation'
+import { expectedReportPath, handoffStart, parseHandoffReport, reportChanged, reportFingerprint } from './delegation'
 import {
   addCheckpoint,
   addQuestion,
@@ -332,6 +332,7 @@ async function checkHandoffReports($: EngineInterface): Promise<void> {
     } catch {
       continue
     }
+    if (!reportChanged(handoff.reportFingerprint, raw)) continue
     const report = parseHandoffReport(raw)
     if (!report) continue
     await edit($, (s, now) => {
@@ -767,10 +768,20 @@ export const register: Register = (on, options) => {
     const agent = e.agentId ? (agentNames.get(e.agentId) ?? 'agent') : null
     const asked = tool === 'AskUserQuestion' ? askedQuestions(input) : []
     let handoffId: string | undefined
+    const reportPath = delegation ? expectedReportPath(root, delegation.brief) : null
+    const existingReportFingerprint = reportPath
+      ? await (async () => {
+          try {
+            return reportFingerprint(await $.fs.read(reportPath))
+          } catch {
+            return null
+          }
+        })()
+      : null
     await edit($, (s, now) => {
       let out = startActivity(s, { id: aid, kind: c.kind, label: c.label, at: now, agent })
       if (delegation) {
-        out = startHandoff(out, delegation.label, delegation.agent, delegation.brief, expectedReportPath(root, delegation.brief), now)
+        out = startHandoff(out, delegation.label, delegation.agent, delegation.brief, reportPath, now, existingReportFingerprint)
         handoffId = out.handoffs.at(-1)?.id
       }
       for (const q of asked) out = addQuestion(out, q, 'claude', now)

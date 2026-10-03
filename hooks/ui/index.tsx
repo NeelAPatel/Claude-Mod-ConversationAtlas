@@ -170,7 +170,7 @@ export function Tabs(ctx: UiContext, items: BarItem[], gap = 1): RenderElement {
   const { Box, Button, Text } = ctx.el
   const choice = collapseBarLabels(items, ctx.width, ctx.surface, gap)
   return (
-    <Box flexDirection="row" gap={gap} flexWrap="nowrap" overflow="hidden" flexShrink={0}>
+    <Box key="tab-bar" flexDirection="row" gap={gap} flexWrap="nowrap" overflow="hidden" flexShrink={0}>
       {items.map((item, i) => item.active
         ? <Text key={item.key} bold color={item.activeColor}>{`▸${choice.labels[i] ?? ''}`}</Text>
         : <Button key={item.key} plain hotkey={choice.tier === 'compact' ? undefined : item.hotkey} label={choice.labels[i] ?? ''} onPress={() => item.onPress()} />)}
@@ -182,7 +182,7 @@ export function Bar(ctx: UiContext, items: BarItem[], gap = 1): RenderElement {
   const { Box, Button, Text } = ctx.el
   const choice = collapseBarLabels(items, ctx.width, ctx.surface, gap)
   return (
-    <Box flexDirection="row" gap={gap} flexWrap="nowrap" overflow="hidden" flexShrink={0}>
+    <Box key="bottom-bar" flexDirection="row" gap={gap} flexWrap="nowrap" overflow="hidden" flexShrink={0}>
       {items.map((item, i) => (
         <Box key={`bar-wrap-${item.key}`} flexDirection="row" gap={isGui(ctx.surface) ? 0 : 1} flexShrink={1} overflow="hidden">
           {item.icon ? <Text dimColor={!item.active}>{item.icon}</Text> : null}
@@ -223,7 +223,7 @@ export function ActionGroup(ctx: UiContext, items: ActionItem[], options: { marg
 
 export function ScrollBox(ctx: UiContext, children: RenderElement[], options: { height: number; backgroundColor?: string } ): RenderElement {
   const { Box } = ctx.el
-  return <Box flexDirection="column" height={options.height} overflow="hidden" backgroundColor={options.backgroundColor}>{children}</Box>
+  return <Box key="popup-body" flexDirection="column" height={options.height} overflow="hidden" backgroundColor={options.backgroundColor}>{children.map((child, i) => <Box key={`popup-row-${i}`} backgroundColor={options.backgroundColor} flexShrink={0}>{child}</Box>)}</Box>
 }
 
 export function Popup(ctx: UiContext, children: RenderElement[], options: { width: number; height: number; backgroundColor: string; borderColor?: string; top?: number; left?: number; bottom?: number }): RenderElement {

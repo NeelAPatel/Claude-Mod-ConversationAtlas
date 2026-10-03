@@ -21,6 +21,11 @@ type Input = Record<string, unknown>
 
 const stringOf = (value: unknown): string => typeof value === 'string' ? value : ''
 
+function labelOf(value: string): string {
+  const line = value.replace(/\s+/g, ' ').trim()
+  return line.length <= 120 ? line : `${line.slice(0, 119).trimEnd()}…`
+}
+
 function titleOf(command: string): string | null {
   const match = /(?:^|\s)--title(?:=|\s+)(?:"([^"]+)"|'([^']+)'|(\S+))/i.exec(command)
   return match?.[1] ?? match?.[2] ?? match?.[3] ?? null
@@ -40,7 +45,7 @@ function briefOf(command: string): string | null {
 export function handoffStart(tool: string, input: Input): HandoffStart | null {
   if (tool === 'Agent' || tool === 'Task') {
     const agent = stringOf(input.subagent_type) || stringOf(input.subagentType) || 'subagent'
-    const label = stringOf(input.description) || agent
+    const label = labelOf(stringOf(input.description)) || agent
     return { label, agent, brief: null, external: false }
   }
   if (tool !== 'Bash' && tool !== 'PowerShell') return null
@@ -50,8 +55,10 @@ export function handoffStart(tool: string, input: Input): HandoffStart | null {
   const terminalTab = /\bwt(?:\.exe)?\b[\s\S]*\bnew-tab\b/i.test(command) && Boolean(agent)
   const external = Boolean(agent || terminalTab || background)
   if (!external) return null
-  const name = titleOf(command) || agent || 'background agent'
-  return { label: name, agent: agent ?? name, brief: briefOf(command), external: true }
+  const description = labelOf(stringOf(input.description))
+  const firstCommandLine = labelOf(command.split(/\r?\n/, 1)[0] ?? '')
+  const name = agent ? (titleOf(command) || agent) : (description || firstCommandLine || 'background')
+  return { label: name, agent: agent ?? 'background', brief: briefOf(command), external: true }
 }
 
 export function expectedReportPath(root: string, brief: string | null): string | null {
@@ -64,6 +71,20 @@ export function expectedReportPath(root: string, brief: string | null): string |
 
 function cleanValue(value: string): string {
   return value.replace(/^['"]|['"]$/g, '').trim()
+}
+
+// A short, deterministic fingerprint is enough to distinguish a report left by
+// an earlier hand-off from the report written by the current one.
+export function reportFingerprint(text: unknown): string | null {
+  if (typeof text !== 'string') return null
+  let hash = 2166136261
+  for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619)
+  return `${text.length}:${hash >>> 0}`
+}
+
+export function reportChanged(previous: string | null | undefined, current: unknown): boolean {
+  const next = reportFingerprint(current)
+  return next !== null && next !== previous
 }
 
 // A missing optional field is not a malformed report. A missing/invalid status
@@ -80,7 +101,11 @@ export function parseHandoffReport(text: unknown): HandoffReport | null {
   let inFiles = false
   for (const raw of lines) {
     const line = raw.trim()
-    if (!line || line === '---') continue
+    if (!line) {
+      inFiles = false
+      continue
+    }
+    if (line === '---') continue
     if (/^files\s*:/i.test(line)) {
       inFiles = true
       const inline = line.replace(/^files\s*:\s*/i, '').trim()
@@ -97,7 +122,11 @@ export function parseHandoffReport(text: unknown): HandoffReport | null {
       if (field[1]?.toLowerCase() === 'tests') tests = value
       continue
     }
-    if (inFiles && /^[-*]\s+/.test(line)) files.push(cleanValue(line.replace(/^[-*]\s+/, '')))
+    if (inFiles && /^[A-Za-z][A-Za-z0-9_.-]*\s*:\s*/.test(line)) {
+      inFiles = false
+      continue
+    }
+    if (inFiles) files.push(cleanValue(line.replace(/^[-*]\s+/, '')))
   }
   if (!status) return null
   return {

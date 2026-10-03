@@ -141,6 +141,7 @@ export type AtlasHandoff = {
   summary: string | null
   tests: string | null
   files: string[]
+  reportFingerprint: string | null
 }
 
 // An earlier session of this project that can be resumed: an Atlas save file or a
