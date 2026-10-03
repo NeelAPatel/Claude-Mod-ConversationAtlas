@@ -2,6 +2,7 @@
 
 - This folder is Atlas's own local repo (`F:\LocalProj\Claude-Mod-ConversationAtlas`). It moved out of `F:\LocalProj\ClaudeModsExperimentation` on 2026-10-02 with its history (see `docs/HISTORY.md`). Do not re-add it there.
 - Atlas is a working product with a private user-level install permitted at `~/.claude/skills/conversation-atlas`. Update it with `scripts/install-atlas.ps1` after `claude plugin test .` and `claude plugin validate .` pass, then `/reload-plugins`. Publishing to GitHub or a marketplace needs an explicit decision from the user.
+- **Branches (user rule 2026-10-03), no worktrees:** `main` is known good: only fast-forwards from `dev` after the user confirms the installed build works. `dev` is integration: Claude merges reviewed work here, then installs from `dev` for the user to try. Each Codex job gets its own `feat/<name>` branch cut from `dev`, checked out in this folder (one job at a time). Codex never commits, merges or switches branches; Claude does. Never `git worktree`.
 - Delegated external agents (Codex etc.) must run in a visible, named terminal tab, never headless (user rule in `~/.claude/CLAUDE.md`).
 
 - Atlas is the combined product and absorbs Trailhead (user decision 2026-10-02). New intent features go here, not in `MyMods/trailhead`.
