@@ -143,12 +143,33 @@ let flashTimer: Timer | null = null
 let lastSaved: AtlasSnapshot | undefined
 let observedThisTurn = false
 let activitySeq = 0
-// How far the body could scroll at the last draw; clamps wheel and page moves.
-let maxScroll = 0
-// How far the currently open popup can scroll at the last draw.
-let maxPopupScroll = 0
-let maxExpandedScroll = 0
-let maxLegendScroll = 0
+type ScrollBounds = {
+  bodyRows: number
+  maxScroll: number
+  maxPopupScroll: number
+  maxExpandedScroll: number
+  maxLegendScroll: number
+}
+const EMPTY_BOUNDS: ScrollBounds = {
+  bodyRows: 0, maxScroll: 0, maxPopupScroll: 0, maxExpandedScroll: 0, maxLegendScroll: 0,
+}
+// Each surface owns the bounds measured by its last draw.
+const surfaceBounds = new Map<Surface, ScrollBounds>()
+
+function wheelBounds(bodyRows: number): ScrollBounds {
+  const bounds = [...surfaceBounds.values()]
+  const matches = bounds.filter(bound => bound.bodyRows === bodyRows)
+  if (matches.length === 1) return matches[0] ?? EMPTY_BOUNDS
+  // Wheel events have no surface identity. Ambiguous sizes must not impose
+  // the smaller surface's bounds on the larger one; each draw still clamps.
+  return bounds.reduce((largest, bound) => ({
+    bodyRows,
+    maxScroll: Math.max(largest.maxScroll, bound.maxScroll),
+    maxPopupScroll: Math.max(largest.maxPopupScroll, bound.maxPopupScroll),
+    maxExpandedScroll: Math.max(largest.maxExpandedScroll, bound.maxExpandedScroll),
+    maxLegendScroll: Math.max(largest.maxLegendScroll, bound.maxLegendScroll),
+  }), EMPTY_BOUNDS)
+}
 let scanOnLaunch: 'off' | 'engine' | 'claude' = 'engine'
 let configuredMode: AtlasMode = 'claude'
 let observerToolRegistered = false
@@ -471,7 +492,8 @@ async function openPane($: EngineInterface, focus: boolean): Promise<boolean> {
 
 // ------------------------------------------------------------------ actions (the only intent writers)
 
-async function act($: EngineInterface, a: Action): Promise<void> {
+async function act($: EngineInterface, a: Action, surface: Surface): Promise<void> {
+  const { maxScroll, maxPopupScroll, maxExpandedScroll, maxLegendScroll } = surfaceBounds.get(surface) ?? EMPTY_BOUNDS
   switch (a.type) {
     case 'tab':
       return setView($, v => ({ ...v, tab: a.tab, scroll: 0, legend: false, popup: null, popupScroll: 0, expanded: null, expandedScroll: 0 }))
@@ -1025,19 +1047,26 @@ export const register: Register = (on, options) => {
     const el = { Box: t.Box, Text: t.Text, Button: t.Button, Input: 'Input' in t ? t.Input : undefined }
     const rows = Math.max(8, e.props.scroll?.bodyRows ?? e.viewport?.rows ?? 30)
     const surface = (e.surface ?? 'terminal') as Surface
-    const drawn = pane({ el, surface, width, rows, now, mode, setupDefault: configuredMode, scan, view: renderView, live, act: a => void act($, a).catch(err => $.ui.toast(`atlas: ${err instanceof Error ? err.message : String(err)}`)) }, s)
-    maxScroll = drawn.maxScroll
-    maxPopupScroll = drawn.maxPopupScroll
-    maxExpandedScroll = drawn.maxExpandedScroll
-    maxLegendScroll = drawn.maxLegendScroll
+    const drawn = pane({
+      el, surface, width, rows, now, mode, setupDefault: configuredMode, scan, view: renderView, live,
+      act: a => void act($, a, surface).catch(err => $.ui.toast(`atlas: ${err instanceof Error ? err.message : String(err)}`)),
+    }, s)
+    surfaceBounds.set(surface, {
+      bodyRows: rows,
+      maxScroll: drawn.maxScroll,
+      maxPopupScroll: drawn.maxPopupScroll,
+      maxExpandedScroll: drawn.maxExpandedScroll,
+      maxLegendScroll: drawn.maxLegendScroll,
+    })
     return drawn.tree
   })
 
   // The pane scrolls its own body (the app bar stays pinned), unless a popup or
-  // an expanded Trail event is using the same wheel gesture.
+  // expanded help or a Trail event is using the same wheel gesture.
   on('ui.scroll', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    const { maxScroll, maxPopupScroll, maxExpandedScroll, maxLegendScroll } = wheelBounds(e.bodyRows)
     const view = (await $.state.get(VIEW)).value as AtlasView | undefined
-    if (view?.popup?.kind === 'legend' || view?.popup?.kind === 'item') {
+    if (view?.popup) {
       await setView($, v => ({ ...v, popupScroll: Math.max(0, Math.min(maxPopupScroll, v.popupScroll + e.by)) }))
       return {}
     }

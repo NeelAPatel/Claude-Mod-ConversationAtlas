@@ -162,6 +162,7 @@ export function rowsOf(value: unknown, width: number): number {
     }
     case 'Box': {
       if (props.display === 'none') return 0
+      if (props.overflow === 'hidden' && typeof props.height === 'number') return props.height + extra
       const children = kids(childrenOf(element)).filter(
         child => (child as { props?: Record<string, unknown> }).props?.position !== 'absolute',
       )
@@ -440,24 +441,37 @@ function sectionExpansionId(section: ScreenSection): string {
   return `section:${section.key}`
 }
 
-function visibleHelpRows(ctx: Ctx, helpLength: number): number {
+function visibleHelpRows(ctx: Ctx, totalRows: number): number {
   const room = ctx.bodyViewport ?? ctx.rows
   const target = room >= 12 ? 5 : 3
-  return Math.min(helpLength, target)
+  return Math.min(totalRows, target)
+}
+
+function helpGeometry(ctx: Ctx, section: ScreenSection) {
+  const { Text } = ctx.el
+  const items = section.help.map((line, index) => (
+    <Text key={`help-line-${section.key}-${index}`} dimColor wrap="wrap">{`│ ${line}`}</Text>
+  ))
+  const itemRows = items.map(item => rowsOf(item, Math.max(8, ctx.width - 2)))
+  const total = itemRows.reduce((sum, rows) => sum + rows, 0)
+  const visible = visibleHelpRows(ctx, total)
+  return { items, itemRows, total, visible, maxScroll: Math.max(0, total - visible) }
 }
 
 function sectionHelp(ctx: Ctx, section: ScreenSection): RenderElement | null {
   if (ctx.view.expanded !== sectionExpansionId(section)) return null
   const { Box, Button, Text } = ctx.el
-  const visible = visibleHelpRows(ctx, section.help.length)
-  const max = Math.max(0, section.help.length - visible)
+  const geometry = helpGeometry(ctx, section)
+  const { visible, maxScroll: max } = geometry
   const at = Math.min(Math.max(0, ctx.view.expandedScroll), max)
-  const lines = section.help.slice(at, at + visible)
+  const window = rowWindow(geometry.items, geometry.itemRows, at, visible)
   return (
     <Box key={`help-${section.key}`} flexDirection="column" marginLeft={2}>
-      {lines.map((line, index) => (
-        <Text key={`help-line-${section.key}-${index}`} dimColor wrap="truncate-end">{`│ ${line}`}</Text>
-      ))}
+      <Box key={`help-body-${section.key}`} flexDirection="column" height={visible} overflow="hidden" flexShrink={0}>
+        <Box key={`help-window-${section.key}`} flexDirection="column" marginTop={-window.offset} flexShrink={0}>
+          {window.items}
+        </Box>
+      </Box>
       {max > 0 ? (
         <Box flexDirection="row">
           <Text dimColor>│ </Text>
@@ -468,7 +482,7 @@ function sectionHelp(ctx: Ctx, section: ScreenSection): RenderElement | null {
             label="▲"
             onPress={() => ctx.act({ type: 'expanded-scroll', by: -1 })}
           />
-          <Text dimColor>{` ${at + 1}/${section.help.length} `}</Text>
+          <Text dimColor>{` ${at + 1}/${geometry.total} `}</Text>
           <Button
             key={`help-down-${section.key}`}
             plain
@@ -671,7 +685,7 @@ function popupGeometry(ctx: Ctx, items: RenderElement[]) {
   const bodyRows = Math.max(1, height - 4)
   return { height, bodyRows, maxScroll: Math.max(0, total - bodyRows), itemRows }
 }
-function popupWindow(items: RenderElement[], itemRows: number[], at: number, bodyRows: number): RenderElement[] {
+function rowWindow(items: RenderElement[], itemRows: number[], at: number, bodyRows: number) {
   let start = 0
   let skipped = 0
   while (start < items.length && skipped + (itemRows[start] ?? 1) <= at) {
@@ -679,23 +693,21 @@ function popupWindow(items: RenderElement[], itemRows: number[], at: number, bod
     start++
   }
   let end = start
-  let used = 0
-  while (end < items.length && (used === 0 || used + (itemRows[end] ?? 1) <= bodyRows)) {
+  let used = skipped
+  while (end < items.length && used < at + bodyRows) {
     used += itemRows[end] ?? 1
     end++
   }
-  return items.slice(start, Math.max(start + (items.length ? 1 : 0), end))
+  return { items: items.slice(start, end), start, offset: at - skipped }
 }
-function popupShell(ctx: Ctx, popup: ScreenPopup, placement: { top?: number; bottom?: number; left?: number }): RenderElement {
+export function popupShell(ctx: Ctx, popup: ScreenPopup, placement: { top?: number; bottom?: number; left?: number }): RenderElement {
   const { Box, Button, Text } = ctx.el
   const pctx = popupContext(ctx)
   const items = popup.rows.map(row => renderRow(pctx, row))
   const geometry = popupGeometry(ctx, items)
   const at = Math.min(Math.max(0, ctx.view.popupScroll), geometry.maxScroll)
-  const visible = popupWindow(items, geometry.itemRows, at, geometry.bodyRows)
-  const position = popup.rows.length
-    ? Math.min(popup.rows.length, Math.max(1, Math.round((at / Math.max(1, geometry.maxScroll)) * popup.rows.length) + 1))
-    : 0
+  const window = rowWindow(items, geometry.itemRows, at, geometry.bodyRows)
+  const position = popup.rows.length ? window.start + 1 : 0
   const { left: requestedLeft = 0, ...placementProps } = placement
   const left = Math.max(0, Math.min(requestedLeft, ctx.width - popupWidth(ctx)))
   return UiPopup(
@@ -719,7 +731,11 @@ function popupShell(ctx: Ctx, popup: ScreenPopup, placement: { top?: number; bot
           { marginLeft: 0, gap: 0, flexWrap: 'nowrap' },
         )}
       </Box>,
-      ScrollBox(ctx, visible, { height: geometry.bodyRows, backgroundColor: POPUP_BG }),
+      ScrollBox(ctx, [
+        <Box key="popup-window" flexDirection="column" marginTop={-window.offset} flexShrink={0}>
+          {window.items}
+        </Box>,
+      ], { height: geometry.bodyRows, backgroundColor: POPUP_BG }),
       <Box flexDirection="row" justifyContent="space-between" flexShrink={0} backgroundColor={POPUP_BG}>
         {popup.footerActions?.length ? actions(ctx, popup.footerActions, { marginLeft: 0 }) : <Text dimColor>{popup.footer ?? ''}</Text>}
         <Box flexDirection="row" gap={1}>
@@ -999,11 +1015,6 @@ export function pane(ctx: Ctx, snapshot: AtlasSnapshot): {
   const bodyCtx: Ctx = { ...ctx, bodyViewport: viewport }
   const expandedSection = model.sections.find(section => sectionExpansionId(section) === ctx.view.expanded)
   const expanded = expandedEvent(bodyCtx, model)
-  const maxExpandedScroll = expandedSection
-    ? Math.max(0, expandedSection.help.length - visibleHelpRows(bodyCtx, expandedSection.help.length))
-    : expanded
-      ? Math.max(0, eventDetailLines(expanded).length - 6)
-      : 0
   let body = renderBody(bodyCtx, model)
   let content = rowsOf(body, ctx.width)
   const bar = pinned && content > viewport
@@ -1012,12 +1023,17 @@ export function pane(ctx: Ctx, snapshot: AtlasSnapshot): {
     body = renderBody(drawCtx, model)
     content = rowsOf(body, ctx.width - 2)
   }
+  const maxExpandedScroll = expandedSection
+    ? helpGeometry(drawCtx, expandedSection).maxScroll
+    : expanded
+      ? Math.max(0, eventDetailLines(expanded).length - 6)
+      : 0
   const maxScroll = pinned ? Math.max(0, content - viewport) : 0
   const at = Math.min(Math.max(0, ctx.view.scroll), maxScroll)
   const scrollbar = bar && maxScroll > 0 ? scrollbarCells(ctx, viewport, content, at, maxScroll) : null
   const popup = activePopup(ctx, model)
-  const popupItems = popup ? popup.rows.map(row => renderRow(popupContext(bodyCtx), row)) : []
-  const maxPopupScroll = popup ? popupGeometry(bodyCtx, popupItems).maxScroll : 0
+  const popupItems = popup ? popup.rows.map(row => renderRow(popupContext(drawCtx), row)) : []
+  const maxPopupScroll = popup ? popupGeometry(drawCtx, popupItems).maxScroll : 0
   const bodyTree = pinned ? (
     <Box flexDirection="row" flexGrow={1} flexShrink={1} overflow="hidden" position="relative">
       <Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="visible">

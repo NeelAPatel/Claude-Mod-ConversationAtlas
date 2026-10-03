@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from 'claude-code/testing'
+import { describe, expect, mock, test, type Engine } from 'claude-code/testing'
 
 import {
   addCheckpoint,
@@ -30,12 +30,14 @@ import { expectedReportPath, handoffStart, parseHandoffReport, reportChanged, re
 import { atlasFullFileError, fromAtlasFullFile, pickRecallEntries, saveFile, sessionsToDelete } from '../hooks/recall'
 import { replay } from '../hooks/scan'
 import { cellWidth, collapseBarLabels, layoutRow, measuredBarItemWidth, truncateMiddleCells } from '../hooks/ui'
-import { C, rowsOf } from '../hooks/view'
+import { C, pane, popupShell, rowsOf, type Ctx } from '../hooks/view'
 import { buildEvidence } from '../hooks/screens/evidence'
 import { buildMap } from '../hooks/screens/map'
 import { buildOpen } from '../hooks/screens/open'
 import { buildTrail, eventText } from '../hooks/screens/trail'
-import type { AtlasEvent } from '../types'
+import type { On } from 'claude-code'
+import type { AtlasEvent, AtlasSnapshot, AtlasView } from '../types'
+import type { ScreenPopup } from '../hooks/screens/types'
 
 const ROOT = 'F:/work/atlas'
 const OBSERVE = 'mcp__conversation-atlas__observe'
@@ -1463,7 +1465,7 @@ describe('milestone 2: screens and surface parity', () => {
     await ui.press({ key: 'topics-heading' })
     let help = await drawn(ui)
     expect(help).toContain('The observed topic tree for this session.')
-    expect(help).not.toContain('help-down-topics')
+    expect(help).toContain('help-down-topics')
     expect(help).not.toContain('kind: main')
     await ui.press({ key: 'topics-heading' })
     await ui.press({ key: 'events-heading' })
@@ -1472,7 +1474,7 @@ describe('milestone 2: screens and surface parity', () => {
     expect(help).toContain('help-down-events')
     await ui.press({ key: 'help-down-events' })
     help = await drawn(ui)
-    expect(help).toContain('2/7')
+    expect(help).toMatch(/2\/\d+/)
     await ui.press({ key: 'topics-heading' })
     const switched = await drawn(ui)
     expect(switched).toContain('The observed topic tree for this session.')
@@ -1710,6 +1712,339 @@ describe('upgrades', () => {
     expect(up.detectedGoal).toBeNull()
     expect(up.detourHistory[0]?.exclusions).toEqual([])
     expect(upgrade(up)).toBe(up)
+  })
+})
+
+function scrollTestView(): AtlasView {
+  return {
+    setup: false, tab: 'map', refs: {}, nextRef: 1, editingGoal: false, legend: false, popup: null,
+    popupScroll: 0, legendScroll: 0, scroll: 0, trailNewest: true, trailView: 'story',
+    expanded: null, expandedScroll: 0, fullConfirm: null,
+  }
+}
+
+function scrollTestContext(el: Ctx['el'], width: number, rows: number, view: AtlasView): Ctx {
+  const { Box } = el
+  return {
+    el, surface: 'terminal', width, rows, now: 1_800_000_000_000, mode: 'claude', setupDefault: 'claude',
+    scan: { active: false, startedAt: 0, result: null, resultAt: 0 }, view,
+    live: () => <Box />, act: () => undefined,
+  }
+}
+
+const scrollPaneProps = (bodyColumns: number, bodyRows: number) => ({
+  title: 'Atlas', isFocused: true, bodyColumns, placement: 'dock' as const,
+  scroll: { offset: 0, bodyRows }, view: {},
+})
+const viewKey = { plugin: 'conversation-atlas', key: 'view' } as const
+const snapshotKey = { plugin: 'conversation-atlas', key: 'snapshot' } as const
+
+type ScrollFixture = { view: AtlasView; snapshot?: AtlasSnapshot }
+
+function scrollWorld(on: On) {
+  const base = world(on)
+  const fixture: ScrollFixture = { view: scrollTestView() }
+  // Override reads at the host-supported state boundary, preserving versions
+  // and subscriptions. Atlas remains the only writer of its state.
+  on('state.get', viewKey, async (_$, e, next) => {
+    const held = await next(e)
+    return held.value ? { value: { ...held.value, value: fixture.view } } : held
+  })
+  on('state.set', viewKey, async (_$, e, next) => {
+    fixture.view = e.value
+    return next(e)
+  })
+  on('state.get', snapshotKey, async (_$, e, next) => {
+    const held = await next(e)
+    return fixture.snapshot && held.value ? { value: { ...held.value, value: fixture.snapshot } } : held
+  })
+  on('state.set', snapshotKey, async (_$, e, next) => {
+    fixture.snapshot = e.value
+    return next(e)
+  })
+  return { ...base, fixture }
+}
+
+async function readScrollView(fixture: ScrollFixture): Promise<AtlasView> {
+  return fixture.view
+}
+
+async function setScrollView(fixture: ScrollFixture, view: AtlasView): Promise<void> {
+  fixture.view = view
+}
+
+async function setScrollSnapshot(fixture: ScrollFixture, snapshot: AtlasSnapshot): Promise<void> {
+  fixture.snapshot = snapshot
+}
+
+async function wheel($: Engine, bodyRows: number, by: number): Promise<void> {
+  await $.ui.scroll({
+    component: 'Pane', requestId: 'atlas', offset: by, by, bodyRows, contentRows: 1_000, origin: { kind: 'person' },
+  })
+}
+
+// Inspect the requested visual rows, including the clipping and translation
+// props. ui.drawn() supplies a tree, so this does not claim native pixel QA.
+function wrappedTextRows(value: unknown, width: number): string[] {
+  if (typeof value === 'string') return [value]
+  if (!value || typeof value !== 'object') return []
+  const node = value as DrawnNode
+  const children = Array.isArray(node.children) ? node.children : []
+  if (node.type === 'Text') {
+    expect(node.props?.wrap).toBe('wrap')
+    return children.join('').split('\n').flatMap(line =>
+      Array.from({ length: Math.max(1, Math.ceil(line.length / width)) }, (_, i) => line.slice(i * width, (i + 1) * width)),
+    )
+  }
+  return children.flatMap(child => wrappedTextRows(child, width))
+}
+
+function visibleWindow(tree: unknown, bodyKey: string, windowKey: string, width: number): string[] {
+  const body = nodeByKey(tree, bodyKey)
+  const window = nodeByKey(tree, windowKey)
+  expect(body?.props?.overflow).toBe('hidden')
+  const offset = -Number(window?.props?.marginTop ?? 0)
+  return wrappedTextRows(window, width).slice(offset, offset + Number(body?.props?.height))
+}
+
+describe('popup and help row scrolling', () => {
+  test('popup windows reach every row of oversized and mixed items on both surfaces', async ($, on) => {
+    const width = 38 // A 46-column context has a 42-column popup and 38-column body.
+    const tall = Array.from({ length: 12 }, (_, i) => `ROW-${i}`.padEnd(width, '.')).join('') + 'LAST-LINE'
+    const cases = [[tall], ['short', tall, 'last item']]
+    let texts = cases[0] ?? []
+    let at = 0
+    on('ui.render', { component: 'Pane', requestId: 'popup-window-test' }, ($, e) => {
+      const ctx = scrollTestContext($.ui.resolve(e), 46, 20, { ...scrollTestView(), popupScroll: at })
+      const popup: ScreenPopup = {
+        kind: 'item', title: 'WINDOW TEST',
+        rows: texts.map((text, i) => ({ id: `row-${i}`, key: `row-${i}`, kind: 'text', text })),
+      }
+      return popupShell({ ...ctx, surface: e.surface }, popup, { top: 0 })
+    })
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const ui = await $.ui.mount({
+        plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'popup-window-test', props: scrollPaneProps(48, 20),
+      })
+      for (const sample of cases) {
+        texts = sample
+        const expected = sample.flatMap(text =>
+          Array.from({ length: Math.ceil(text.length / width) }, (_, i) => text.slice(i * width, (i + 1) * width)),
+        )
+        const max = expected.length - 4
+        for (at = 0; at <= max + 1; at++) {
+          await ui.redraw()
+          const tree = await ui.drawn()
+          expect(visibleWindow(tree, 'popup-body', 'popup-window', width)).toEqual(expected.slice(Math.min(at, max), Math.min(at, max) + 4))
+          const topItem = sample.length === 1 || at === 0 ? 1 : 2
+          expect(JSON.stringify(nodeByKey(tree, 'atlas-popup'))).toContain(`${topItem}/${sample.length}`)
+        }
+        expect(visibleWindow(await ui.drawn(), 'popup-body', 'popup-window', width).at(-1)).toBe(expected.at(-1))
+        expect((await ui.find({ key: 'popup-down' }))?.props.dimColor).toBe(true)
+      }
+      await ui.unmount()
+    }
+  })
+
+  test('popup buttons advance one row and stop with the final line visible', async ($, on) => {
+    const { clock, fixture } = scrollWorld(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    const question = `Can we reach ${'every word '.repeat(45)}LAST-WORD?`
+    const snapshot = observe(emptySnapshot('atlas-test-session', ROOT, 0), { topic: 'Scroll', questions: [question] }, 1)
+    await setScrollSnapshot(fixture, snapshot)
+    await clock.settle()
+    await setScrollView(fixture, { ...scrollTestView(), tab: 'open', popup: { kind: 'item', id: snapshot.questions[0]?.id } })
+    const ui = await $.ui.mount({
+      plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: scrollPaneProps(48, 30),
+    })
+    await ui.press({ key: 'popup-down' })
+    expect((await readScrollView(fixture)).popupScroll).toBe(1)
+    expect((await readScrollView(fixture)).scroll).toBe(0)
+    // End via wheel, then exercise both button clamps at the end.
+    await wheel($, 30, 1_000)
+    const end = (await readScrollView(fixture)).popupScroll
+    expect(end).toBeGreaterThan(5)
+    const tree = await ui.drawn()
+    const last = visibleWindow(tree, 'popup-body', 'popup-window', 38).at(-1)
+    expect(last).toBe('topic: Scroll')
+    await ui.press({ key: 'popup-down' })
+    expect((await readScrollView(fixture)).popupScroll).toBe(end)
+    await ui.press({ key: 'popup-up' })
+    expect((await readScrollView(fixture)).popupScroll).toBe(end - 1)
+    await ui.unmount()
+  })
+
+  test('section help at width 46 reaches all wrapped words through expanded-scroll', async ($, on) => {
+    const { clock, fixture } = scrollWorld(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    await clock.settle()
+    for (const surface of ['terminal', 'desktop'] as const) {
+      await setScrollView(fixture, { ...scrollTestView(), tab: 'trail' })
+      const ui = await $.ui.mount({
+        plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'atlas', props: scrollPaneProps(48, 40),
+      })
+      await ui.press({ key: 'events-heading' })
+      const snapshot = emptySnapshot('atlas-test-session', ROOT, 0)
+      const help = buildTrail(snapshot, { ...scrollTestView(), mode: 'claude' }, 0).sections.find(s => s.key === 'events')?.help
+      const width = 44 // 46 columns less the help's two-column indent; this empty Trail has no scrollbar.
+      const expected = (help ?? []).flatMap(text => {
+        const line = `│ ${text}`
+        return Array.from({ length: Math.ceil(line.length / width) }, (_, i) => line.slice(i * width, (i + 1) * width))
+      })
+      expect(expected[0]).not.toContain('checkpoints.')
+      const reached = new Set<string>()
+      let end = 0
+      for (let step = 0; step <= expected.length; step++) {
+        const tree = await ui.drawn()
+        const visible = visibleWindow(tree, 'help-body-events', 'help-window-events', width)
+        visible.forEach(line => reached.add(line))
+        expect(visible.join('')).not.toContain('…')
+        expect(visible).toEqual(expected.slice(step, step + 5))
+        end = (await readScrollView(fixture)).expandedScroll
+        const down = await ui.find({ key: 'help-down-events' })
+        if (down?.props.dimColor) break
+        await ui.press({ key: 'help-down-events' })
+        expect((await readScrollView(fixture)).expandedScroll).toBe(end + 1)
+      }
+      expect([...reached]).toEqual([...new Set(expected)])
+      expect(end).toBe(expected.length - 5)
+      await ui.press({ key: 'help-down-events' })
+      expect((await readScrollView(fixture)).expandedScroll).toBe(end)
+      await ui.unmount()
+    }
+  })
+
+  test('the Trail View popup owns wheel gestures even when the body can scroll', async ($, on) => {
+    const { clock, fixture } = scrollWorld(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    const now = 1_800_000_000_000
+    let snapshot = observe(emptySnapshot('atlas-test-session', ROOT, now), { topic: 'Trail' }, now)
+    for (let i = 0; i < 12; i++) snapshot = startTurn(snapshot, `Review item ${i}.`, now + i + 1)
+    await setScrollSnapshot(fixture, snapshot)
+    await clock.settle()
+    await setScrollView(fixture, { ...scrollTestView(), tab: 'trail', scroll: 2 })
+    const ui = await $.ui.mount({
+      plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: scrollPaneProps(48, 20),
+    })
+    expect(await ui.find({ key: 'scroll-down' })).toBeDefined()
+    await ui.press({ key: 'trail-view-menu' })
+    const before = await readScrollView(fixture)
+    await wheel($, 20, 1)
+    const after = await readScrollView(fixture)
+    expect(after.popupScroll).toBe(1)
+    expect(after.scroll).toBe(before.scroll)
+    await ui.unmount()
+  })
+})
+
+describe('scroll bounds belong to the rendering surface', () => {
+  test('buttons and wheel use surface bounds in either render order, with ambiguous wheel fallback', async ($, on) => {
+    const { clock, fixture } = scrollWorld(on)
+    const measured = new Map<string, ReturnType<typeof pane>>()
+    let measuringView = scrollTestView()
+    let snapshot = emptySnapshot('atlas-test-session', ROOT, 0)
+    // Measure independently with the pure renderer; the assertions below
+    // exercise dispatch and wheel surface selection, not renderer arithmetic.
+    on('ui.render', { component: 'Pane', requestId: 'measure-scroll-bounds' }, ($, e) => {
+      const view = measuringView
+      const ctx = scrollTestContext($.ui.resolve(e), Math.max(20, e.props.bodyColumns - 2), e.props.scroll.bodyRows, view)
+      const drawn = pane({ ...ctx, surface: e.surface }, snapshot)
+      measured.set(e.surface, drawn)
+      return drawn.tree
+    })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    snapshot = observe(snapshot, {
+      topic: 'Bounds', questions: Array.from({ length: 12 }, (_, i) => `${String.fromCharCode(65 + i).repeat(450)} end?`),
+    }, 1)
+    for (let i = 0; i < 8; i++) snapshot = touchFile(snapshot, `${ROOT}/file-${i}.ts`, 'read', i + 2)
+    await setScrollSnapshot(fixture, snapshot)
+    await clock.settle()
+    const terminalProps = scrollPaneProps(48, 12)
+    const desktopProps = scrollPaneProps(82, 16)
+    const terminal = await $.ui.mount({
+      plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: terminalProps,
+    })
+    const desktop = await $.ui.mount({
+      plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: desktopProps,
+    })
+    const measureTerminal = await $.ui.mount({
+      plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'measure-scroll-bounds', props: terminalProps,
+    })
+    const measureDesktop = await $.ui.mount({
+      plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'measure-scroll-bounds', props: desktopProps,
+    })
+    const scenarios = [
+      { view: { ...scrollTestView(), tab: 'open' as const }, field: 'scroll', bound: 'maxScroll', down: 'scroll-down', up: 'scroll-up' },
+      {
+        view: { ...scrollTestView(), tab: 'open' as const, popup: { kind: 'item' as const, id: snapshot.questions[0]?.id } },
+        field: 'popupScroll', bound: 'maxPopupScroll', down: 'popup-down', up: 'popup-up',
+      },
+      {
+        view: { ...scrollTestView(), tab: 'trail' as const, expanded: 'section:events' },
+        field: 'expandedScroll', bound: 'maxExpandedScroll', down: 'help-down-events', up: 'help-up-events',
+      },
+      { view: { ...scrollTestView(), legend: true }, field: 'legendScroll', bound: 'maxLegendScroll', down: 'scroll-down', up: 'scroll-up' },
+    ] as const
+    for (const scenario of scenarios) {
+      measuringView = scenario.view
+      await setScrollView(fixture, scenario.view)
+      await terminal.redraw()
+      await desktop.redraw()
+      await measureTerminal.redraw()
+      await measureDesktop.redraw()
+      const terminalMax = measured.get('terminal')?.[scenario.bound] ?? 0
+      const desktopMax = measured.get('desktop')?.[scenario.bound] ?? 0
+      expect(terminalMax, scenario.field).toBeGreaterThan(desktopMax)
+      expect(desktopMax, scenario.field).toBeGreaterThan(0)
+      for (const order of [[terminal, desktop], [desktop, terminal]]) {
+        await order[0]?.redraw()
+        await order[1]?.redraw()
+        for (const [ui, max, bodyRows] of [[terminal, terminalMax, 12], [desktop, desktopMax, 16]] as const) {
+          // A clipped Legend owns the wheel; it has no separate paging buttons.
+          if (scenario.field !== 'legendScroll') {
+            await setScrollView(fixture, { ...scenario.view, [scenario.field]: max - 1 })
+            await ui.press({ key: scenario.down })
+            expect((await readScrollView(fixture))[scenario.field]).toBe(max)
+            await ui.press({ key: scenario.down })
+            expect((await readScrollView(fixture))[scenario.field]).toBe(max)
+          }
+          await setScrollView(fixture, { ...scenario.view, [scenario.field]: 0 })
+          if (scenario.field !== 'legendScroll') await ui.press({ key: scenario.up })
+          await wheel($, bodyRows, -1_000)
+          expect((await readScrollView(fixture))[scenario.field]).toBe(0)
+          await wheel($, bodyRows, 1_000)
+          expect((await readScrollView(fixture))[scenario.field]).toBe(max)
+        }
+      }
+      await setScrollView(fixture, scenario.view)
+      await wheel($, 99, 1_000) // No matching surface: use the largest bound.
+      expect((await readScrollView(fixture))[scenario.field]).toBe(terminalMax)
+      await desktop.redraw(scrollPaneProps(82, 12)) // Both surfaces now match the same row count.
+      await measureDesktop.redraw(scrollPaneProps(82, 12))
+      const sameRowsMax = measured.get('desktop')?.[scenario.bound] ?? 0
+      await setScrollView(fixture, scenario.view)
+      await wheel($, 12, 1_000)
+      expect((await readScrollView(fixture))[scenario.field]).toBe(Math.max(terminalMax, sameRowsMax))
+      await desktop.redraw(desktopProps)
+      await measureDesktop.redraw(desktopProps)
+    }
+    measuringView = { ...scrollTestView(), tab: 'open' }
+    await setScrollView(fixture, measuringView)
+    await terminal.redraw()
+    await desktop.redraw()
+    await measureTerminal.redraw()
+    await measureDesktop.redraw()
+    const terminalMax = measured.get('terminal')?.maxScroll ?? 0
+    const desktopMax = measured.get('desktop')?.maxScroll ?? 0
+    for (const [ui, max] of [[terminal, terminalMax], [desktop, desktopMax]] as const) {
+      const cells = (await ui.findAll({ type: 'Button' })).filter(cell => cell.key?.startsWith('sb-'))
+      await ui.press({ key: String(cells.at(-1)?.key) })
+      expect((await readScrollView(fixture)).scroll).toBe(max)
+    }
+    await terminal.unmount()
+    await desktop.unmount()
+    await measureTerminal.unmount()
+    await measureDesktop.unmount()
   })
 })
 
