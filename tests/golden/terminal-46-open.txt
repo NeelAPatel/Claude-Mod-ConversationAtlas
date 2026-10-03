@@ -1,11 +1,11 @@
 ──────────── Conversation Atlas ────────────  {0:dim|12:color:#7dcfff,bold|32:dim}
 Map Trail ▸Open 4 Evidence  {10:color:#f7768e,bold}
-NEEDS YOUR CALL2  {15:dim}
+NEEDS YOUR CALL ⓘ2  {0:color:#7dcfff,bold|17:dim}
 ○ Check whether the native controls stay le…
 ↳ Desktop paritydetour suggestion  {0:color:#e0af68|16:dim}
-OBSERVED DECISIONS1  {18:dim}
+OBSERVED DECISIONS ⓘ1  {0:color:#9ece6a,bold|20:dim}
 ◇ Use text goldens for visual review  {0:color:#9ece6a}
-OPEN QUESTIONS1  {14:dim}
+OPEN QUESTIONS ⓘ1  {0:color:#f7768e,bold|16:dim}
 ? Which surface gets the first manual check?  {0:color:#f7768e}
 ────────────────────────────────────────────  {0:dim}
 Legend + Mark  {0:dim|7:dim}

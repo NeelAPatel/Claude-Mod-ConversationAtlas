@@ -559,7 +559,7 @@ describe('readability: app bar, legend, resizing', () => {
     await ui.unmount()
   })
 
-  test('active tabs stay coloured and section headings are Buttons', { timeoutMs: 20_000 }, async ($, on) => {
+  test('active tabs stay coloured and section headings expose info Buttons', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await clock.settle()
@@ -571,8 +571,13 @@ describe('readability: app bar, legend, resizing', () => {
     expect(await ui.find({ key: 'tab-trail', type: 'Button' })).toBeUndefined()
     const t = await drawn(ui)
     expect(t).toContain('"children":["▸Trail"]')
-    expect(t).toContain('"key":"events-heading"')
-    expect(await ui.find({ key: 'events-heading', type: 'Button' })).toBeDefined()
+    const heading = await ui.find({ type: 'Text', text: 'TRAIL · Story' })
+    expect(heading?.props.color).toBe(C.trail)
+    expect(heading?.props.bold).toBe(true)
+    expect(heading?.props.wrap).toBe('truncate-end')
+    const info = await ui.find({ key: 'events-heading', type: 'Button' })
+    expect(info?.props.label).toBe('ⓘ')
+    expect(info?.props.plain).toBe(true)
     await ui.unmount()
     const desktop = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
     if (await desktop.find({ key: 'tab-map', type: 'Button' })) await desktop.press({ key: 'tab-map' })
@@ -580,17 +585,21 @@ describe('readability: app bar, legend, resizing', () => {
     await desktop.unmount()
   })
 
-  test('clickable section headings keep plain text labels on both surfaces', { timeoutMs: 20_000 }, async ($, on) => {
+  test('section titles are colored Text beside plain info Buttons on both surfaces', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await clock.settle()
 
     const terminal = await mountPane($)
     if (await terminal.find({ key: 'tab-trail', type: 'Button' })) await terminal.press({ key: 'tab-trail' })
-    const terminalHeading = await terminal.find({ key: 'events-heading', type: 'Button' })
-    expect(terminalHeading?.props.label).toBe('TRAIL · Story')
-    expect(terminalHeading?.props.plain).toBe(true)
-    expect(terminalHeading?.props.variant).toBeUndefined()
+    const terminalHeading = await terminal.find({ type: 'Text', text: 'TRAIL · Story' })
+    expect(terminalHeading?.props.color).toBe(C.trail)
+    expect(terminalHeading?.props.bold).toBe(true)
+    expect(terminalHeading?.props.wrap).toBe('truncate-end')
+    const terminalInfo = await terminal.find({ key: 'events-heading', type: 'Button' })
+    expect(terminalInfo?.props.label).toBe('ⓘ')
+    expect(terminalInfo?.props.plain).toBe(true)
+    expect(terminalInfo?.props.variant).toBeUndefined()
     await terminal.press({ key: 'events-heading' })
     expect(await drawn(terminal)).toContain('A chronological record of prompts, topics, decisions and checkpoints.')
     await terminal.press({ key: 'events-heading' })
@@ -598,10 +607,14 @@ describe('readability: app bar, legend, resizing', () => {
 
     const desktop = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
     if (await desktop.find({ key: 'tab-trail', type: 'Button' })) await desktop.press({ key: 'tab-trail' })
-    const desktopHeading = await desktop.find({ key: 'events-heading', type: 'Button' })
-    expect(desktopHeading?.props.label).toBe('TRAIL · Story')
-    expect(desktopHeading?.props.plain).toBeUndefined()
-    expect(desktopHeading?.props.variant).toBe('secondary')
+    const desktopHeading = await desktop.find({ type: 'Text', text: 'TRAIL · Story' })
+    expect(desktopHeading?.props.color).toBe(C.trail)
+    expect(desktopHeading?.props.bold).toBe(true)
+    expect(desktopHeading?.props.wrap).toBe('truncate-end')
+    const desktopInfo = await desktop.find({ key: 'events-heading', type: 'Button' })
+    expect(desktopInfo?.props.label).toBe('ⓘ')
+    expect(desktopInfo?.props.plain).toBe(true)
+    expect(desktopInfo?.props.variant).toBeUndefined()
     await desktop.press({ key: 'events-heading' })
     expect(await drawn(desktop)).toContain('A chronological record of prompts, topics, decisions and checkpoints.')
     await desktop.unmount()
@@ -1325,7 +1338,8 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     await ui.press({ key: 'trail-view-log' })
     const events = async () => {
       const t = await drawn(ui)
-      return t.slice(t.indexOf('"events-heading"'))
+      const heading = await ui.find({ type: 'Text', text: /TRAIL ·/ })
+      return `${heading?.text ?? ''} ${t.slice(t.indexOf('"events-heading"'))}`
     }
     let t = await events()
     expect(t).toContain('TRAIL · Log')

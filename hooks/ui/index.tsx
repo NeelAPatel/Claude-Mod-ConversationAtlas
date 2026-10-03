@@ -575,19 +575,19 @@ export function Section(ctx: UiContext, section: UiSection, children: RenderElem
   return (
     <Box key={section.key} flexDirection="column" marginTop={1}>
       <Box flexDirection="row" flexShrink={0}>
+        <Text bold color={section.color} dimColor={section.dim} wrap="truncate-end">
+          {section.heading}
+        </Text>
+        {section.headingPress ? <Text> </Text> : null}
         {section.headingPress ? (
           <Button
             key={`${section.key}-heading`}
-            {...(isGui(ctx.surface) ? { variant: 'secondary' as const } : { plain: true as const })}
+            plain
             dimColor={section.dim}
-            label={section.heading}
+            label="ⓘ"
             onPress={section.headingPress}
           />
-        ) : (
-          <Text bold color={section.color} dimColor={section.dim} wrap="truncate-end">
-            {section.heading}
-          </Text>
-        )}
+        ) : null}
         <Box flexGrow={1} />
         {section.count ? (
           <Text dimColor wrap="truncate-end">

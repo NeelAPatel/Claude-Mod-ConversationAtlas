@@ -1,11 +1,11 @@
  Conversation Atlas   {0:color:#7dcfff,bold}
 Map ▸Trail Open 4 Evid  {4:color:#b9f27c,bold}
-MAP OF TOPICS4  {13:dim}
+MAP OF TOPICS ⓘ4  {0:color:#b9f27c,bold|15:dim}
 ○ Atlas foundationst1  {19:dim}
   ○ Map renderingt1  {0:dim|17:dim}
     ↳ Desktop parityt1  {0:dim|4:color:#e0af68|20:dim}
       ● Color tokenst1  {0:dim|6:color:#bb9af7,bold|20:dim}
-TRAIL · Story View
+TRAIL · Story ⓘ View  {0:color:#b9f27c,bold}
 › Review the visual regression bounda…commit  {0:color:#7dcfff|38:dim}
 › …2 edits · 2 reads · commit · 4 topics · …  {0:color:#7dcfff|3:dim}
 Legend + Mark  {0:dim|7:dim}
