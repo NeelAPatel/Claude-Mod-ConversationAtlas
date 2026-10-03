@@ -580,7 +580,7 @@ export function Section(ctx: UiContext, section: UiSection, children: RenderElem
             key={`${section.key}-heading`}
             {...(isGui(ctx.surface) ? { variant: 'secondary' as const } : { plain: true as const })}
             dimColor={section.dim}
-            label={isGui(ctx.surface) ? `[ ${section.heading} ]` : `[${section.heading}]`}
+            label={section.heading}
             onPress={section.headingPress}
           />
         ) : (

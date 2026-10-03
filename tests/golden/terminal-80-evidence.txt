@@ -1,16 +1,16 @@
 ───────────────────────────── Conversation Atlas ─────────────────────────────  {0:dim|29:color:#7dcfff,bold|49:dim}
 Map Trail Open 4 ▸Evidence  {17:color:#7aa2f7,bold}
-[CHECKPOINTS]5  {13:dim}
+CHECKPOINTS5  {11:dim}
 ⚑ Post-prompt milestonemilestone · now  {0:color:#7aa2f7|23:dim|33:dim|35:dim}
 ⚑ Post-prompt commitcommit · now  {0:color:#7aa2f7|20:dim|27:dim|29:dim}
 ⚑ Pane snapshot milestonemilestone · 1m  {0:color:#7aa2f7|25:dim|35:dim|37:dim}
 ⚑ Review commit abc1234commit · 1m  {0:color:#7aa2f7|23:dim|30:dim|32:dim}
 ⚑ Baseline capturedmark · 1m  {0:color:#7aa2f7|19:dim|24:dim|26:dim}
-[SETTLED (LEDGER)]1  {18:dim}
+SETTLED (LEDGER)1  {16:dim}
 ◆ Keep renderers pure  {0:color:#9ece6a}
-[RESOLVED]
+RESOLVED
 ✓ Should the popup keep its compact width?  {0:color:#9ece6a}
-[FILES]3  {7:dim}
+FILES3  {5:dim}
 ✎ tests/golden.test.tsx1e 0r 1m  {0:color:#ff9e64|23:color:#bb9af7|26:color:#ff9e64|29:dim}
 ✎ hooks/view.tsx1e 1r 1m  {0:color:#ff9e64|16:color:#bb9af7|19:color:#ff9e64|22:dim}
 · tests/atlas.test.tsx0e 1r 1m  {0:color:#bb9af7|22:color:#bb9af7|25:color:#ff9e64|28:dim}

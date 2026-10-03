@@ -554,6 +554,33 @@ describe('readability: app bar, legend, resizing', () => {
     await desktop.unmount()
   })
 
+  test('clickable section headings keep plain text labels on both surfaces', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await clock.settle()
+
+    const terminal = await mountPane($)
+    if (await terminal.find({ key: 'tab-trail', type: 'Button' })) await terminal.press({ key: 'tab-trail' })
+    const terminalHeading = await terminal.find({ key: 'events-heading', type: 'Button' })
+    expect(terminalHeading?.props.label).toBe('TRAIL')
+    expect(terminalHeading?.props.plain).toBe(true)
+    expect(terminalHeading?.props.variant).toBeUndefined()
+    await terminal.press({ key: 'events-heading' })
+    expect(await drawn(terminal)).toContain('A chronological record of prompts, topics, decisions and checkpoints.')
+    await terminal.press({ key: 'events-heading' })
+    await terminal.unmount()
+
+    const desktop = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    if (await desktop.find({ key: 'tab-trail', type: 'Button' })) await desktop.press({ key: 'tab-trail' })
+    const desktopHeading = await desktop.find({ key: 'events-heading', type: 'Button' })
+    expect(desktopHeading?.props.label).toBe('TRAIL')
+    expect(desktopHeading?.props.plain).toBeUndefined()
+    expect(desktopHeading?.props.variant).toBe('secondary')
+    await desktop.press({ key: 'events-heading' })
+    expect(await drawn(desktop)).toContain('A chronological record of prompts, topics, decisions and checkpoints.')
+    await desktop.unmount()
+  })
+
   test('settled decisions draw a solid green diamond', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
