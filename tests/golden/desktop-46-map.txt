@@ -1,7 +1,7 @@
  Conversation Atlas   {0:color:#7dcfff,bold}
 ▸Map Trail Open 4 Evid  {0:color:yellowBright,bold}
-[ GOAL ] change
-◎ Build a dependable Conversation Atlas pane for long sessions.  {0:color:#7dcfff}
+[ GOAL ] Edit
+◎ Build a dependable Conversation Atlas pane for long sessions.· 3 suggestions  {0:color:#7dcfff|63:dim}
 [ CURRENT PATH ]3 earlier  {16:dim}
 Atlas foundations
   Map rendering  {0:dim}

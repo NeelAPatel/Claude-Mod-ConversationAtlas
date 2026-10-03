@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { addCheckpoint, closeUnverifiedHandoffs, collapseEvents, confirmSuggestion, emptySnapshot, observe, promptBullets, reportHandoff, reportMarker, resolveRepoPath, returnFromDetour, setItemStatus, startHandoff, startTurn, stripPromptMarkers, touchFile, upgrade } from '../hooks/model'
+import { addCheckpoint, closeUnverifiedHandoffs, collapseEvents, confirmSuggestion, emptySnapshot, goalSuggestions, observe, promptBullets, reportHandoff, reportMarker, resolveRepoPath, returnFromDetour, setGoal, setItemStatus, startHandoff, startTurn, stripPromptMarkers, touchFile, upgrade } from '../hooks/model'
 import { expectedReportPath, handoffStart, parseHandoffReport, reportChanged, reportFingerprint } from '../hooks/delegation'
 import { collapseBarLabels, measuredBarItemWidth } from '../hooks/ui'
 import { C, rowsOf } from '../hooks/view'
@@ -111,6 +111,43 @@ describe('model: observation never writes intent', () => {
     expect(s.suggestions.some(x => x.kind === 'detour')).toBe(true)
     s = startTurn(s, "Let's go with the native pane.", 4)
     expect(s.decisions.at(-1)?.status).toBe('observed')
+  })
+
+  test('goal alternatives require distance, use observed evidence, and cap at three', () => {
+    let s = setGoal(emptySnapshot('s', ROOT, 0), 'Ship the API', 'person', 1)
+    s = observe(s, { topic: 'Write onboarding docs' }, 2)
+    s = observe(s, { topic: 'Audit terminal spacing' }, 3)
+    s = observe(s, { goal: 'Polish the desktop surface' }, 4)
+    s = addCheckpoint(s, 'Desktop milestone', 'claude', null, 5)
+    s = observe(s, { topic: 'Ship API validation' }, 6)
+    expect(s.goal?.text).toBe('Ship the API')
+    expect(goalSuggestions(s)).toEqual([])
+
+    let far = setGoal(emptySnapshot('s', ROOT, 0), 'Ship the API', 'person', 1)
+    far = observe(far, { topic: 'Write onboarding docs' }, 2)
+    far = observe(far, { topic: 'Audit terminal spacing' }, 3)
+    far = observe(far, { goal: 'Polish the desktop surface' }, 4)
+    far = addCheckpoint(far, 'Desktop milestone', 'claude', null, 5)
+    expect(goalSuggestions(far)).toEqual(['Polish the desktop surface', 'Audit terminal spacing', 'Write onboarding docs'])
+  })
+
+  test('observing a far topic does not change the goal until Update goal is pressed', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.command.run({ command: 'atlas', args: 'goal Ship the API', origin: { kind: 'composer' } } as any)
+    await $.tool.call({ tool: OBSERVE, topic: 'Write onboarding docs' } as any)
+    await $.tool.call({ tool: OBSERVE, topic: 'Audit terminal spacing' } as any)
+    await $.tool.call({ tool: OBSERVE, goal: 'Polish the desktop surface' } as any)
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    expect(await drawn(ui)).toContain('Ship the API')
+    expect(await drawn(ui)).toContain('· 3 suggestions')
+    await ui.press({ key: 'goal-row' })
+    expect(await ui.find({ key: 'update-goal-0', type: 'Button' })).toBeDefined()
+    expect(await drawn(ui)).toContain('Polish the desktop surface')
+    await ui.press({ key: 'update-goal-0' })
+    expect(await drawn(ui)).toContain('Polish the desktop surface')
+    await ui.unmount()
   })
 })
 
@@ -366,7 +403,7 @@ describe('readability: app bar, legend, resizing', () => {
     const drop = buttons.find((b: any) => String(b.props.key ?? '').startsWith('drp-'))
     expect(settle?.props.variant).toBe('primary')
     expect(drop?.props.plain).toBe(true)
-    expect(drop?.props.label).toBe(' Drop ')
+    expect(drop?.props.label).toBe('Drop')
     const t = await drawn(ui)
     expect(t).toContain(`"color":"${C.action}"`)
     expect(t).toContain(`"hover":{"color":"${C.action}"}`)
@@ -437,7 +474,7 @@ describe('readability: app bar, legend, resizing', () => {
     await ui.press({ key: 'goal-row' })
     const close = await ui.find({ key: 'close-goal', type: 'Button' })
     expect(close?.props.plain).toBe(true)
-    expect(close?.props.label).toBe(' Close ')
+    expect(close?.props.label).toBe('Close')
     const t = await drawn(ui)
     expect(t).toContain(`"color":"${C.action}"`)
     expect(t).toContain('"children":["["]')
@@ -577,7 +614,7 @@ describe('milestone 1: UI primitives and engine noise', () => {
     ]
     expect(measuredBarItemWidth({ label: 'Map', hotkey: 'm' })).toBe(6)
     expect(measuredBarItemWidth({ label: 'Trail', activeMarker: '▸' })).toBe(6)
-    expect(measuredBarItemWidth({ label: '9', icon: '◇', prefixGap: 1, hotkey: 'd', buttonChrome: 'bracketed' })).toBe(10)
+    expect(measuredBarItemWidth({ label: '9', icon: '◇', prefixGap: 1, hotkey: 'd', buttonChrome: 'bracketed' })).toBe(8)
     for (const surface of ['terminal', 'desktop'] as const) {
       let previousTabs = 0
       let previousBottom = 0

@@ -206,6 +206,39 @@ export function currentTopic(s: AtlasSnapshot): AtlasTopic | null {
   return s.topics.find(t => t.id === s.currentTopicId) ?? null
 }
 
+// Derived alternatives are intentionally not stored as suggestions: they are a
+// read-only view of observed evidence until the person presses Update goal.
+export function goalSuggestions(s: AtlasSnapshot): string[] {
+  const goal = s.goal?.text
+  if (!goal || s.detour) return []
+  const recentMain = s.topics.filter(topic => topic.kind === 'main').slice(-5)
+  const current = currentTopic(s)
+  const recentEvidence = [current?.title, ...recentMain.map(topic => topic.title)].filter((text): text is string => Boolean(text))
+  if (!recentEvidence.length || recentEvidence.some(text => similar(text, goal))) return []
+
+  const candidates = [
+    s.detectedGoal?.text,
+    current?.title,
+    ...recentMain
+      .slice()
+      .reverse()
+      .map(topic => topic.title),
+    ...s.checkpoints
+      .filter(checkpoint => checkpoint.kind === 'claude')
+      .slice(-5)
+      .reverse()
+      .map(checkpoint => checkpoint.name),
+  ]
+  const out: string[] = []
+  for (const candidate of candidates) {
+    const text = clip(candidate, 140)
+    if (!text || similar(text, goal) || out.some(existing => similar(existing, text))) continue
+    out.push(text)
+    if (out.length === 3) break
+  }
+  return out
+}
+
 // Root-to-current chain of the topic tree: the "current path".
 export function pathOf(s: AtlasSnapshot, topicId = s.currentTopicId): AtlasTopic[] {
   const chain: AtlasTopic[] = []

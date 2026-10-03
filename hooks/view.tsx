@@ -347,6 +347,12 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
     <Box key={row.key} flexDirection="column">
       {head}
       <Detail ctx={ctx} row={row} />
+      {row.suggestedGoals?.length ? (
+        <Box flexDirection="column" marginLeft={2}>
+          <Text dimColor>Suggested goals:</Text>
+          {row.suggestedGoals.map(suggestion => renderRow(ctx, suggestion))}
+        </Box>
+      ) : null}
       {actions(ctx, extra)}
     </Box>
   )

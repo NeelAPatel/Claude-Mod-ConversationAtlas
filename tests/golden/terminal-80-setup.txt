@@ -4,4 +4,4 @@ Claude observer adds topics and path, possible detours, Claude-reported decision
 When something changes, it uses a small amount of Claude usage: one extra tool step plus a cached rules section.  {0:dim}
 This choice applies in every project.  {0:dim}
 Engine only is free and keeps activity, files, tests, commits, prompt trail, wording cues, recovery, chips and return packets.  {0:dim}
-Use Claude observer [ Engine only (free) ]  {20:color:#7dcfff|41:color:#7dcfff}
+Use Claude observer [Engine only (free)]  {20:color:#7dcfff|39:color:#7dcfff}

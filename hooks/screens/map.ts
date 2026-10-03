@@ -1,6 +1,6 @@
 // Shows the current goal, observed path, detours, activity and resume cues. Pure; no `$`.
 
-import { activeDecisions, currentTopic, openQuestions, pathOf, resumeHint } from '../model'
+import { activeDecisions, currentTopic, goalSuggestions, openQuestions, pathOf, resumeHint } from '../model'
 import { base, rel } from '../activity'
 import type { AtlasSnapshot } from '../../types'
 import { action, ago, itemRow, popupModels, sourceName, suggestionRow, topicName, whenLine } from './shared'
@@ -73,6 +73,7 @@ function section(key: string, heading: string, rows: ScreenRow[], extra: Partial
 
 function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSection {
   const suggestion = [...snapshot.suggestions].reverse().find(item => item.kind === 'goal' || item.kind === 'resume')
+  const alternatives = goalSuggestions(snapshot)
   const detected =
     snapshot.detectedGoal && (!snapshot.goal || snapshot.detectedGoal.text !== snapshot.goal.text) ? snapshot.detectedGoal : null
   const needsObserver = view.mode === 'engine' && detected?.source === 'claude'
@@ -88,6 +89,16 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
       ]
   const rows: ScreenRow[] = []
   if (!view.editingGoal) {
+    const suggestedGoals: ScreenRow[] = alternatives.map((text, index) => ({
+      id: `goal-alternative-${index}`,
+      key: `goal-alternative-${index}`,
+      kind: 'goal',
+      glyph: 'suggestion',
+      text,
+      meta: 'observed alternative',
+      tone: 'goal',
+      actions: [action(`update-goal-${index}`, 'Update goal', { type: 'goal', text }, true)],
+    }))
     rows.push({
       id: 'goal',
       key: 'goal-row',
@@ -97,6 +108,8 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
       tone: 'goal',
       expandable: true,
       detail,
+      suggestedGoals,
+      right: view.expanded !== 'goal' && alternatives.length ? `· ${alternatives.length} suggestions` : undefined,
       interactive: true,
       actions: [
         ...(needsObserver
@@ -111,7 +124,7 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
   if (!snapshot.goal && suggestion) rows.push(suggestionRow(snapshot, suggestion, view))
   return section('goal', 'GOAL', rows, {
     tone: 'goal',
-    actions: snapshot.goal && !snapshot.detour && !view.editingGoal ? [action('edit-goal', 'change', { type: 'edit-goal' })] : [],
+    actions: snapshot.goal && !snapshot.detour && !view.editingGoal ? [action('edit-goal', 'Edit', { type: 'edit-goal' })] : [],
     input:
       view.editingGoal || (!snapshot.goal && !suggestion)
         ? {

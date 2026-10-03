@@ -1,8 +1,8 @@
  Conversation Atlas   {0:color:#7dcfff,bold}
 ▸Map Trail Open 4 Evid ▲ ▼  {0:color:yellowBright,bold|23:dim}
-[ GOAL ] change┃
+[ GOAL ] Edit┃
 What you are trying to do. Only you set it: confirm a suggestion, type one, or explicitly adopt Atlas’s detected aim.  {0:italic,dim}
-◎ Build a dependable Conversation Atlas pane for long sessions.  {0:color:#7dcfff}
+◎ Build a dependable Conversation Atlas pane for long sessions.· 3 suggestions  {0:color:#7dcfff|63:dim}
 [ CURRENT PATH ]3 earlier  {16:dim}
 Topics from the start of the work to now; the current topic is highlighted. Claude keeps it current.  {0:italic,dim}
 Atlas foundations

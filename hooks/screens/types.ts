@@ -85,6 +85,7 @@ export type ScreenRow = {
   expandable?: boolean
   detail?: string[]
   actions?: ScreenAction[]
+  suggestedGoals?: ScreenRow[]
   interactive?: boolean
   overflowPopup?: boolean
   empty?: boolean

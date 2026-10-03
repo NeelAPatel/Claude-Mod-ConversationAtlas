@@ -199,7 +199,7 @@ export function measuredBarItemWidth(measure: BarMeasure): number {
   const prefix = measure.icon ? cellWidth(measure.icon) + (measure.prefixGap ?? 0) : 0
   const marker = measure.activeMarker ? cellWidth(measure.activeMarker) : 0
   const hotkey = measure.hotkey ? cellWidth(measure.hotkey) + 2 : 0
-  const brackets = measure.buttonChrome === 'bracketed' ? 4 : 0
+  const brackets = measure.buttonChrome === 'bracketed' ? 2 : 0
   return prefix + marker + hotkey + brackets + cellWidth(measure.label)
 }
 
@@ -359,7 +359,7 @@ export function ActionGroup(ctx: UiContext, items: ActionItem[], options: { marg
         ? <Button key={item.key} label={item.label} variant={item.primary ? 'primary' : 'secondary'} {...(item.role ? { role: item.role } : {})} onPress={() => item.onPress()} />
         : <Box key={`action-${item.key}`} flexDirection="row">
             <Text color="#7dcfff">[</Text>
-            <Button key={item.key} plain label={` ${item.label} `} hover={{ color: '#7dcfff' }} {...(item.role ? { role: item.role } : {})} onPress={() => item.onPress()} />
+            <Button key={item.key} plain label={item.label} hover={{ color: '#7dcfff' }} {...(item.role ? { role: item.role } : {})} onPress={() => item.onPress()} />
             <Text color="#7dcfff">]</Text>
           </Box>)}
     </Box>
@@ -404,7 +404,7 @@ export function Section(ctx: UiContext, section: UiSection, children: RenderElem
             key={`${section.key}-heading`}
             {...(isGui(ctx.surface) ? { variant: 'secondary' as const } : { plain: true as const })}
             dimColor={section.dim}
-            label={`[ ${section.heading} ]`}
+            label={isGui(ctx.surface) ? `[ ${section.heading} ]` : `[${section.heading}]`}
             onPress={section.headingPress}
           />
         ) : (

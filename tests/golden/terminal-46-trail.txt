@@ -1,11 +1,11 @@
 ──────────── Conversation Atlas ────────────  {0:dim|12:color:#7dcfff,bold|32:dim}
 Map ▸Trail Open 4 Evidence  {4:color:#b9f27c,bold}
-[ MAP OF TOPICS ]4  {17:dim}
+[MAP OF TOPICS]4  {15:dim}
 ○ Atlas foundationst1  {19:dim}
   ○ Map renderingt1  {0:dim|17:dim}
     ↳ Desktop parityt1  {0:dim|4:color:#e0af68|20:dim}
       ● Color tokenst1  {0:dim|6:color:#bb9af7,bold|20:dim}
-[ TRAIL ] [ ↑ ]  {10:color:#7dcfff|14:color:#7dcfff}
+[TRAIL] [↑]  {8:color:#7dcfff|10:color:#7dcfff}
 ⚑ Milestone: Post-prompt milestoneturn 2 · now  {0:color:#7aa2f7|34:dim|41:dim|43:dim}
 ⚑ Commit: Post-prompt committurn 2 · now  {0:color:#7aa2f7|28:dim|35:dim|37:dim}
 › Review the visual regression boundary for the Atlas pane carefully. Preserve the existing action semantics while checking the fixed sample state.turn 2 · now  {0:dim|2:dim|147:dim|154:dim|156:dim}
