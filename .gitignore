@@ -1,0 +1,7 @@
+# Written by Claude Code when the mod loads; build-specific.
+.claude-plugin/types/
+tsconfig.json
+# Local Atlas data for this repo's own sessions (save files, Trailhead checkpoints).
+.claude/
+node_modules/
+*.log

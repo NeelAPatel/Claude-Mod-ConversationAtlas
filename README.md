@@ -103,7 +103,7 @@ Atlas is a **working product** (promoted 2026-10-02) with a private, user-level 
 .\scripts\install-atlas.ps1     # validates, backs up the old copy, installs, validates again
 ```
 
-Then `/reload-plugins` in a running session. To try a change without installing it, use `claude --plugin-dir .\MyMods\conversation-atlas`, or hot reload from a plugin-authoring session. Never use either while the installed copy is enabled in that session: two copies of one plugin would both load. For a docked pane use `/tui fullscreen` and a terminal at least 144 columns wide, or click the footer Atlas button.
+Then `/reload-plugins` in a running session. To try a change without installing it, use `claude --plugin-dir .`, or hot reload from a plugin-authoring session. Never use either while the installed copy is enabled in that session: two copies of one plugin would both load. For a docked pane use `/tui fullscreen` and a terminal at least 144 columns wide, or click the footer Atlas button.
 
 Configuration (`/config` → conversation-atlas, or `pluginConfigs` in settings):
 
@@ -114,8 +114,8 @@ Configuration (`/config` → conversation-atlas, or `pluginConfigs` in settings)
 ## Validation
 
 ```powershell
-claude plugin validate .\MyMods\conversation-atlas
-claude plugin test .\MyMods\conversation-atlas
+claude plugin validate .
+claude plugin test .
 ```
 
 Last result (2026-10-02, Claude Code 2.1.288): validate passed. Runtime tests **30/30 passed**, covering model invariants, first-run consent and mode switching, detected-goal observation and upgrade, hooks, merge/recovery, late join, inline expansion, primary and bracketed action controls, active-tab accents, shared glyph colours, small anchored absolute event popups, scrollable decision menus, popup-vs-body `ui.scroll`, Legend and Trail toggles, responsive bars at 26/34/48/72 columns, message-chip boundaries, and pinned scrolling. `tsc --strict` clean against the build's generated declarations.

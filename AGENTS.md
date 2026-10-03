@@ -1,7 +1,10 @@
 # ConversationAtlas (Atlas) implementation invariants
 
+- This folder is Atlas's own local repo (`F:\LocalProj\Claude-Mod-ConversationAtlas`). It moved out of `F:\LocalProj\ClaudeModsExperimentation` on 2026-10-02 with its history (see `docs/HISTORY.md`). Do not re-add it there.
+- Atlas is a working product with a private user-level install permitted at `~/.claude/skills/conversation-atlas`. Update it with `scripts/install-atlas.ps1` after `claude plugin test .` and `claude plugin validate .` pass, then `/reload-plugins`. Publishing to GitHub or a marketplace needs an explicit decision from the user.
+- Delegated external agents (Codex etc.) must run in a visible, named terminal tab, never headless (user rule in `~/.claude/CLAUDE.md`).
+
 - Atlas is the combined product and absorbs Trailhead (user decision 2026-10-02). New intent features go here, not in `MyMods/trailhead`.
-- Standalone local v0 plugin. Do not publish, package or install globally without a new explicit user decision.
 - **Observation never writes intent.** `goal`, `detour`, `nextStep` and `marked` checkpoints change only in `setGoal`, `setNextStep`, `startDetour`, `returnFromDetour`, `promoteDetour`, `mark`, `confirmSuggestion`. These are called only from a pane press (`act`) or `/atlas`. `observe`, `startTurn` and the activity/file reducers may add topics, suggestions, observed items, files, activity and evidence checkpoints (commit, tests, milestone) only. Tests in `tests/atlas.test.tsx` hold this.
 - Trailhead semantics kept: one active goal; one active detour; a detour departs from the latest marked checkpoint, or makes one; the departure snapshot freezes goal, topic, next step, settled decisions; decisions settled during a detour are its outcomes; return emits one deterministic packet ("not recorded" for missing facts) that rides exactly one composer prompt; promote replaces the goal and keeps history.
 - Context Claude reads comes only from: the static rules section (`prompt.compose`), the one-line confirmed-intent note, a pending return packet, and Atlas chips the user left in the prompt text (`Add to message` puts `[Atlas #n: …]` in the draft; a deleted chip sends nothing). Nothing observed is sent back as if it were settled.
