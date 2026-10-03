@@ -476,7 +476,7 @@ describe('merge: Trailhead features inside Atlas', () => {
       }
       return { value: [] }
     })
-    on('fs.read', (_$: any, e: any) => (String(e.path).endsWith('old-atlas-session.json') ? { value: saved } : { value: undefined }))
+    on('fs.read', (_$: any, e: any) => (String(e.path).endsWith('old-atlas-session.json') ? { value: saved } : { deny: 'not found' }))
     on('fs.write', () => ({ value: undefined }))
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await clock.settle()
