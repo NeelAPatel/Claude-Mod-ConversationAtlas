@@ -854,11 +854,7 @@ export const register: Register = (on, options) => {
     const now = await $.clock.now()
     const scan = await scanState($)
     const width = Math.max(20, (e.props.bodyColumns || 48) - 2)
-    // The generated declarations say desktop accepts Client, but the current
-    // desktop host can still reject this plugin's surface module at load. Keep
-    // the literal path for terminal Client modules and use a static renderer on
-    // desktop so the host's diagnostic never becomes pane content.
-    const Client = e.surface === 'desktop' ? undefined : ('Client' in t ? t.Client : undefined)
+    const Client = 'Client' in t ? t.Client : undefined
     const live = (key: string, rows: LiveRow[], scanProps?: { active: boolean; startedAt: number; result: string | null; resultAt: number; now: number }) =>
       Client ? (
         <Client key={`live-${key}`} module="./live.tsx" props={scanProps ? { rows: plain(rows), tones: TONES, scan: scanProps } : { rows: plain(rows), tones: TONES }} />

@@ -678,6 +678,30 @@ describe('joining a conversation late', () => {
     await ui.unmount()
   })
 
+  test('desktop loads the live client and advances its scan animation', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    on('model.fork', async () => {
+      await clock.sleep(2_000)
+      return { value: { isAnswered: true, text: MAP_REPLY, usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } }
+    })
+    await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true } as any)
+    await clock.settle()
+    const running = $.command.run({ command: 'atlas', args: 'scan', origin: { kind: 'composer' } } as any)
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    const before = await drawn(ui)
+    expect(before).toContain('Mapping earlier conversation…')
+    expect(before).not.toContain('did not load')
+    const clientBefore = JSON.stringify(await ui.drawn({ in: 'live-scan' }))
+    await ui.advance(100)
+    const clientAfter = JSON.stringify(await ui.drawn({ in: 'live-scan' }))
+    expect(clientAfter).not.toBe(clientBefore)
+    expect(clientAfter).not.toContain('did not load')
+    await clock.advance(2_000)
+    await running
+    await ui.unmount()
+  })
+
   test('the title rule names the product and shortens when narrow', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
