@@ -5,14 +5,14 @@ GOAL ⓘ Edit  {0:color:#7dcfff,bold}
 CURRENT PATH ⓘ3 earlier  {0:color:#bb9af7,bold|14:dim}
 Atlas foundations
   Map rendering ↳ left here  {0:dim|16:dim}
-    ↳ Desktop parity return: 2 back  {0:dim|4:color:#e0af68,dim|6:italic,dim|21:dim}
-      ↳ Color tokens unconfirmed  {0:dim|6:color:#e0af68,dim|8:italic,dim|21:dim}
+    ↳ Desktop parity return: 2 back  {0:dim|4:color:#e0af68|6:italic,dim|21:dim}
+      ↳ Color tokens unconfirmed  {0:dim|6:color:#e0af68|8:italic,dim|21:dim}
 POSSIBLE DETOUR ⓘ  {0:color:#e0af68,bold}
-↳ Desktop parity detour suggestion  {0:color:#e0af68,dim|2:italic,dim|17:dim}
+↳ Desktop parity detour suggestion  {0:color:#e0af68|2:italic,dim|17:dim}
 Take detour Not a detour
 ACTIVITY ⓘ  {0:color:#bb9af7,bold}
 × Codex · Reviewing the golden diff now  {0:color:#f7768e|36:dim}
-✓ claude plugin test . 1m  {0:color:#9ece6a,dim|2:dim|23:dim}
+✓ claude plugin test . 1m  {0:color:#9ece6a|2:dim|23:dim}
 × Scratch glyph check 1m  {0:color:#f7768e|22:dim}
 WORKING SET ⓘ3 files  {0:color:#ff9e64,bold|13:dim}
 ✎ golden.test.tsx 1 0 1m  {0:color:#ff9e64|18:color:#ff9e64|20:color:#bb9af7|22:dim}

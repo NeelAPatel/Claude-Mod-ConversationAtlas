@@ -23,20 +23,22 @@ const trailHelp = [
   'A chronological record of prompts, topics, decisions and checkpoints.',
   'Press an event to open its full text and points.',
   'Story groups each turn; Log lists today\'s events one per line.',
-  '› you; ✻ Claude; ⚙ engine. Dim italic rows are observations or guesses.',
+  'Marks: › you · ✻ Claude · ⌬ Codex. Dim italic rows are observations or guesses.',
   'Use View to switch layouts and sort order; press a row to expand it.',
   'The heading button opens this fuller explanation.',
   'Press the heading again to close it; row detail shares this one-open slot.',
 ]
 
 const trailExplain =
-  'A chronological record of prompts, topics, decisions and checkpoints. View switches between Story and Log. ↑ = newest first; ↓ = oldest first.'
+  'A chronological record of prompts, topics, decisions and checkpoints. View switches between Story and Log. ' +
+  '↑ = newest first; ↓ = oldest first. Marks: › you · ✻ Claude · ⌬ Codex.'
 
-const SOURCE_MARK: Record<AtlasSource, { mark: string; color: string }> = {
+export const SOURCE_MARK: Record<AtlasSource | 'codex', { mark: string; color: string }> = {
   person: { mark: '›', color: '#7dcfff' },
   cue: { mark: '›', color: '#7dcfff' },
   claude: { mark: '✻', color: '#d97757' },
-  engine: { mark: '⚙', color: '#7aa2f7' },
+  engine: { mark: '', color: '#7aa2f7' },
+  codex: { mark: '⌬', color: '#7c8cff' },
 }
 
 const EVENT_GLYPH: Record<AtlasEvent['kind'], ScreenRow['glyph']> = {
@@ -110,7 +112,8 @@ function isGuess(snapshot: AtlasSnapshot, event: AtlasEvent, source: AtlasSource
 
 function sourceDetails(snapshot: AtlasSnapshot, event: AtlasEvent): { mark: string; color: string; guess: boolean } {
   const source = sourceForEvent(snapshot, event)
-  return { ...SOURCE_MARK[source], guess: isGuess(snapshot, event, source) }
+  const markSource = event.kind === 'handoff' || event.kind === 'report-back' ? 'codex' : source
+  return { ...SOURCE_MARK[markSource], guess: isGuess(snapshot, event, source) }
 }
 
 export function trailSourceMark(snapshot: AtlasSnapshot, event: AtlasEvent): string {
@@ -131,7 +134,10 @@ function eventRow(snapshot: AtlasSnapshot, event: AtlasEvent, now: number): Scre
     text: event.kind === 'prompt' ? (text.split(/\r?\n/)[0] ?? text) : text,
     meta: `turn ${event.turn}`,
     right: ago(now - event.at),
-    detail: [`kind: ${event.kind}`, `turn: ${event.turn}`, `when: ${ago(now - event.at)}`, text],
+    detail: [
+      `kind: ${event.kind}`, `turn: ${event.turn}`, `when: ${ago(now - event.at)}`,
+      [source.mark, text].filter(Boolean).join(' '),
+    ],
     fullText: [text, ...(event.detail ?? [])].filter(Boolean).join('\n'),
     dim: event.kind === 'prompt' || guess,
     italic: guess,
@@ -228,7 +234,7 @@ function storyRows(snapshot: AtlasSnapshot, events: AtlasEvent[], now: number): 
         `turn: ${group.turn}`,
         `when: ${ago(now - latest)}`,
         `counts: ${summary.prose}`,
-        ...group.events.map(event => `${trailSourceMark(snapshot, event)} ${eventText(event.text)}`),
+        ...group.events.map(event => [trailSourceMark(snapshot, event), eventText(event.text)].filter(Boolean).join(' ')),
       ],
       fullText: prompt ? eventText(prompt.text) : eventText(anchor.text),
       dim: source.guess,

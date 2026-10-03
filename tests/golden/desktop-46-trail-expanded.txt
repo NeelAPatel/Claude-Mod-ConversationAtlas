@@ -11,7 +11,7 @@ TRAIL · Story ⓘ View  {0:color:#b9f27c,bold}
 │ when: now  {0:dim|2:dim}
 │ counts: commit  {0:dim|2:dim}
 │ ✻ Milestone: Post-prompt milestone  {0:dim|2:color:#d97757}
-│ ⚙ Commit: Post-prompt commit  {0:dim}
+│ Commit: Post-prompt commit  {0:dim}
 │ › Review the visual regression boundary for the Atlas pane carefully. Preserve the existing action semantics while checking the fixed sample state.  {0:dim}
 ▲1/16▼  {0:dim|1:dim}
 Add to message Close

@@ -30,14 +30,15 @@ import { expectedReportPath, handoffStart, parseHandoffReport, reportChanged, re
 import { atlasFullFileError, fromAtlasFullFile, pickRecallEntries, saveFile, sessionsToDelete } from '../hooks/recall'
 import { replay } from '../hooks/scan'
 import { cellWidth, collapseBarLabels, layoutRow, measuredBarItemWidth, truncateMiddleCells } from '../hooks/ui'
-import { C, pane, popupShell, rowsOf, type Ctx } from '../hooks/view'
+import { C, GLYPH, LEGEND, legendPanel, pane, popupShell, rowsOf, type Ctx } from '../hooks/view'
 import { buildEvidence } from '../hooks/screens/evidence'
 import { buildMap } from '../hooks/screens/map'
 import { buildOpen } from '../hooks/screens/open'
 import { buildTrail, eventText } from '../hooks/screens/trail'
 import type { On } from 'claude-code'
 import type { AtlasEvent, AtlasSnapshot, AtlasView } from '../types'
-import type { ScreenPopup } from '../hooks/screens/types'
+import { SAMPLE_NOW, sampleSnapshot } from './fixtures/sample'
+import type { GlyphKey, ScreenPopup } from '../hooks/screens/types'
 
 const ROOT = 'F:/work/atlas'
 const OBSERVE = 'mcp__conversation-atlas__observe'
@@ -1801,7 +1802,7 @@ function wrappedTextRows(value: unknown, width: number): string[] {
   }
   if (node.type === 'Text') {
     expect(node.props?.wrap).toBe('wrap')
-    return children.join('').split('\n').flatMap(line =>
+    return children.map(child => typeof child === 'string' ? child : iconText(child)).join('').split('\n').flatMap(line =>
       Array.from({ length: Math.max(1, Math.ceil(line.length / width)) }, (_, i) => line.slice(i * width, (i + 1) * width)),
     )
   }
@@ -2485,6 +2486,188 @@ describe('b4 row anatomy', () => {
         expect(checkpointHead).not.toMatch(/^C /)
         expect(checkpointHead.match(/⚑/g)?.length).toBe(1)
         expect(JSON.stringify(tree)).not.toContain('\uFE0F')
+        await ui.unmount()
+      }
+    }
+  })
+})
+
+
+function iconFixture(): AtlasSnapshot {
+  const snapshot = sampleSnapshot()
+  const kinds: AtlasEvent['kind'][] = [
+    'prompt', 'topic', 'goal', 'detour', 'return', 'promote', 'decision', 'question', 'resolved',
+    'checkpoint', 'next', 'resume', 'dismiss', 'handoff', 'report-back',
+  ]
+  snapshot.events = kinds.map((kind, index) => ({
+    id: `icon-${kind}`, kind, text: `Fixture ${kind}`, turn: index + 10, at: SAMPLE_NOW - index,
+  }))
+  snapshot.activity = ['running', 'done', 'failed'].map((state, index) => ({
+    id: `icon-activity-${state}`, kind: 'test', label: state, state: state as 'running' | 'done' | 'failed',
+    at: SAMPLE_NOW - index, endedAt: state === 'running' ? null : SAMPLE_NOW, agent: null,
+  }))
+  snapshot.files = ['read', 'write'].map((op, index) => ({
+    path: `fixture-${op}.ts`, reads: 1, writes: index, lastOp: op as 'read' | 'write', at: SAMPLE_NOW, turn: 1,
+  }))
+  return snapshot
+}
+
+function iconNodes(value: unknown): DrawnNode[] {
+  if (!value || typeof value !== 'object') return []
+  const node = value as DrawnNode
+  return [node, ...childrenOfNode(node).flatMap(iconNodes)]
+}
+
+function iconText(value: unknown): string {
+  if (typeof value === 'string' || typeof value === 'number') return String(value)
+  if (!value || typeof value !== 'object') return ''
+  const node = value as DrawnNode
+  const children = Array.isArray(node.children) ? node.children : []
+  return children.map(iconText).join('')
+}
+
+describe('b5: icon colors, source marks and complete Legend', () => {
+  test('Legend keys match every tab row across the sample and all event, file and activity kinds', () => {
+    const used = new Set<GlyphKey>()
+    for (const snapshot of [sampleSnapshot(), iconFixture()]) {
+      for (const build of [buildMap, buildTrail, buildOpen, buildEvidence]) {
+        for (const trailView of ['story', 'log'] as const) {
+          const model = build(snapshot, { ...scrollTestView(), mode: 'claude', trailView }, SAMPLE_NOW)
+          for (const row of model.sections.flatMap(section => section.rows)) {
+            if (row.glyph) used.add(row.glyph)
+            if (row.fresh) used.add('fresh')
+          }
+        }
+      }
+    }
+    const listed = new Set(LEGEND.map(([key]) => key))
+    expect([...used].filter(key => !listed.has(key))).toEqual([])
+    expect([...listed].filter(key => !used.has(key))).toEqual([])
+  })
+
+  test('dim row icons retain glyph color without dim or italic on both surfaces', async ($, on) => {
+    const snapshot = sampleSnapshot()
+    const view = scrollTestView()
+    on('ui.render', { component: 'Pane', requestId: 'icon-color' }, ($, e) => {
+      const ctx = scrollTestContext($.ui.resolve(e), e.props.bodyColumns, 100, view)
+      return pane({ ...ctx, surface: e.surface }, snapshot).tree
+    })
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const ui = await $.ui.mount({
+        plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'icon-color', props: scrollPaneProps(80, 100),
+      })
+      const tree = await ui.drawn()
+      const row = nodeByKey(tree, 'head-activity-activity-done')
+      expect(row).toBeDefined()
+      const icon = iconNodes(row).find(node => node.type === 'Text' && iconText(node) === '✓ ')
+      expect(icon?.props?.color).toBe(GLYPH.ok.color)
+      expect(icon?.props?.dimColor).not.toBe(true)
+      expect(icon?.props?.italic).not.toBe(true)
+      expect(iconNodes(row).some(node => node.props?.dimColor === true)).toBe(true)
+      await ui.unmount()
+    }
+  })
+
+  test('expansion marks omit engine prefixes and color Claude and Codex on both Trail layouts', async ($, on) => {
+    const snapshot = iconFixture()
+    snapshot.checkpoints = [{
+      id: 'icon-checkpoint', kind: 'claude', name: 'Fixture checkpoint', turn: 19, at: SAMPLE_NOW,
+      goal: null, topic: null, files: [], detail: null,
+    }]
+    let view = { ...scrollTestView(), tab: 'trail' as const }
+    on('ui.render', { component: 'Pane', requestId: 'icon-marks' }, ($, e) => {
+      const ctx = scrollTestContext($.ui.resolve(e), 80, 100, view)
+      return pane({ ...ctx, surface: e.surface }, snapshot).tree
+    })
+    for (const surface of ['terminal', 'desktop'] as const) {
+      for (const trailView of ['story', 'log'] as const) {
+        for (const [kind, mark, color] of [
+          ['topic', '', ''], ['checkpoint', '✻', '#d97757'],
+          ['handoff', '⌬', '#7c8cff'], ['report-back', '⌬', '#7c8cff'],
+        ]) {
+          const event = snapshot.events.find(candidate => candidate.kind === kind)
+          expect(event).toBeDefined()
+          view = { ...view, trailView, expanded: trailView === 'log' ? event?.id ?? null : `story-${event?.turn}` }
+          const model = buildTrail(snapshot, { ...view, mode: 'claude' }, SAMPLE_NOW)
+          const row = model.sections.flatMap(section => section.rows).find(candidate => candidate.id === view.expanded)
+          expect(row?.detail?.[3]).toBe(`${mark ? `${mark} ` : ''}Fixture ${kind}`)
+          const ui = await $.ui.mount({
+            plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'icon-marks', props: scrollPaneProps(80, 100),
+          })
+          const tree = await ui.drawn()
+          const line = nodeByKey(tree, `expanded-line-${view.expanded}-3`)
+          expect(line).toBeDefined()
+          expect(iconText(line)).toBe(`│ ${mark ? `${mark} ` : ''}Fixture ${kind}`)
+          if (mark) {
+            const icon = iconNodes(line).find(node => node.type === 'Text' && iconText(node) === mark)
+            expect(icon?.props?.color).toBe(color)
+          }
+          expect(JSON.stringify(tree)).not.toContain('⚙')
+          expect(JSON.stringify(tree)).not.toContain('\uFE0F')
+          await ui.unmount()
+        }
+      }
+    }
+  })
+
+  test('Legend never shrinks lines and scroll reaches every entry and wrapped help at 46 and 80', async ($, on) => {
+    let view = { ...scrollTestView(), legend: true }
+    let measured: ReturnType<typeof pane> | undefined
+    let full: ReturnType<typeof legendPanel> | undefined
+    on('ui.render', { component: 'Pane', requestId: 'icon-legend' }, ($, e) => {
+      const ctx = scrollTestContext($.ui.resolve(e), e.props.bodyColumns, 18, view)
+      ctx.surface = e.surface
+      full = legendPanel(ctx)
+      measured = pane(ctx, sampleSnapshot())
+      return measured.tree
+    })
+    for (const surface of ['terminal', 'desktop'] as const) {
+      for (const width of [46, 80]) {
+        view = { ...view, legendScroll: 0 }
+        const ui = await $.ui.mount({
+          plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'icon-legend', props: scrollPaneProps(width, 18),
+        })
+        const tree = await ui.drawn()
+        const panel = nodeByKey(tree, 'legend-panel')
+        const content = nodeByKey(tree, 'legend-content')
+        const lines = childrenOfNode(content)
+        expect(panel?.props?.overflow).toBe('hidden')
+        const innerWidth = width - 4
+        const heights = lines.map(line => rowsOf(line, innerWidth))
+        const total = heights.reduce((sum, height) => sum + height, 0)
+        expect(rowsOf(full, width)).toBe(total + 2)
+        expect(measured?.maxLegendScroll).toBe(total + 2 - Number(panel?.props?.height))
+        expect(heights[1]).toBeGreaterThan(1)
+        expect(heights[2]).toBeGreaterThan(1)
+        const counts = lines.find(line => iconText(line).startsWith('counts:'))
+        expect(rowsOf(counts, innerWidth)).toBeGreaterThan(1)
+        expect(content?.props?.flexShrink).toBe(0)
+        for (const line of lines) expect(line.props?.flexShrink).toBe(0)
+        for (const [key] of LEGEND) expect(nodeByKey(content, `lg-${key}`)?.props?.flexShrink).toBe(0)
+        const viewport = Number(panel?.props?.height) - 2
+        const reachable = new Set<string>()
+        const reachableLines = new Set<number>()
+        for (let at = 0; at <= (measured?.maxLegendScroll ?? 0); at++) {
+          view = { ...view, legendScroll: at }
+          await ui.redraw()
+          const scrollingPanel = nodeByKey(await ui.drawn(), 'legend-panel')
+          expect(childrenOfNode(scrollingPanel)[0]?.props?.marginTop).toBe(-at)
+          let top = 0
+          for (let index = 0; index < lines.length; index++) {
+            const height = heights[index] ?? 0
+            if (top >= at && top + height <= at + viewport) {
+              reachableLines.add(index)
+              for (const [key] of LEGEND) if (nodeByKey(lines[index], `lg-${key}`)) reachable.add(key)
+            }
+            top += height
+          }
+        }
+        expect(reachableLines.size).toBe(lines.length)
+        expect([...reachable].sort()).toEqual(LEGEND.map(([key]) => key).sort())
+        view = { ...view, legendScroll: measured?.maxLegendScroll ?? 0 }
+        await ui.redraw()
+        const lastTree = await ui.drawn()
+        expect(JSON.stringify(nodeByKey(lastTree, 'legend-content'))).toContain('resume earlier session')
         await ui.unmount()
       }
     }

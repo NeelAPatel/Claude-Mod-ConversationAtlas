@@ -24,7 +24,7 @@ import {
 import { buildEvidence } from './screens/evidence'
 import { buildMap } from './screens/map'
 import { buildOpen } from './screens/open'
-import { buildTrail, trailViewPopup } from './screens/trail'
+import { buildTrail, SOURCE_MARK, trailViewPopup } from './screens/trail'
 import { ago } from './screens/shared'
 import type {
   Action,
@@ -321,10 +321,10 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
         <Text color={GLYPH.fresh.color} bold>{`${GLYPH.fresh.char} `}</Text>
       ) : null}
       {sourceMark ? (
-        <Text color={row.sourceMarkColor} dimColor={row.dim} italic={row.italic}>{`${sourceMark} `}</Text>
+        <Text color={row.sourceMarkColor}>{`${sourceMark} `}</Text>
       ) : null}
       {g ? (
-        <Text color={g.color} dimColor={row.dim} bold={row.bold || open}>{`${g.char} `}</Text>
+        <Text color={g.color} bold={row.bold || open}>{`${g.char} `}</Text>
       ) : null}
       {open ? <Text color={GLYPH.expanded.color}>{`${GLYPH.expanded.char} `}</Text> : null}
       <Box flexShrink={1} minWidth={0} overflow="hidden">
@@ -458,8 +458,10 @@ function eventGeometry(ctx: Ctx, row: ScreenRow) {
   const { Text } = ctx.el
   const items = eventDetailLines(row).map((line, index) =>
     guideRow(ctx, `expanded-line-${row.id}-${index}`, <Text dimColor={line.dim} wrap="wrap">
-      {line.text.startsWith('✻ ') ? <Text color="#d97757">✻</Text> : null}
-      {line.text.startsWith('✻ ') ? line.text.slice(1) : line.text}
+      {['✻', '⌬'].includes(line.text[0] ?? '') && line.text[1] === ' ' ? (
+        <Text color={Object.values(SOURCE_MARK).find(source => source.mark === line.text[0])?.color}>{line.text[0]}</Text>
+      ) : null}
+      {['✻', '⌬'].includes(line.text[0] ?? '') && line.text[1] === ' ' ? line.text.slice(1) : line.text}
     </Text>),
   )
   const itemRows = items.map(item => rowsOf(item, Math.max(8, ctx.width - 2)))
@@ -620,7 +622,7 @@ function screenFor(snapshot: AtlasSnapshot, view: ScreenView, now: number): Scre
   return builders[view.tab](snapshot, view, now)
 }
 
-const LEGEND: [GlyphKey, string][] = [
+export const LEGEND: [GlyphKey, string][] = [
   ['goal', 'your goal (confirmed)'],
   ['suggestion', 'suggestion, needs you'],
   ['currentTopic', 'current topic'],
@@ -635,26 +637,32 @@ const LEGEND: [GlyphKey, string][] = [
   ['editedFile', 'file edited'],
   ['readFile', 'file read'],
   ['fresh', 'just changed'],
+  ['resolved', 'resolved question'],
+  ['next', 'next step'],
+  ['resume', 'resume earlier session'],
   ['handoff', 'hand-off running'],
   ['reportBack', 'report back'],
 ]
-function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
+export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
   const { Box, Text } = ctx.el
   const columns = ctx.width >= 64 ? 2 : 1
-  const width = Math.max(8, Math.floor(ctx.width / columns) - 1)
+  const width = Math.max(8, Math.floor((ctx.width - 4) / columns))
   const legendRows: [GlyphKey, string][][] = []
   for (let index = 0; index < LEGEND.length; index += columns) legendRows.push(LEGEND.slice(index, index + columns))
   const content = (
-    <Box flexDirection="column">
-      <Text bold>HOW TO USE</Text>
-      <Text dimColor wrap="wrap">
+    <Box key="legend-content" flexDirection="column" flexShrink={0}>
+      <Box flexShrink={0}><Text bold>HOW TO USE</Text></Box>
+      <Box flexShrink={0}><Text dimColor wrap="wrap">
         Plain rows expand structured details inline. Secondary controls are bracketed on terminal and native on desktop.
-      </Text>
-      <Text dimColor wrap="wrap">
+      </Text></Box>
+      <Box flexShrink={0}><Text dimColor wrap="wrap">
         Topics from the start of the work to now stay observed; press an action to confirm intent.
-      </Text>
-      <Text dimColor>Trail source marks: › you · ✻ Claude · ⚙ engine</Text>
-      <Box flexDirection="row" gap={1}>
+      </Text></Box>
+      <Box flexShrink={0}><Text wrap="wrap">
+        Marks: <Text color={SOURCE_MARK.person.color}>›</Text> you ·{' '}
+        <Text color={SOURCE_MARK.claude.color}>✻</Text> Claude · <Text color={SOURCE_MARK.codex.color}>⌬</Text> Codex
+      </Text></Box>
+      <Box flexDirection="row" gap={1} flexShrink={0}>
         <Text dimColor>Observer mode:</Text>
         {actions(
           ctx,
@@ -668,19 +676,19 @@ function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
           { marginLeft: 0, gap: 0 },
         )}
       </Box>
-      <Text bold>LEGEND</Text>
-      <Text wrap="wrap">
+      <Box flexShrink={0}><Text bold>LEGEND</Text></Box>
+      <Box flexShrink={0}><Text wrap="wrap">
         counts: <Text color={C.write}>e</Text> edits <Text color={C.read}>r</Text> reads{' '}
         <Text color={C.path}>t</Text> topics <Text color={C.decision}>d</Text> decisions{' '}
         <Text color={C.question}>q</Text> questions <Text color={C.checkpoint}>h</Text> hand-offs{' '}
         <Text color={C.checkpoint}>b</Text> report-backs
-      </Text>
+      </Text></Box>
       {legendRows.map((line, index) => (
-        <Box key={`lg-${index}`} flexDirection="row">
+        <Box key={`lg-${index}`} flexDirection="row" flexShrink={0}>
           {line.map(([name, meaning]) => {
             const g = glyph(ctx, name)
             return (
-              <Box key={`lg-${name}`} width={width} flexDirection="row">
+              <Box key={`lg-${name}`} width={width} flexDirection="row" flexShrink={0}>
                 <Text color={g.color} bold>{`${g.char} `}</Text>
                 <Text wrap="truncate-end">{meaning}</Text>
               </Box>
@@ -698,9 +706,10 @@ function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
       borderColor={C.path}
       paddingX={1}
       flexShrink={0}
-      {...(height === undefined ? {} : { height, overflow: 'hidden' as const })}
+      height={height ?? rowsOf(content, Math.max(8, ctx.width - 4)) + 2}
+      overflow="hidden"
     >
-      {height === undefined ? content : <Box flexDirection="column" marginTop={-at}>{content}</Box>}
+      {height === undefined ? content : <Box flexDirection="column" marginTop={-at} flexShrink={0}>{content}</Box>}
     </Box>
   )
   return frame
