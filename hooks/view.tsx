@@ -4,7 +4,7 @@
 // Layout, top to bottom, sized to the pane's rows so the bar never scrolls away:
 //   tab bar        Map · Trail · Open · Evidence, and ▲▼ while the body overflows
 //   body           the tab, scrolled by the pane itself (ui.scroll → view.scroll)
-//   popup          a bordered event, decisions or questions menu over the body
+//   popup          a small anchored bordered event/menu over the body or app bar
 //   app bar        Legend toggle, decisions/questions menus, and Mark
 // While the Legend is on every section heading also shows what that section is for.
 
@@ -40,6 +40,7 @@ export type Action =
   | { type: 'tab'; tab: AtlasTab }
   | { type: 'legend' }
   | { type: 'popup'; popup: AtlasPopup }
+  | { type: 'popup-scroll'; by: number }
   | { type: 'scroll'; by: number }
   | { type: 'scroll-to'; at: number }
   | { type: 'trail-sort' }
@@ -68,6 +69,7 @@ export type Ctx = {
   el: El
   width: number
   rows: number
+  bodyViewport?: number
   now: number
   view: AtlasView
   live: (key: string, rows: LiveRow[]) => RenderElement
@@ -444,14 +446,21 @@ function appBar(ctx: Ctx, s: AtlasSnapshot) {
     { kind: 'decisions', hotkey: 'd', label: chosen.labels[1] ?? `◇${decisions}→` },
     { kind: 'questions', hotkey: 'q', label: chosen.labels[2] ?? `?${open}→` },
   ]
+  const popupKind = ctx.view.popup?.kind === 'decisions' || ctx.view.popup?.kind === 'questions' ? ctx.view.popup.kind : null
+  const popupLeft = popupKind === 'decisions'
+    ? (chosen.labels[0]?.length ?? 0) + gap
+    : (chosen.labels[0]?.length ?? 0) + gap + (chosen.labels[1]?.length ?? 0) + gap
   return (
-    <Box flexDirection="row" gap={gap} flexWrap={wrapped ? 'wrap' : 'nowrap'} flexShrink={0} height={wrapped ? 2 : 1} overflow="hidden">
-      {items.map(i => {
-        const on = i.kind === 'legend' ? ctx.view.legend : ctx.view.popup?.kind === i.kind
-        const action: Action = i.kind === 'legend' ? { type: 'legend' } : { type: 'popup', popup: { kind: i.kind } }
-        return <Button key={`bar-${i.kind}`} plain hotkey={tier === 'tiny' ? undefined : i.hotkey} dimColor={!on} label={i.label} onPress={() => ctx.act(action)} />
-      })}
-      <Button key="mark" plain hotkey={tier === 'tiny' ? undefined : 'k'} label={chosen.labels[3] ?? '+ Mark'} onPress={() => ctx.act({ type: 'mark' })} />
+    <Box key="app-bar" position="relative" flexDirection="column" flexShrink={0}>
+      <Box flexDirection="row" gap={gap} flexWrap={wrapped ? 'wrap' : 'nowrap'} flexShrink={0} height={wrapped ? 2 : 1} overflow="hidden">
+        {items.map(i => {
+          const on = i.kind === 'legend' ? ctx.view.legend : ctx.view.popup?.kind === i.kind
+          const action: Action = i.kind === 'legend' ? { type: 'legend' } : { type: 'popup', popup: { kind: i.kind } }
+          return <Button key={`bar-${i.kind}`} plain hotkey={tier === 'tiny' ? undefined : i.hotkey} dimColor={!on} label={i.label} onPress={() => ctx.act(action)} />
+        })}
+        <Button key="mark" plain hotkey={tier === 'tiny' ? undefined : 'k'} label={chosen.labels[3] ?? '+ Mark'} onPress={() => ctx.act({ type: 'mark' })} />
+      </Box>
+      {popupKind === 'decisions' ? decisionsPopup(ctx, s, { bottom: 1, left: popupLeft }) : popupKind === 'questions' ? questionsPopup(ctx, s, { bottom: 1, left: popupLeft }) : null}
     </Box>
   )
 }
@@ -484,34 +493,79 @@ function legendPanel(ctx: Ctx) {
   )
 }
 
-function popupHeight(ctx: Ctx): number {
-  return Math.max(5, Math.min(Math.floor(ctx.rows * 0.6), Math.max(5, ctx.rows - 4)))
+function popupWidth(ctx: Ctx): number {
+  return Math.max(8, Math.min(52, ctx.width - 4))
 }
 
-function popupLines(text: string, width: number, max: number): string[] {
-  const room = Math.max(8, width)
-  const lines: string[] = []
-  for (const raw of text.split(/\r?\n/)) {
-    if (!raw) {
-      lines.push('')
-      continue
-    }
-    for (let at = 0; at < raw.length; at += room) lines.push(raw.slice(at, at + room))
+function popupMaxHeight(ctx: Ctx): number {
+  const viewport = Math.max(1, ctx.bodyViewport ?? ctx.rows)
+  return Math.max(5, Math.min(10, Math.floor(viewport * 0.4)))
+}
+
+function popupContext(ctx: Ctx): Ctx {
+  return { ...ctx, width: Math.max(8, popupWidth(ctx) - 4) }
+}
+
+type PopupPlacement = { top?: number; bottom?: number; left: number }
+
+type PopupGeometry = {
+  height: number
+  bodyRows: number
+  maxScroll: number
+  itemRows: number[]
+  totalRows: number
+}
+
+function popupGeometry(ctx: Ctx, items: RenderElement[]): PopupGeometry {
+  const itemRows = items.map(item => Math.max(1, rowsOf(item, popupContext(ctx).width)))
+  const totalRows = itemRows.reduce((sum, rows) => sum + rows, 0)
+  const height = Math.min(popupMaxHeight(ctx), Math.max(5, totalRows + 4))
+  const bodyRows = Math.max(1, height - 4)
+  return { height, bodyRows, maxScroll: Math.max(0, totalRows - bodyRows), itemRows, totalRows }
+}
+
+function popupWindow(items: RenderElement[], itemRows: number[], at: number, bodyRows: number): { visible: RenderElement[]; start: number } {
+  let start = 0
+  let skipped = 0
+  while (start < items.length && skipped + (itemRows[start] ?? 1) <= at) {
+    skipped += itemRows[start] ?? 1
+    start += 1
   }
-  if (lines.length <= max) return lines
-  return [...lines.slice(0, Math.max(1, max - 1)), `…${lines.length - Math.max(1, max - 1)} more`]
+  let end = start
+  let used = 0
+  while (end < items.length && (used === 0 || used + (itemRows[end] ?? 1) <= bodyRows)) {
+    used += itemRows[end] ?? 1
+    end += 1
+  }
+  return { visible: items.slice(start, Math.max(start + (items.length ? 1 : 0), end)), start }
 }
 
-function popupShell(ctx: Ctx, title: string, body: RenderElement, height: number, popupState: AtlasPopup) {
+function popupShell(ctx: Ctx, title: string, items: RenderElement[], popupState: AtlasPopup, placement: PopupPlacement, itemCount: number, footer?: RenderElement) {
   const { Box, Button, Text } = ctx.el
+  const geometry = popupGeometry(ctx, items)
+  const at = Math.min(Math.max(0, ctx.view.popupScroll), geometry.maxScroll)
+  const window = popupWindow(items, geometry.itemRows, at, geometry.bodyRows)
+  const position = itemCount === 0 ? 0 : Math.min(itemCount, window.start + 1)
+  const left = Math.max(0, Math.min(placement.left, ctx.width - popupWidth(ctx)))
+  const anchored = { ...placement, left }
   return (
-    <Box key="atlas-popup" position="absolute" top={0} left={0} right={0} height={height} overflow="hidden" borderStyle="round" borderColor={C.path} backgroundColor="#16161e" paddingX={1} flexDirection="column">
+    <Box key="atlas-popup" position="absolute" {...anchored} width={popupWidth(ctx)} height={geometry.height} overflow="hidden" borderStyle="round" borderColor={C.path} backgroundColor="#16161e" paddingX={1} flexDirection="column">
       <Box flexDirection="row" justifyContent="space-between" flexShrink={0}>
         <Text bold>{title}</Text>
-        <Button key="popup-close" role="dismiss" plain label="✕ Close" onPress={() => ctx.act({ type: 'popup', popup: popupState })} />
+        <Box flexDirection="row" gap={1}>
+          <Button key="popup-up" plain dimColor={at === 0} label="▲" onPress={() => ctx.act({ type: 'popup-scroll', by: -1 })} />
+          <Button key="popup-close" role="dismiss" plain label="✕ Close" onPress={() => ctx.act({ type: 'popup', popup: popupState })} />
+        </Box>
       </Box>
-      <Box flexDirection="column" height={Math.max(1, height - 3)} overflow="hidden">
-        {body}
+      <Box flexDirection="column" height={geometry.bodyRows} overflow="hidden">
+        {window.visible}
+      </Box>
+      <Box flexDirection="row" justifyContent="space-between" flexShrink={0}>
+        {footer ?? <Text dimColor />}
+        <Box flexDirection="row" gap={1}>
+          <Text dimColor>{`${position}/${itemCount}`}</Text>
+          <Button key="popup-down" plain dimColor={at >= geometry.maxScroll} label="▼" onPress={() => ctx.act({ type: 'popup-scroll', by: 1 })} />
+        </Box>
       </Box>
     </Box>
   )
@@ -522,69 +576,68 @@ function allDecisions(s: AtlasSnapshot): AtlasItem[] {
   return [...s.decisions].filter(d => d.status === 'settled' || d.status === 'observed' || d.status === 'excluded').sort((a, b) => rank(a) - rank(b) || b.at - a.at)
 }
 
-function decisionsPopup(ctx: Ctx, s: AtlasSnapshot, height: number) {
-  const { Box, Text } = ctx.el
+type PopupContent = { items: RenderElement[]; itemCount: number; footer?: RenderElement }
+
+function decisionsPopupContent(ctx: Ctx, s: AtlasSnapshot): PopupContent {
+  const { Text } = ctx.el
   const list = allDecisions(s)
-  const max = Math.max(1, height - 5)
-  const visible = list.slice(0, max)
-  return popupShell(
-    ctx,
-    'DECISIONS',
-    <Box flexDirection="column">
-      {visible.length === 0 ? <Text dimColor>No decisions yet.</Text> : null}
-      {visible.map(d => decisionRow(ctx, s, d, true))}
-      {list.length > visible.length ? <Text dimColor>{`…${list.length - visible.length} more`}</Text> : null}
-      <Text dimColor>◆ settled first · ◇ observed · excluded dim</Text>
-    </Box>,
-    height,
-    { kind: 'decisions' },
-  )
+  const pctx = popupContext(ctx)
+  return {
+    items: list.length
+      ? [...list.map(d => decisionRow(pctx, s, d, true)), <Text dimColor>◆ settled first · ◇ observed · excluded dim</Text>]
+      : [<Text dimColor>No decisions yet.</Text>],
+    itemCount: list.length,
+  }
 }
 
-function questionsPopup(ctx: Ctx, s: AtlasSnapshot, height: number) {
-  const { Box, Text } = ctx.el
+function decisionsPopup(ctx: Ctx, s: AtlasSnapshot, placement: PopupPlacement) {
+  const content = decisionsPopupContent(ctx, s)
+  return popupShell(ctx, 'DECISIONS', content.items, { kind: 'decisions' }, placement, content.itemCount)
+}
+
+function questionsPopupContent(ctx: Ctx, s: AtlasSnapshot): PopupContent {
+  const { Text } = ctx.el
   const list = [...openQuestions(s)].reverse()
-  const max = Math.max(1, height - 5)
-  const visible = list.slice(0, max)
-  return popupShell(
-    ctx,
-    'OPEN QUESTIONS',
-    <Box flexDirection="column">
-      {visible.length === 0 ? <Text dimColor>No open questions.</Text> : null}
-      {visible.map(q => questionRow(ctx, s, q, true))}
-      {list.length > visible.length ? <Text dimColor>{`…${list.length - visible.length} more`}</Text> : null}
-    </Box>,
-    height,
-    { kind: 'questions' },
-  )
+  const pctx = popupContext(ctx)
+  return { items: list.length ? list.map(q => questionRow(pctx, s, q, true)) : [<Text dimColor>No open questions.</Text>], itemCount: list.length }
 }
 
-function eventPopup(ctx: Ctx, ev: AtlasSnapshot['events'][number], height: number) {
-  const { Box, Button, Text } = ctx.el
-  const details = ev.kind === 'prompt' ? ev.detail ?? [] : ev.detail ?? []
-  return popupShell(
-    ctx,
-    'EVENT',
-    <Box flexDirection="column">
-      <Text dimColor>{`${ev.kind} · turn ${ev.turn} · ${ago(ctx.now - ev.at)}`}</Text>
-      {popupLines(ev.text, ctx.width - 4, Math.max(1, height - 8)).map((line, i) => <Text key={`popup-text-${ev.id}-${i}`} wrap="truncate-end">{line}</Text>)}
-      {ev.kind === 'prompt' && details.length ? <Text bold>Points</Text> : null}
-      {details.map((d, i) => <Text key={`popup-detail-${ev.id}-${i}`} dimColor wrap="wrap">{`• ${d}`}</Text>)}
-      {ev.kind === 'prompt' ? <Button key={`add-ev-${ev.id}`} label="Add to message" variant="primary" onPress={() => ctx.act({ type: 'attach', ref: { kind: 'Prompt', id: ev.id, text: [ev.text, ...details].join('\n') } })} /> : null}
-    </Box>,
-    height,
-    { kind: 'event', id: ev.id },
-  )
+function questionsPopup(ctx: Ctx, s: AtlasSnapshot, placement: PopupPlacement) {
+  const content = questionsPopupContent(ctx, s)
+  return popupShell(ctx, 'OPEN QUESTIONS', content.items, { kind: 'questions' }, placement, content.itemCount)
 }
 
-function popup(ctx: Ctx, s: AtlasSnapshot): RenderElement | null {
+function eventPopupContent(ctx: Ctx, ev: AtlasSnapshot['events'][number]): PopupContent {
+  const { Button, Text } = ctx.el
+  const details = ev.detail ?? []
+  const items = [
+    <Text dimColor>{`${ev.kind} · turn ${ev.turn} · ${ago(ctx.now - ev.at)}`}</Text>,
+    <Text wrap="wrap">{ev.text}</Text>,
+    ...(ev.kind === 'prompt' && details.length ? [<Text bold>Points</Text>] : []),
+    ...(details.length ? [<Text dimColor wrap="wrap">{details.map(d => `• ${d}`).join('\n')}</Text>] : []),
+  ]
+  const footer = ev.kind === 'prompt' ? <Button key={`add-ev-${ev.id}`} label="Add to message" variant="primary" onPress={() => ctx.act({ type: 'attach', ref: { kind: 'Prompt', id: ev.id, text: [ev.text, ...details].join('\n') } })} /> : undefined
+  return { items, itemCount: items.length, footer }
+}
+
+function eventPopup(ctx: Ctx, ev: AtlasSnapshot['events'][number], anchorOffset: number) {
+  const content = eventPopupContent(ctx, ev)
+  const items = content.items
+  const geometry = popupGeometry(ctx, items)
+  const viewport = Math.max(1, ctx.bodyViewport ?? ctx.rows)
+  const visibleRow = anchorOffset - ctx.view.scroll
+  const top = visibleRow + 1 + geometry.height > viewport ? -geometry.height : 1
+  const left = Math.max(0, Math.min(2, ctx.width - popupWidth(ctx)))
+  return popupShell(ctx, 'EVENT', items, { kind: 'event', id: ev.id }, { top, left }, content.itemCount, content.footer)
+}
+
+function popupScrollLimit(ctx: Ctx, s: AtlasSnapshot): number {
   const p = ctx.view.popup
-  if (!p) return null
-  const height = popupHeight(ctx)
-  if (p.kind === 'decisions') return decisionsPopup(ctx, s, height)
-  if (p.kind === 'questions') return questionsPopup(ctx, s, height)
+  if (!p) return 0
+  if (p.kind === 'decisions') return popupGeometry(ctx, decisionsPopupContent(ctx, s).items).maxScroll
+  if (p.kind === 'questions') return popupGeometry(ctx, questionsPopupContent(ctx, s).items).maxScroll
   const ev = s.events.find(x => x.id === p.id)
-  return ev ? eventPopup(ctx, ev, height) : null
+  return ev ? popupGeometry(ctx, eventPopupContent(ctx, ev).items).maxScroll : 0
 }
 
 // ------------------------------------------------------------------ MAP
@@ -847,54 +900,61 @@ function trailTab(ctx: Ctx, s: AtlasSnapshot) {
   const events = ctx.view.trailNewest ? s.events.slice(-40).reverse() : s.events.slice(-40)
   const { Button } = ctx.el
   const sort = <Button key="trail-sort" plain dimColor label={ctx.view.trailNewest ? 'newest first' : 'oldest first'} onPress={() => ctx.act({ type: 'trail-sort' })} />
-  return (
+  const topicRows = tree.map(({ topic: t, depth }) => {
+    const isCur = t.id === cur?.id
+    const glyph = isCur ? '●' : t.kind !== 'main' ? '↳' : t.status === 'returned' ? '↩' : '○'
+    const color = t.kind !== 'main' ? C.detour : isCur ? C.path : undefined
+    const children = s.topics.filter(x => x.parentId === t.id).length
+    const decisions = s.decisions.filter(x => x.topicId === t.id).length
+    const questions = s.questions.filter(x => x.topicId === t.id).length
+    const details = [
+      ...(t.title.length > Math.max(24, ctx.width - depth * 2 - 10) ? [`title: ${t.title}`] : []),
+      `kind: ${t.kind}`,
+      `status: ${t.status}`,
+      `turns: ${t.firstTurn === t.lastTurn ? t.firstTurn : `${t.firstTurn}–${t.lastTurn}`}`,
+      `children: ${children}`,
+      `decisions: ${decisions} · questions: ${questions}`,
+      `source: ${sourceName(t.source)}`,
+    ]
+    return (
+      <Box key={`tr-${t.id}`} flexDirection="row">
+        <Text dimColor>{'  '.repeat(depth)}</Text>
+        <Text color={color} bold={isCur}>{`${glyph} `}</Text>
+        <Box flexShrink={1}>{selectable(ctx, `tsel-${t.id}`, { kind: t.kind === 'main' ? 'Topic' : 'Detour topic', id: t.id, text: t.title }, fit(t.title, ctx.width - depth * 2 - 10), color, s.fresh.includes(t.id), details)}</Box>
+        <Box flexGrow={1} />
+        <Text dimColor>{t.firstTurn === t.lastTurn ? `t${t.firstTurn}` : `t${t.firstTurn}-${t.lastTurn}`}</Text>
+      </Box>
+    )
+  })
+  const prefix = (
     <Box flexDirection="column">
       {heading(ctx, 'MAP OF TOPICS', C.path, `${s.topics.length}`)}
       {s.scanned !== 'claude' ? actions(ctx, [{ key: 'scan', label: 'Map earlier conversation', act: { type: 'scan' } }]) : null}
       {tree.length === 0 ? <Text dimColor>No topics yet.</Text> : null}
-      {tree.map(({ topic: t, depth }) => {
-        const isCur = t.id === cur?.id
-        const glyph = isCur ? '●' : t.kind !== 'main' ? '↳' : t.status === 'returned' ? '↩' : '○'
-        const color = t.kind !== 'main' ? C.detour : isCur ? C.path : undefined
-        const children = s.topics.filter(x => x.parentId === t.id).length
-        const decisions = s.decisions.filter(x => x.topicId === t.id).length
-        const questions = s.questions.filter(x => x.topicId === t.id).length
-        const details = [
-          ...(t.title.length > Math.max(24, ctx.width - depth * 2 - 10) ? [`title: ${t.title}`] : []),
-          `kind: ${t.kind}`,
-          `status: ${t.status}`,
-          `turns: ${t.firstTurn === t.lastTurn ? t.firstTurn : `${t.firstTurn}–${t.lastTurn}`}`,
-          `children: ${children}`,
-          `decisions: ${decisions} · questions: ${questions}`,
-          `source: ${sourceName(t.source)}`,
-        ]
-        return (
-          <Box key={`tr-${t.id}`} flexDirection="row">
-            <Text dimColor>{'  '.repeat(depth)}</Text>
-            <Text color={color} bold={isCur}>{`${glyph} `}</Text>
-            <Box flexShrink={1}>{selectable(ctx, `tsel-${t.id}`, { kind: t.kind === 'main' ? 'Topic' : 'Detour topic', id: t.id, text: t.title }, fit(t.title, ctx.width - depth * 2 - 10), color, s.fresh.includes(t.id), details)}</Box>
-            <Box flexGrow={1} />
-            <Text dimColor>{t.firstTurn === t.lastTurn ? `t${t.firstTurn}` : `t${t.firstTurn}-${t.lastTurn}`}</Text>
-          </Box>
-        )
-      })}
+      {topicRows}
       {heading(ctx, 'TRAIL', undefined, sort)}
       {events.length === 0 ? <Text dimColor>Nothing recorded yet.</Text> : null}
-      {events.map(ev => {
-        const [glyph] = EVENT_GLYPH[ev.kind] ?? ['·', undefined]
-        const dim = ev.kind === 'prompt' || ev.kind === 'dismiss'
-        return (
-          <Box key={`ev-${ev.id}`} flexDirection="row">
-            <Box flexShrink={1}>
-              <Button key={`evb-${ev.id}`} plain dimColor={dim} label={fit(`${glyph} ${ev.text}`, ctx.width - 10)} onPress={() => ctx.act({ type: 'popup', popup: { kind: 'event', id: ev.id } })} />
-            </Box>
-            <Box flexGrow={1} />
-            <Text dimColor>{ago(ctx.now - ev.at)}</Text>
-          </Box>
-        )
-      })}
     </Box>
   )
+  let eventOffset = rowsOf(prefix, ctx.width)
+  const eventRows = events.map(ev => {
+    const [glyph] = EVENT_GLYPH[ev.kind] ?? ['·', undefined]
+    const dim = ev.kind === 'prompt' || ev.kind === 'dismiss'
+    const open = ctx.view.popup?.kind === 'event' && ctx.view.popup.id === ev.id
+    const row = (
+      <Box key={`ev-${ev.id}`} position="relative" flexDirection="row">
+        <Box flexShrink={1}>
+          <Button key={`evb-${ev.id}`} plain dimColor={dim} label={fit(`${glyph} ${ev.text}`, ctx.width - 10)} onPress={() => ctx.act({ type: 'popup', popup: { kind: 'event', id: ev.id } })} />
+        </Box>
+        <Box flexGrow={1} />
+        <Text dimColor>{ago(ctx.now - ev.at)}</Text>
+        {open ? eventPopup(ctx, ev, eventOffset) : null}
+      </Box>
+    )
+    eventOffset += rowsOf(row, ctx.width)
+    return row
+  })
+  return <Box flexDirection="column">{prefix}{eventRows}</Box>
 }
 
 // ------------------------------------------------------------------ OPEN
@@ -1020,13 +1080,8 @@ function scrollbarCells(ctx: Ctx, viewport: number, content: number, at: number,
 
 // The whole pane. Returns the tree and how far the body can scroll, which the hooks
 // module keeps to clamp the next wheel or page move.
-export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScroll: number } {
+export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScroll: number; maxPopupScroll: number } {
   const { Box, Text } = ctx.el
-  const build = (c: Ctx) => {
-    const content = c.view.tab === 'trail' ? trailTab(c, s) : c.view.tab === 'open' ? openTab(c, s) : c.view.tab === 'evidence' ? evidenceTab(c, s) : mapTab(c, s)
-    return c.view.legend ? <Box flexDirection="column">{legendPanel(c)}{content}</Box> : content
-  }
-  let body = build(ctx)
   const appRows = (() => {
     const decisions = activeDecisions(s).length
     const open = openQuestions(s).length
@@ -1037,17 +1092,24 @@ export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScro
   const fixed = 1 + tabBarRows(ctx, s, { max: 1 }) + 1 + appRows
   const viewport = ctx.rows - fixed
   const pinned = viewport >= 4
+  const bodyCtx: Ctx = { ...ctx, bodyViewport: viewport }
+  const build = (c: Ctx) => {
+    const content = c.view.tab === 'trail' ? trailTab(c, s) : c.view.tab === 'open' ? openTab(c, s) : c.view.tab === 'evidence' ? evidenceTab(c, s) : mapTab(c, s)
+    return c.view.legend ? <Box flexDirection="column">{legendPanel(c)}{content}</Box> : content
+  }
+  let body = build(bodyCtx)
   let content = rowsOf(body, ctx.width)
   const bar = pinned && content > viewport
+  const drawCtx = bar ? { ...bodyCtx, width: ctx.width - 2 } : bodyCtx
   if (bar) {
     // Leave a column for the scrollbar: draw and measure the body at the narrower width.
-    body = build({ ...ctx, width: ctx.width - 2 })
+    body = build(drawCtx)
     content = rowsOf(body, ctx.width - 2)
   }
   const maxScroll = pinned ? Math.max(0, content - viewport) : 0
   const at = Math.min(Math.max(0, ctx.view.scroll), maxScroll)
   const scrollbar = bar && maxScroll > 0 ? scrollbarCells(ctx, viewport, content, at, maxScroll) : null
-  const overlay = popup(ctx, s)
+  const maxPopupScroll = popupScrollLimit(ctx.view.tab === 'trail' && bar ? drawCtx : bodyCtx, s)
   const rule = <Text dimColor>{'─'.repeat(Math.max(4, ctx.width))}</Text>
   const tree = (
     <Box flexDirection="column" paddingX={1} {...(pinned ? { height: ctx.rows } : {})}>
@@ -1055,25 +1117,23 @@ export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScro
       {tabBar(ctx, s, { at, max: maxScroll, page: Math.max(1, viewport - 2) })}
       {pinned ? (
         <Box flexDirection="row" flexGrow={1} flexShrink={1} overflow="hidden" position="relative">
-          <Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="hidden">
+          <Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="visible">
             <Box flexDirection="column" flexShrink={0} marginTop={-at}>
               {body}
             </Box>
           </Box>
           {scrollbar}
-          {overlay}
         </Box>
       ) : (
         <Box flexDirection="column" position="relative">
           {body}
-          {overlay}
         </Box>
       )}
       {rule}
       {appBar(ctx, s)}
     </Box>
   )
-  return { tree, maxScroll }
+  return { tree, maxScroll, maxPopupScroll }
 }
 
 // One-line text for the footer button.

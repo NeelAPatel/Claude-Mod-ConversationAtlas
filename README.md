@@ -19,11 +19,11 @@ Atlas is the combined product and absorbs [Trailhead](../trailhead/README.md) (d
 ## UX
 
 - **Pane** (`Atlas`): opens unasked at session start. It docks beside the transcript in the fullscreen layout at ≥144 columns. Below that width it waits until you open it. The footer always shows an Atlas button (`● current topic · N`) that opens it at any width, inline if needed. `/atlas` does the same.
-- **Layout**: a centered `─── Conversation Atlas ───` rule (just `Atlas` under 34 columns) · tab bar · self-scrolling body (wheel, PgUp/PgDn, or ▲▼ buttons) · absolute popup over the body when needed · app bar pinned to the pane bottom.
+- **Layout**: a centered `─── Conversation Atlas ───` rule (just `Atlas` under 34 columns) · tab bar · self-scrolling body (wheel, PgUp/PgDn, or ▲▼ buttons) · small absolute popups anchored to their source · app bar pinned to the pane bottom.
 - **Three UI paradigms**:
   - **EXPANSION**: plain structured rows expand inline with indented dim `│` detail lines and actions. Evidence checkpoints, goal, topics, decisions, questions and files use this for metadata rather than repeating the row.
   - **TOGGLES**: Legend and Trail sort flip state in place. Legend shows a `LEGEND` panel, glyph table, “How to use” guidance and `EXPLAIN` notes under section headings.
-  - **POPUPS / MENUS**: every Trail event opens a rounded EnvVault-style bordered popup with full text; prompt events also show bullets and **Add to message**. ◇ decisions and ? open questions open one popup at a time, each row expandable with its actions. `✕ Close` or any other action dismisses it.
+  - **POPUPS / MENUS**: every Trail event opens a small, rounded EnvVault-style bordered popup anchored below or above that event row; prompt events also show full text, bullets and **Add to message**. ◇ decisions and ? open questions open one small popup above their bottom-bar button, each row expandable with its actions. Popups cap at 52 columns and 10 rows, scroll their own content with ▲▼ or the wheel, and show an `n/m` position. `✕ Close` or any other action dismisses it.
 - **App bar**: hotkeys Legend `l`, ◇ decisions `d`, ? open questions `q`, + Mark `k`. The bottom bar always keeps Mark visible and drops the old checkpoints menu because Evidence already lists checkpoints. Labels adapt through full/mid/tiny tiers and wrap when even tiny labels do not fit.
 - **Resize-friendly**: the tab and bottom bars compute their needed width at full, mid and tiny labels; at 26, 34, 48 and 72 body columns their keys remain present, and a second row is accounted for when wrapping is required. If fewer than 4 body rows fit, the pane stops pinning and lets Claude Code scroll it.
 - **Tabs** (hotkeys `m t o e` while the pane is focused):
@@ -85,7 +85,7 @@ One hooks module (`hooks/register.tsx`) plus pure `model.ts` (reducers), `activi
 - `turn.start`: turn count, prompt trail, wording cues. `turn.complete`: a reply ending in a question that Claude did not report.
 - `tool.call` (all tools): activity rows, files, test and commit checkpoints (`gitOperation.commit`), AskUserQuestion questions, ExitPlanMode decisions. `tool.call {observe}` answers Claude's report. `agent.spawn` names subagents.
 - `ui.render` `Pane {atlas}` and `SessionMode` (footer button). `Client` module `live.tsx` for spinners and shimmer on terminal and desktop; plain text on vscode/mobile.
-- `ui.scroll` on `Pane {atlas}`: the pane scrolls its own body (`view.scroll`, clamped to an estimate of the body's rows from `rowsOf`) so the app bar stays pinned. Implemented as a height=bodyRows column with an overflow-hidden window and negative `marginTop`.
+- `ui.scroll` on `Pane {atlas}`: with no popup, the pane scrolls its own body (`view.scroll`, clamped to an estimate of the body's rows from `rowsOf`) so the app bar stays pinned. With a popup open, the same event adjusts `view.popupScroll` and leaves the body offset unchanged. Body scrolling is a height=bodyRows column with an overflow-hidden window and negative `marginTop`; popup content is windowed independently.
 - State: `$.state` `conversation-atlas.snapshot` / `.view`, written with `update` (CAS). Durable: `$.store` `session:<id>` (restored on resume) and `project:<root>` (offered as **Resume** in the next new session of the same project). Keeps the last 12 sessions. Project-local copy `<project>/.claude/atlas/<session>.json`, written on the 2 s save timer when there is a goal, topics or decisions. Earlier sessions are read from there and from Trailhead's `.claude/trailhead/*.json` (highest checkpoint per session).
 
 No network, no telemetry. The only model cost is Claude's own `observe` tool calls in the normal session, about a few dozen tokens per call. Its rules sit in the cached system prompt. The `engine only` setting turns that off.
@@ -111,7 +111,7 @@ claude plugin validate .\MyMods\conversation-atlas
 claude plugin test .\MyMods\conversation-atlas
 ```
 
-Last result (2026-10-02, Claude Code 2.1.288): validate passed. Runtime tests **23/23 passed**, covering model invariants, detected-goal observation and upgrade, hooks, merge/recovery, late join, inline expansion, bordered event/decision popups, Legend and Trail toggles, responsive bars at 26/34/48/72 columns, message-chip boundaries, and pinned scrolling. `tsc --strict` clean against the build's generated declarations.
+Last result (2026-10-02, Claude Code 2.1.288): validate passed. Runtime tests **25/25 passed**, covering model invariants, detected-goal observation and upgrade, hooks, merge/recovery, late join, inline expansion, small anchored absolute event popups, scrollable decision menus, popup-vs-body `ui.scroll`, Legend and Trail toggles, responsive bars at 26/34/48/72 columns, message-chip boundaries, and pinned scrolling. `tsc --strict` clean against the build's generated declarations.
 
 Live acceptance (2026-10-02): hot-reloaded into the authoring session. The engine loaded the module and generated its `.claude-plugin/types/`. Real Read/Edit/Bash/test calls in that session fed the pane. Claude's `observe` tool reaches the model from the prompt after a (re)load, not in the turn that loads it. On 2.1.288 the observe tool, `/atlas` and pane selection → prompt context were seen working live.
 
@@ -122,7 +122,7 @@ Live acceptance (2026-10-02): hot-reloaded into the authoring session. The engin
 - One active detour (Trailhead's rule). Nested detours appear as topics inside the detour branch.
 - Topic "return" matching is fuzzy (shared words). A wrong match moves the observed path only, never intent.
 - The docked placement depends on the terminal's fullscreen layout and width. Runtime tests check tree validity, not paint or mouse behaviour. Hot-reload acceptance is manual.
-- The scroll limit is an estimate (wrapped text is approximated), so the end may sit a row off.
+- Body and popup scroll limits are estimates (wrapped text and expanded rows are approximated), so either end may sit a row off.
 - Recovery reads at most 80 files per folder and lists 12 sessions. Resuming a Trailhead trail restores goal, next step and main-goal decisions; an active detour comes back only as a suggestion.
 
 ## Next

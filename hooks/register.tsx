@@ -60,7 +60,7 @@ const TOOL = 'mcp__conversation-atlas__observe'
 const FLASH_MS = 4_000
 const SAVE_MS = 2_000
 const KEEP_SESSIONS = 12
-const DEFAULT_VIEW: AtlasView = { tab: 'map', refs: {}, nextRef: 1, editingGoal: false, legend: false, popup: null, scroll: 0, trailNewest: true, expanded: null }
+const DEFAULT_VIEW: AtlasView = { tab: 'map', refs: {}, nextRef: 1, editingGoal: false, legend: false, popup: null, popupScroll: 0, scroll: 0, trailNewest: true, expanded: null }
 
 const RULES = `# Conversation Atlas
  A side pane maps this session for the user. Keep it accurate with ${TOOL}: at the end of a turn where the topic moved, a decision was reached, a question opened or closed, or a milestone landed, call it once with only the fields that changed (short phrases, at most 6 words for a topic). shift: "same" (refining the current topic), "subtopic" (going deeper), "sibling" (next part of the same work), "possible-detour" (a side trip away from the user's goal), "return" (back to earlier work; name that topic). Skip it on trivial turns. Report goal whenever the user's apparent overall aim changes; Atlas shows that as an observation, never as a confirmed goal. It records observations only: never say the user's confirmed goal changed and never treat a detour as accepted; the user confirms goals, detours and returns in the pane. Do not mention the atlas to the user.`
@@ -80,6 +80,8 @@ let observedThisTurn = false
 let activitySeq = 0
 // How far the body could scroll at the last draw; clamps wheel and page moves.
 let maxScroll = 0
+// How far the currently open popup can scroll at the last draw.
+let maxPopupScroll = 0
 let scanOnLaunch: 'off' | 'engine' | 'claude' = 'engine'
 let scanning = false
 const agentNames = new Map<string, string>()
@@ -226,33 +228,35 @@ async function openPane($: EngineInterface, focus: boolean): Promise<boolean> {
 async function act($: EngineInterface, a: Action): Promise<void> {
   switch (a.type) {
     case 'tab':
-      return setView($, v => ({ ...v, tab: a.tab, scroll: 0, popup: null }))
+      return setView($, v => ({ ...v, tab: a.tab, scroll: 0, popup: null, popupScroll: 0 }))
     case 'legend':
-      return setView($, v => ({ ...v, legend: !v.legend, popup: null }))
+      return setView($, v => ({ ...v, legend: !v.legend, popup: null, popupScroll: 0 }))
     case 'popup':
-      return setView($, v => ({ ...v, legend: false, popup: v.popup?.kind === a.popup.kind && v.popup.id === a.popup.id ? null : a.popup }))
+      return setView($, v => ({ ...v, legend: false, popup: v.popup?.kind === a.popup.kind && v.popup.id === a.popup.id ? null : a.popup, popupScroll: 0 }))
+    case 'popup-scroll':
+      return setView($, v => ({ ...v, popupScroll: Math.max(0, Math.min(maxPopupScroll, v.popupScroll + a.by)) }))
     case 'scroll':
-      return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, v.scroll + a.by)), popup: null }))
+      return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, v.scroll + a.by)), popup: null, popupScroll: 0 }))
     case 'scroll-to':
-      return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, a.at)), popup: null }))
+      return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, a.at)), popup: null, popupScroll: 0 }))
     case 'trail-sort':
-      return setView($, v => ({ ...v, trailNewest: !v.trailNewest, popup: null }))
+      return setView($, v => ({ ...v, trailNewest: !v.trailNewest, popup: null, popupScroll: 0 }))
     case 'expand':
-      return setView($, v => ({ ...v, expanded: v.expanded === a.id ? null : a.id, popup: v.popup && (v.popup.kind === 'decisions' || v.popup.kind === 'questions') ? v.popup : null }))
+      return setView($, v => ({ ...v, expanded: v.expanded === a.id ? null : a.id, popup: v.popup && (v.popup.kind === 'decisions' || v.popup.kind === 'questions') ? v.popup : null, popupScroll: 0 }))
     case 'exclude':
       await edit($, (s, now) => setItemStatus(s, a.id, 'excluded', now))
-      await setView($, v => ({ ...v, popup: null }))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
       return
     case 'scan': {
       const rows = await history($)
       if ((await snap($))?.scanned === 'none' && rows.length) await edit($, (s, now) => ({ ...replay(s, rows, now), scanned: 'engine' }))
       await mapWithClaude($)
-      await setView($, v => ({ ...v, popup: null }))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
       return
     }
     case 'adopt':
       await edit($, (s, now) => adoptRecall(s, a.id, now))
-      await setView($, v => ({ ...v, popup: null }))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
       $.ui.toast('Resumed: the earlier goal, next step and decisions are back')
       return
     case 'attach': {
@@ -260,7 +264,7 @@ async function act($: EngineInterface, a: Action): Promise<void> {
       let n = 1
       await setView($, v => {
         n = v.nextRef
-        return { ...v, refs: { ...v.refs, [String(n)]: a.ref }, nextRef: n + 1, popup: null }
+        return { ...v, refs: { ...v.refs, [String(n)]: a.ref }, nextRef: n + 1, popup: null, popupScroll: 0 }
       })
       const chip = ` [Atlas #${n}: ${a.ref.kind.toLowerCase()} "${clip(a.ref.text, 28)}"] `
       const filled = await $.prompt.fill({ text: chip, mode: 'insert' })
@@ -268,63 +272,63 @@ async function act($: EngineInterface, a: Action): Promise<void> {
       return
     }
     case 'edit-goal':
-      return setView($, v => ({ ...v, editingGoal: !v.editingGoal, popup: null }))
+      return setView($, v => ({ ...v, editingGoal: !v.editingGoal, popup: null, popupScroll: 0 }))
     case 'goal': {
       const s = await edit($, (cur, now) => setGoal(cur, a.text, 'person', now))
-      await setView($, v => ({ ...v, editingGoal: false, popup: null }))
+      await setView($, v => ({ ...v, editingGoal: false, popup: null, popupScroll: 0 }))
       if (s.detour) $.ui.toast('Return from the detour (or make it the goal) before changing the goal')
       return
     }
     case 'pin':
       await edit($, (s, now) => setNextStep(s, a.text, now))
-      await setView($, v => ({ ...v, popup: null }))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
       return
     case 'confirm': {
       const before = await snap($)
       const kind = before?.suggestions.find(x => x.id === a.id)?.kind
       await edit($, (s, now) => confirmSuggestion(s, a.id, now))
-      await setView($, v => ({ ...v, popup: null }))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
       if (kind === 'return') $.ui.toast('Return packet goes to Claude with your next message')
       if (kind === 'detour') $.ui.toast('Detour started; the atlas remembers where to come back to')
       return
     }
     case 'dismiss':
       await edit($, (s, now) => dismissSuggestion(s, a.id, now))
-      await setView($, v => ({ ...v, popup: null }))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
       return
     case 'settle':
       await edit($, (s, now) => setItemStatus(s, a.id, 'settled', now))
-      await setView($, v => ({ ...v, popup: null }))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
       return
     case 'drop':
       await edit($, (s, now) => setItemStatus(s, a.id, 'drop', now))
-      await setView($, v => ({ ...v, popup: null }))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
       return
     case 'restore':
       await edit($, (s, now) => setItemStatus(s, a.id, 'observed', now))
-      await setView($, v => ({ ...v, popup: null }))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
       return
     case 'resolve':
       await edit($, (s, now) => setItemStatus(s, a.id, 'resolved', now))
-      await setView($, v => ({ ...v, popup: null }))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
       return
     case 'reopen':
       await edit($, (s, now) => setItemStatus(s, a.id, 'open', now))
-      await setView($, v => ({ ...v, popup: null }))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
       return
     case 'return': {
       await edit($, (s, now) => returnFromDetour(s, now))
-      await setView($, v => ({ ...v, popup: null }))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
       $.ui.toast('Return packet goes to Claude with your next message')
       return
     }
     case 'promote':
       await edit($, (s, now) => promoteDetour(s, now))
-      await setView($, v => ({ ...v, popup: null }))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
       return
     case 'mark':
       await edit($, (s, now) => mark(s, '', now))
-      await setView($, v => ({ ...v, popup: null }))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
       $.ui.toast('Checkpoint marked')
       return
   }
@@ -670,11 +674,17 @@ export const register: Register = (on, options) => {
     const rows = Math.max(8, e.props.scroll?.bodyRows ?? e.viewport?.rows ?? 30)
     const drawn = pane({ el, width, rows, now, view, live, act: a => void act($, a).catch(err => $.ui.toast(`atlas: ${err instanceof Error ? err.message : String(err)}`)) }, s)
     maxScroll = drawn.maxScroll
+    maxPopupScroll = drawn.maxPopupScroll
     return drawn.tree
   })
 
-  // The pane scrolls its own body (the app bar stays pinned): wheel and page keys land here.
+  // The pane scrolls its own body (the app bar stays pinned), unless a popup is open.
   on('ui.scroll', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    const view = (await $.state.get(VIEW)).value as AtlasView | undefined
+    if (view?.popup) {
+      await setView($, v => ({ ...v, popupScroll: Math.max(0, Math.min(maxPopupScroll, v.popupScroll + e.by)) }))
+      return {}
+    }
     await setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, v.scroll + e.by)) }))
     return {}
   })

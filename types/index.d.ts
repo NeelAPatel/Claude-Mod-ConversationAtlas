@@ -186,6 +186,8 @@ export type AtlasView = {
   editingGoal: boolean
   legend: boolean
   popup: AtlasPopup | null
+  // First row within the open popup's own content window.
+  popupScroll: number
   // First body row shown; the pane scrolls its own body so the app bar stays put.
   scroll: number
   // Trail events: true = newest at the top.
