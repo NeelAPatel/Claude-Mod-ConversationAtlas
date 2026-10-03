@@ -361,7 +361,7 @@ async function save($: EngineInterface): Promise<void> {
 }
 
 async function openPane($: EngineInterface, focus: boolean): Promise<boolean> {
-  const opened = await $.ui.open({ id: PANE, title: 'Atlas', ...(focus ? { focus: true } : {}) })
+  const opened = await $.ui.open({ id: PANE, title: 'Atlas', columns: 46, ...(focus ? { focus: true } : {}) })
   return opened.isPlaced
 }
 

@@ -14,7 +14,7 @@ import type { AtlasCheckpoint, AtlasItem, AtlasMode, AtlasPopup, AtlasRecall, At
 import { base, rel } from './activity'
 import type { LiveRow, LiveSeg } from './live'
 import { activeDecisions, collapseEvents, currentTopic, openQuestions, pathOf, resumeHint, sentences } from './model'
-import { ActionGroup, Bar, collapseBarLabels, glyphsFor, isGui, Popup as UiPopup, ScrollBox, type Surface, Tabs, rule as uiRule } from './ui'
+import { ActionGroup, Bar, collapseBarLabels, glyphsFor, isGui, Popup as UiPopup, ScrollBox, type BarItem, type Surface, Tabs, rule as uiRule } from './ui'
 
 export const C = {
   goal: '#7dcfff',
@@ -453,8 +453,7 @@ function titleRule(ctx: Ctx) {
   )
 }
 
-function tabBar(ctx: Ctx, s: AtlasSnapshot, scroll: { at: number; max: number; page: number }) {
-  const { Box, Button, Text } = ctx.el
+function tabItems(ctx: Ctx, s: AtlasSnapshot): BarItem[] {
   const pending = s.suggestions.length + s.decisions.filter(d => d.status === 'observed').length + openQuestions(s).length
   const tabs: { tab: AtlasTab; label: string; short: string; compact: string; hotkey: string; color: string }[] = [
     { tab: 'map', label: 'Map', short: 'Map', compact: 'M', hotkey: 'm', color: TAB_ACCENT.map },
@@ -462,14 +461,19 @@ function tabBar(ctx: Ctx, s: AtlasSnapshot, scroll: { at: number; max: number; p
     { tab: 'open', label: pending ? `Open ${pending}` : 'Open', short: pending ? `Open ${pending}` : 'Open', compact: 'O', hotkey: 'o', color: TAB_ACCENT.open },
     { tab: 'evidence', label: 'Evidence', short: 'Evid', compact: 'E', hotkey: 'e', color: TAB_ACCENT.evidence },
   ]
+  return tabs.map(t => ({ key: `tab-${t.tab}`, label: t.label, short: t.short, compact: t.compact, active: ctx.view.tab === t.tab, activeColor: t.color, hotkey: t.hotkey, onPress: () => ctx.act({ type: 'tab', tab: t.tab }) }))
+}
+
+function tabBar(ctx: Ctx, s: AtlasSnapshot, scroll: { at: number; max: number; page: number }) {
+  const { Box, Button, Text } = ctx.el
   const tabWidth = Math.max(1, ctx.width - (scroll.max > 0 ? 4 : 0) - (scroll.max > 0 ? 1 : 0))
-  const tabsTree = Tabs({ el: ctx.el, surface: ctx.surface, width: tabWidth }, tabs.map(t => ({ key: `tab-${t.tab}`, label: t.label, short: t.short, compact: t.compact, active: ctx.view.tab === t.tab, activeColor: t.color, hotkey: t.hotkey, onPress: () => ctx.act({ type: 'tab', tab: t.tab }) })))
+  const tabsTree = Tabs({ el: ctx.el, surface: ctx.surface, width: tabWidth }, tabItems(ctx, s))
   return (
     <Box flexDirection="column" flexShrink={0}>
-      <Box flexDirection="row" gap={1} flexWrap="nowrap" overflow="hidden">
+      <Box flexDirection="row" gap={1} flexShrink={0} overflow="hidden">
         {tabsTree}
         {scroll.max > 0 ? (
-          <Box flexDirection="row" gap={1}>
+          <Box flexDirection="row" gap={1} flexShrink={0}>
             <Button key="scroll-up" plain dimColor={scroll.at === 0} label="▲" onPress={() => ctx.act({ type: 'scroll', by: -scroll.page })} />
             <Button key="scroll-down" plain dimColor={scroll.at >= scroll.max} label="▼" onPress={() => ctx.act({ type: 'scroll', by: scroll.page })} />
           </Box>
@@ -485,27 +489,42 @@ function tabBar(ctx: Ctx, s: AtlasSnapshot, scroll: { at: number; max: number; p
 }
 
 function tabBarRows(ctx: Ctx, s: AtlasSnapshot, scroll: { max: number }): number {
-  return 1 + (ctx.view.legend ? 1 : 0)
+  const tabWidth = Math.max(1, ctx.width - (scroll.max > 0 ? 4 : 0) - (scroll.max > 0 ? 1 : 0))
+  const layout = collapseBarLabels(tabItems(ctx, s), tabWidth, ctx.surface, 1, 'tabs')
+  return layout.grid.rows.length + (ctx.view.legend ? 1 : 0)
 }
 
 // ------------------------------------------------------------------ app bar + legend + popups
 
-function appBar(ctx: Ctx, s: AtlasSnapshot) {
-  const { Box } = ctx.el
+function appBarItems(ctx: Ctx, s: AtlasSnapshot): BarItem[] {
   const decisions = activeDecisions(s).length
   const open = openQuestions(s).length
-  const barItems = [
+  return [
     { key: 'legend', label: 'Legend', short: 'Legend', compact: '≡', icon: '', hotkey: 'l', onPress: () => ctx.act({ type: 'legend' }) },
     { key: 'decisions', label: `${decisions} decisions →`, short: `${decisions} dec →`, compact: `${decisions}→`, icon: GLYPH.observedDecision.char, hotkey: 'd', onPress: () => ctx.act({ type: 'popup', popup: { kind: 'decisions' } }) },
     { key: 'questions', label: `${open} open →`, short: `${open} open →`, compact: `${open}→`, icon: GLYPH.openQuestion.char, hotkey: 'q', onPress: () => ctx.act({ type: 'popup', popup: { kind: 'questions' } }) },
     { key: 'mark', label: '+ Mark', short: '+ Mark', compact: '+', hotkey: 'k', onPress: () => ctx.act({ type: 'mark' }) },
   ]
-  const choice = collapseBarLabels(barItems, ctx.width, ctx.surface)
-  const chosen = choice.labels
+}
+
+function appBarLayout(ctx: Ctx, s: AtlasSnapshot) {
+  return collapseBarLabels(appBarItems(ctx, s), ctx.width, ctx.surface, 1, 'bar')
+}
+
+function appBarRows(ctx: Ctx, s: AtlasSnapshot): number {
+  return appBarLayout(ctx, s).grid.rows.length
+}
+
+function appBar(ctx: Ctx, s: AtlasSnapshot) {
+  const { Box } = ctx.el
+  const barItems = appBarItems(ctx, s)
+  const choice = appBarLayout(ctx, s)
   const popupKind = ctx.view.popup?.kind === 'decisions' || ctx.view.popup?.kind === 'questions' ? ctx.view.popup.kind : null
-  const popupLeft = popupKind === 'decisions'
-    ? (chosen[0]?.length ?? 0) + 1
-    : (chosen[0]?.length ?? 0) + 1 + (chosen[1]?.length ?? 0) + 1
+  const popupIndex = popupKind === 'decisions' ? 1 : 2
+  const popupColumn = choice.grid.columns > 0 ? popupIndex % choice.grid.columns : 0
+  const popupLeft = popupKind
+    ? choice.grid.columnWidths.slice(0, popupColumn).reduce((sum, width) => sum + width, 0) + popupColumn
+    : 0
   return (
     <Box key="app-bar" position="relative" flexDirection="column" flexShrink={0}>
       {Bar({ el: ctx.el, surface: ctx.surface, width: ctx.width }, barItems.map(i => ({ ...i, active: i.key === 'legend' ? ctx.view.legend : i.key === 'decisions' ? ctx.view.popup?.kind === 'decisions' : i.key === 'questions' ? ctx.view.popup?.kind === 'questions' : false })))}
@@ -1260,11 +1279,9 @@ export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScro
     )
     return { tree, maxScroll: 0, maxPopupScroll: 0 }
   }
-  const appRows = (() => {
-    // Bar is a single no-wrap row at every tier; it collapses labels instead
-    // of reserving a second row that could push the pinned footer away.
-    return 1
-  })()
+  // The footer is a responsive grid. Reserve every drawn row so the pane's
+  // own body scroll never consumes a bar row.
+  const appRows = appBarRows(ctx, s)
   const scan = scanBanner(ctx)
   const scanRows = scan ? rowsOf(scan, ctx.width) : 0
   // The Legend toggle opens a panel pinned just above the bottom bar, outside the scrolling body.

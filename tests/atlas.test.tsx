@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { addCheckpoint, closeUnverifiedHandoffs, collapseEvents, confirmSuggestion, emptySnapshot, observe, promptBullets, reportHandoff, reportMarker, resolveRepoPath, returnFromDetour, setItemStatus, startHandoff, startTurn, stripPromptMarkers, touchFile, upgrade } from '../hooks/model'
 import { expectedReportPath, handoffStart, parseHandoffReport, reportChanged, reportFingerprint } from '../hooks/delegation'
-import { barWidth, collapseBarLabels } from '../hooks/ui'
+import { collapseBarLabels, measuredBarItemWidth } from '../hooks/ui'
 import { C } from '../hooks/view'
 
 const ROOT = 'F:/work/atlas'
@@ -154,6 +154,7 @@ describe('hooks', () => {
     expect(seen.tools).toContain('observe')
     expect(seen.commands).toContain('atlas')
     expect(seen.opens.length).toBeGreaterThan(0)
+    expect(seen.opens.some((open: any) => Number(open.columns) >= 46)).toBe(true)
 
     await $.tool.call({ tool: 'Read', file_path: `${ROOT}/hooks/register.tsx` } as any)
     await $.tool.call({ tool: 'Edit', file_path: `${ROOT}/hooks/model.ts`, old_string: 'a', new_string: 'b' } as any)
@@ -487,47 +488,72 @@ describe('readability: app bar, legend, resizing', () => {
 })
 
 describe('milestone 1: UI primitives and engine noise', () => {
-  test('bar labels collapse without dropping the active tab or Mark at every width and surface', () => {
+  test('bars choose the largest measured grid that fits at every width', () => {
     const tabs = [
-      { key: 'map', label: 'Map', short: 'Map', compact: 'M', active: true, onPress: () => undefined },
-      { key: 'trail', label: 'Trail', short: 'Trail', compact: 'T', onPress: () => undefined },
-      { key: 'open', label: 'Open 12', short: 'Open 12', compact: 'O', onPress: () => undefined },
-      { key: 'evidence', label: 'Evidence', short: 'Evid', compact: 'E', onPress: () => undefined },
+      { key: 'map', label: 'Map', short: 'Map', compact: 'M', active: true, hotkey: 'm', onPress: () => undefined },
+      { key: 'trail', label: 'Trail', short: 'Trail', compact: 'T', hotkey: 't', onPress: () => undefined },
+      { key: 'open', label: 'Open 123456', short: 'Open 123456', compact: 'O', hotkey: 'o', onPress: () => undefined },
+      { key: 'evidence', label: 'Evidence', short: 'Evid', compact: 'E', hotkey: 'e', onPress: () => undefined },
     ]
     const bottom = [
-      { key: 'legend', label: 'Legend', short: 'Legend', compact: '≡', onPress: () => undefined },
-      { key: 'decisions', label: '12 decisions →', short: '12 dec →', compact: '12→', onPress: () => undefined },
-      { key: 'questions', label: '8 open →', short: '8 open →', compact: '8→', onPress: () => undefined },
-      { key: 'mark', label: '+ Mark', short: '+ Mark', compact: '+', onPress: () => undefined },
+      { key: 'legend', label: 'Legend', short: 'Legend', compact: '≡', hotkey: 'l', onPress: () => undefined },
+      { key: 'decisions', label: '12 decisions →', short: '12 dec →', compact: '12→', icon: '◇', hotkey: 'd', onPress: () => undefined },
+      { key: 'questions', label: '8 open →', short: '8 open →', compact: '8→', icon: '?', hotkey: 'q', onPress: () => undefined },
+      { key: 'mark', label: '+ Mark', short: '+ Mark', compact: '+', hotkey: 'k', onPress: () => undefined },
     ]
+    expect(measuredBarItemWidth({ label: 'Map', hotkey: 'm' })).toBe(6)
+    expect(measuredBarItemWidth({ label: 'Trail', activeMarker: '▸' })).toBe(6)
+    expect(measuredBarItemWidth({ label: '9', icon: '◇', prefixGap: 1, hotkey: 'd', buttonChrome: 'bracketed' })).toBe(10)
     for (const surface of ['terminal', 'desktop'] as const) {
+      let previousTabs = 0
+      let previousBottom = 0
       for (let width = 20; width <= 100; width++) {
-        const t = collapseBarLabels(tabs, width, surface)
-        const b = collapseBarLabels(bottom, width, surface)
+        const t = collapseBarLabels(tabs, width, surface, 1, 'tabs')
+        const b = collapseBarLabels(bottom, width, surface, 1, 'bar')
         expect(t.labels).toHaveLength(4)
         expect(b.labels).toHaveLength(4)
-        expect(barWidth(t.labels)).toBeLessThanOrEqual(width)
-        expect(barWidth(b.labels)).toBeLessThanOrEqual(width)
+        expect(t.grid.fits).toBe(true)
+        expect(b.grid.fits).toBe(true)
+        expect(t.grid.rowWidths.every(rowWidth => rowWidth <= width)).toBe(true)
+        expect(b.grid.rowWidths.every(rowWidth => rowWidth <= width)).toBe(true)
         expect(t.labels[0]).toBeTruthy()
         expect(b.labels[3]).toBeTruthy()
+        expect(t.grid.columns).toBeGreaterThanOrEqual(previousTabs)
+        expect(b.grid.columns).toBeGreaterThanOrEqual(previousBottom)
+        previousTabs = t.grid.columns
+        previousBottom = b.grid.columns
+      }
+      if (surface === 'terminal') {
+        expect(collapseBarLabels(tabs, 20, surface, 1, 'tabs').grid.columns).toBe(1)
+        expect(collapseBarLabels(tabs, 23, surface, 1, 'tabs').grid.columns).toBe(2)
+        expect(collapseBarLabels(tabs, 100, surface, 1, 'tabs').grid.columns).toBe(4)
       }
     }
   })
 
-  test('rendered bars keep every tab and Mark at narrow and wide widths without wrapping', { timeoutMs: 20_000 }, async ($, on) => {
+  test('rendered bars keep whole labels at the requested terminal and desktop widths', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await clock.settle()
-    for (const surface of ['terminal', 'desktop'] as const) {
-      for (const bodyColumns of [24, 40, 60, 100]) {
+    const surfaceWidths = [['terminal', [30, 40, 46, 60, 100]] as const, ['desktop', [30, 60]] as const]
+    for (const [surface, widths] of surfaceWidths) {
+      for (const bodyColumns of widths) {
         const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'atlas', props: { ...PANE_PROPS, bodyColumns } })
         const text = await drawn(ui)
-        expect(text).toMatch(/▸(?:Map|M)/)
+        expect(text).toContain('Trail')
+        expect(text).toContain('Legend')
+        expect(text).toContain('Mark')
+        expect(text).toContain('decisions')
+        expect(text).toContain('open')
+        expect(text).not.toMatch(/"label":"[MTOE]"/)
+        expect(text).not.toMatch(/"children":"▸[MTOE]"/)
         for (const tab of ['trail', 'open', 'evidence']) expect(text).toContain(`"key":"tab-${tab}"`)
         for (const key of ['bar-legend', 'bar-decisions', 'bar-questions', 'mark']) expect(text).toContain(`"key":"${key}"`)
         for (const key of ['bar-legend', 'bar-decisions', 'bar-questions', 'mark']) expect(await ui.find({ key, type: 'Button' })).toBeDefined()
-        expect((await ui.find({ key: 'tab-bar' }))?.props.flexWrap).not.toBe('wrap')
-        expect((await ui.find({ key: 'bottom-bar' }))?.props.flexWrap).not.toBe('wrap')
+        expect((await ui.find({ key: 'tab-bar' }))?.props.flexDirection).toBe('column')
+        expect((await ui.find({ key: 'bottom-bar' }))?.props.flexDirection).toBe('column')
+        expect((await ui.find({ key: 'tab-row-0' }))?.props.flexShrink).toBe(0)
+        expect((await ui.find({ key: 'bar-row-0' }))?.props.flexShrink).toBe(0)
         await ui.unmount()
       }
     }
