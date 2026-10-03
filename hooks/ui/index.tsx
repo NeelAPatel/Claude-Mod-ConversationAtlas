@@ -14,6 +14,27 @@ export type UiContext = {
   width: number
 }
 
+export type UiRow = {
+  key: string
+  text: string
+  glyph?: string
+  glyphColor?: string
+  right?: string
+  dim?: boolean
+  bold?: boolean
+  onPress?: () => void
+}
+
+export type UiSection = {
+  key: string
+  heading: string
+  explain?: string
+  count?: string
+  right?: string
+  color?: string
+  dim?: boolean
+}
+
 export type GlyphSet = {
   goal: string
   suggestion: string
@@ -339,6 +360,36 @@ export function ActionGroup(ctx: UiContext, items: ActionItem[], options: { marg
             <Button key={item.key} plain label={` ${item.label} `} hover={{ color: '#7dcfff' }} {...(item.role ? { role: item.role } : {})} onPress={() => item.onPress()} />
             <Text color="#7dcfff">]</Text>
           </Box>)}
+    </Box>
+  )
+}
+
+export function Row(ctx: UiContext, row: UiRow): RenderElement {
+  const { Box, Text, Button } = ctx.el
+  return (
+    <Box key={row.key} flexDirection="row" gap={1} flexShrink={0}>
+      {row.glyph ? <Text color={row.glyphColor} dimColor={row.dim}>{row.glyph}</Text> : null}
+      <Box flexShrink={1} minWidth={0} overflow="hidden">
+        {row.onPress ? <Button key={row.key} plain dimColor={row.dim} label={row.text} onPress={() => row.onPress?.()} /> : <Text bold={row.bold} dimColor={row.dim} wrap="truncate-end">{row.text}</Text>}
+      </Box>
+      <Box flexGrow={1} />
+      {row.right ? <Text dimColor wrap="truncate-end">{row.right}</Text> : null}
+    </Box>
+  )
+}
+
+export function Section(ctx: UiContext, section: UiSection, children: RenderElement): RenderElement {
+  const { Box, Text } = ctx.el
+  return (
+    <Box key={section.key} flexDirection="column" marginTop={1}>
+      <Box flexDirection="row" flexShrink={0}>
+        <Text bold color={section.color} dimColor={section.dim} wrap="truncate-end">{section.heading}</Text>
+        <Box flexGrow={1} />
+        {section.count ? <Text dimColor wrap="truncate-end">{section.count}</Text> : null}
+        {section.right ? <Text dimColor wrap="truncate-end">{section.right}</Text> : null}
+      </Box>
+      {section.explain ? <Text dimColor italic wrap="wrap">{section.explain}</Text> : null}
+      {children}
     </Box>
   )
 }

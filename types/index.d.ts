@@ -196,7 +196,7 @@ export type AtlasTab = 'map' | 'trail' | 'open' | 'evidence'
 
 export type AtlasSelection = { kind: string; id: string; text: string }
 
-export type AtlasPopup = { kind: 'event' | 'decisions' | 'questions'; id?: string }
+export type AtlasPopup = { kind: 'event' | 'decisions' | 'questions' | 'legend' | 'item'; id?: string }
 
 export type AtlasView = {
   // The first-run consent screen is explicit UI state; render hooks only read it.
