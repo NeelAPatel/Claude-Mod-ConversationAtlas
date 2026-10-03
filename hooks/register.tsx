@@ -51,7 +51,7 @@ import {
   addDecision,
   addDetourFinding,
   adoptRecall,
-  hasConfirmedMap,
+  hasReplaceableContent,
   recoverFull,
   recordDecision,
   setRecall,
@@ -61,6 +61,7 @@ import {
   ATLAS_DIR,
   fromAtlasFile,
   fromAtlasFullFile,
+  atlasFullFileError,
   fromTrailheadFile,
   mergeRecall,
   safeName,
@@ -386,13 +387,19 @@ async function loadRecall($: EngineInterface): Promise<number> {
   return recall.filter(r => r.sessionId !== sid).length
 }
 
-async function readFullRecall($: EngineInterface, recall: { source: string; sessionId: string }): Promise<AtlasFullRecall | null> {
-  if (recall.source !== 'atlas') return null
+async function readFullRecall(
+  $: EngineInterface,
+  recall: { source: string; sessionId: string },
+): Promise<{ source: AtlasFullRecall | null; error: string | null }> {
+  if (recall.source !== 'atlas') return { source: null, error: 'full recovery is available only for Atlas save files' }
   try {
     const text = await $.fs.read(`${root}/${ATLAS_DIR}/${safeName(recall.sessionId)}.json`)
-    return typeof text === 'string' ? fromAtlasFullFile(text, root) : null
+    if (typeof text !== 'string') return { source: null, error: 'save file is not text' }
+    const source = fromAtlasFullFile(text, root)
+    if (source) return { source, error: null }
+    return { source: null, error: atlasFullFileError(text, root) ?? 'invalid Atlas save' }
   } catch {
-    return null
+    return { source: null, error: 'could not read the save file' }
   }
 }
 
@@ -518,13 +525,14 @@ async function act($: EngineInterface, a: Action): Promise<void> {
       const recall = current?.recall.find(candidate => candidate.id === a.id)
       if (!current || !recall || recall.source !== 'atlas') return
       const view = (await $.state.get(VIEW)).value as AtlasView | undefined
-      if (hasConfirmedMap(current) && view?.fullConfirm !== a.id) {
+      if (hasReplaceableContent(current) && view?.fullConfirm !== a.id) {
         await setView($, v => ({ ...v, fullConfirm: a.id, popup: null, popupScroll: 0 }))
         return
       }
-      const source = await readFullRecall($, recall)
+      const loaded = await readFullRecall($, recall)
+      const source = loaded.source
       if (!source) {
-        $.ui.toast('Atlas could not load the full saved map')
+        $.ui.toast(`Can't load that save: ${loaded.error ?? 'invalid Atlas save'}`)
         return
       }
       await edit($, (s, now) => recoverFull(s, source, now))
@@ -702,11 +710,12 @@ async function command($: EngineInterface, args: string): Promise<string> {
         if (mode.toLowerCase() === 'full') {
           if (pick.source !== 'atlas') return 'Full recovery is available only for Atlas save files.'
           const current = await snap($)
-          if (current && hasConfirmedMap(current) && confirmation.toLowerCase() !== 'confirm') {
+          if (current && hasReplaceableContent(current) && confirmation.toLowerCase() !== 'confirm') {
             return 'this replaces your current map; run /atlas recover <n> full confirm to proceed'
           }
-          const source = await readFullRecall($, pick)
-          if (!source) return `Could not load the full map for session ${pick.sessionId.slice(0, 8)}.`
+          const loaded = await readFullRecall($, pick)
+          const source = loaded.source
+          if (!source) return `Can't load that save: ${loaded.error ?? 'invalid Atlas save'}`
           await edit($, (cur, now) => recoverFull(cur, source, now))
           return `Loaded full map from session ${pick.sessionId.slice(0, 8)}`
         }

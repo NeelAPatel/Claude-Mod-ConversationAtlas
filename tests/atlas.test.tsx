@@ -7,6 +7,7 @@ import {
   confirmSuggestion,
   emptySnapshot,
   goalSuggestions,
+  hasReplaceableContent,
   observe,
   promptBullets,
   recoverFull,
@@ -16,6 +17,8 @@ import {
   returnFromDetour,
   setGoal,
   setItemStatus,
+  setNextStep,
+  startDetour,
   startHandoff,
   startTurn,
   stripPromptMarkers,
@@ -23,7 +26,7 @@ import {
   upgrade,
 } from '../hooks/model'
 import { expectedReportPath, handoffStart, parseHandoffReport, reportChanged, reportFingerprint } from '../hooks/delegation'
-import { fromAtlasFullFile, saveFile, sessionsToDelete } from '../hooks/recall'
+import { atlasFullFileError, fromAtlasFullFile, saveFile, sessionsToDelete } from '../hooks/recall'
 import { cellWidth, collapseBarLabels, layoutRow, measuredBarItemWidth, truncateMiddleCells } from '../hooks/ui'
 import { C, rowsOf } from '../hooks/view'
 import { buildEvidence } from '../hooks/screens/evidence'
@@ -213,6 +216,50 @@ describe('model: observation never writes intent', () => {
     expect(restored.seq).toBe(100)
     const withNewId = addCheckpoint(restored, 'After recovery', 'marked', null, 31)
     expect(withNewId.checkpoints.at(-1)?.id).toBe('c101')
+  })
+
+  test('full recovery rejects unsupported and malformed snapshots without replacing current state', () => {
+    const current = setGoal(emptySnapshot('current-session', ROOT, 10), 'Keep this map', 'person', 11)
+    const valid = JSON.parse(saveFile(emptySnapshot('saved-session', ROOT, 0), 20)) as { snapshot: Record<string, unknown> }
+    const unsupported = { ...valid, snapshot: { ...valid.snapshot, v: 99, decisions: [] } }
+    const unsupportedText = JSON.stringify(unsupported)
+    expect(atlasFullFileError(unsupportedText, ROOT)).toBe('unsupported version 99')
+    expect(fromAtlasFullFile(unsupportedText, ROOT)).toBeNull()
+    expect(recoverFull(current, { id: 'atlas:saved-session', sessionId: 'saved-session', snapshot: unsupported.snapshot }, 30)).toBe(current)
+
+    const malformed = { ...valid, snapshot: { ...valid.snapshot, topics: {}, decisions: [] } }
+    const malformedText = JSON.stringify(malformed)
+    expect(atlasFullFileError(malformedText, ROOT)).toContain('topics')
+    expect(fromAtlasFullFile(malformedText, ROOT)).toBeNull()
+  })
+
+  test('full recovery accepts a legacy v1 snapshot that upgrade can fill', () => {
+    const full = emptySnapshot('legacy-session', ROOT, 0)
+    const { detectedGoal: _goal, recall: _recall, adopted: _adopted, scanned: _scanned, ...legacy } = full
+    const text = JSON.stringify({ format: 'conversation-atlas', v: 1, sessionId: full.sessionId, root: ROOT, snapshot: legacy })
+    const source = fromAtlasFullFile(text, ROOT)
+    expect(source).not.toBeNull()
+    const restored = recoverFull(emptySnapshot('current-session', ROOT, 10), source as { id: string; sessionId: string; snapshot: unknown }, 30)
+    expect(restored.detectedGoal).toBeNull()
+    expect(restored.recall).toEqual([])
+    expect(restored.adopted).toEqual(['atlas:legacy-session'])
+    expect(restored.scanned).toBe('none')
+  })
+
+  test('full recovery replacement guard covers empty, observed, intent and evidence maps', () => {
+    expect(hasReplaceableContent(emptySnapshot('empty', ROOT, 0))).toBe(false)
+
+    const observed = observe(emptySnapshot('observed', ROOT, 0), { topic: 'Observed only' }, 1)
+    expect(hasReplaceableContent(observed)).toBe(true)
+
+    const nextStep = setNextStep(emptySnapshot('next', ROOT, 0), 'Next step only', 1)
+    expect(hasReplaceableContent(nextStep)).toBe(true)
+
+    const detour = startDetour(emptySnapshot('detour', ROOT, 0), 'Detour only', null, 1)
+    expect(hasReplaceableContent(detour)).toBe(true)
+
+    const evidence = touchFile(emptySnapshot('evidence', ROOT, 0), `${ROOT}/README.md`, 'read', 1)
+    expect(hasReplaceableContent(evidence)).toBe(true)
   })
 
   test('session pruning keeps the current key and removes the least recently saved old keys', () => {
@@ -494,6 +541,32 @@ describe('merge: Trailhead features inside Atlas', () => {
     expect(map).toContain('Recovered saved topic')
     await ui.press({ key: 'tab-open' })
     expect(await drawn(ui)).toContain('Recovered saved decision')
+    await ui.unmount()
+  })
+
+  test('/atlas recover full explains a rejected snapshot and leaves the current map alone', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    const invalid = JSON.parse(saveFile(emptySnapshot('bad-atlas-session', ROOT, 0), 20)) as { snapshot: Record<string, unknown> }
+    invalid.snapshot.v = 99
+    invalid.snapshot.decisions = []
+    const saved = JSON.stringify({ format: 'conversation-atlas', v: 1, sessionId: 'bad-atlas-session', root: ROOT, snapshot: invalid.snapshot })
+    on('fs.list', (_$: any, e: any) => {
+      const path = String(e.path)
+      if (/[\\/]\.claude[\\/]atlas$/.test(path)) {
+        return { value: [{ name: 'bad-atlas-session.json', kind: 'file', size: saved.length, mtimeMs: 20, isLink: false }] }
+      }
+      return { value: [] }
+    })
+    on('fs.read', (_$: any, e: any) => (String(e.path).endsWith('bad-atlas-session.json') ? { value: saved } : { deny: 'not found' }))
+    on('fs.write', () => ({ value: undefined }))
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await clock.settle()
+    await $.command.run({ command: 'atlas', args: 'goal Current map goal', origin: { kind: 'composer' } } as any)
+
+    const refused = await $.command.run({ command: 'atlas', args: 'recover 1 full confirm', origin: { kind: 'composer' } } as any)
+    expect(refused.text).toBe("Can't load that save: unsupported version 99")
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    expect(await drawn(ui)).toContain('Current map goal')
     await ui.unmount()
   })
 })

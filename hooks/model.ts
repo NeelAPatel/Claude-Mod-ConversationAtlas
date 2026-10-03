@@ -132,6 +132,92 @@ export function hydrate(raw: unknown, sessionId: string, root: string, now: numb
   }
 }
 
+type RawSnapshot = Record<string, unknown>
+
+function isRawRecord(value: unknown): value is RawSnapshot {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+const requiredRecordArrays = ['goalHistory', 'detourHistory', 'topics', 'suggestions', 'decisions', 'questions', 'checkpoints', 'files', 'activity', 'events']
+const optionalRecordArrays = ['handoffs', 'recall']
+const optionalStringArrays = ['pendingContext', 'adopted', 'fresh']
+
+function arrayShapeError(raw: RawSnapshot, field: string, required: boolean): string | null {
+  if (raw[field] === undefined && !required) return null
+  if (!Array.isArray(raw[field])) return `${required ? 'missing or malformed' : 'malformed'} ${field} collection`
+  return null
+}
+
+function recordArrayError(raw: RawSnapshot, field: string, required: boolean): string | null {
+  const shapeError = arrayShapeError(raw, field, required)
+  if (shapeError || raw[field] === undefined) return shapeError
+  return (raw[field] as unknown[]).every(isRawRecord) ? null : `malformed ${field} collection`
+}
+
+function stringArrayError(raw: RawSnapshot, field: string): string | null {
+  const shapeError = arrayShapeError(raw, field, false)
+  if (shapeError || raw[field] === undefined) return shapeError
+  return (raw[field] as unknown[]).every(value => typeof value === 'string') ? null : `malformed ${field} collection`
+}
+
+function nullableRecordError(raw: RawSnapshot, field: string): string | null {
+  const value = raw[field]
+  return value === undefined || value === null || isRawRecord(value) ? null : `malformed ${field} record`
+}
+
+function nestedArrayError(record: RawSnapshot, field: string, label: string): string | null {
+  if (record[field] === undefined) return null
+  if (!Array.isArray(record[field])) return `malformed ${label} collection`
+  return (record[field] as unknown[]).every(value => typeof value === 'string') ? null : `malformed ${label} collection`
+}
+
+function detourShapeError(value: unknown, label: string): string | null {
+  if (!isRawRecord(value)) return `malformed ${label} record`
+  const departure = value.departure
+  if (!isRawRecord(departure)) return `malformed ${label} record`
+  return nestedArrayError(value, 'outcomes', `${label}.outcomes`) ??
+    nestedArrayError(value, 'exclusions', `${label}.exclusions`) ??
+    nestedArrayError(departure, 'decisions', `${label}.departure.decisions`)
+}
+
+// Full recovery is a replacement, so reject malformed snapshots before hydrate can
+// turn an unsupported or incomplete shape into a seemingly valid empty snapshot.
+export function snapshotError(raw: unknown): string | null {
+  if (!isRawRecord(raw)) return 'snapshot is not an object'
+  if (raw.v !== 1) return `unsupported version ${raw.v === undefined ? 'missing' : String(raw.v)}`
+  for (const field of requiredRecordArrays) {
+    const error = recordArrayError(raw, field, true)
+    if (error) return error
+  }
+  for (const field of optionalRecordArrays) {
+    const error = recordArrayError(raw, field, false)
+    if (error) return error
+  }
+  for (const field of optionalStringArrays) {
+    const error = stringArrayError(raw, field)
+    if (error) return error
+  }
+  for (const field of ['goal', 'detectedGoal']) {
+    const error = nullableRecordError(raw, field)
+    if (error) return error
+  }
+  for (const field of ['detour', 'detourHistory']) {
+    const value = raw[field]
+    if (field === 'detour') {
+      if (value !== undefined && value !== null) {
+        const error = detourShapeError(value, field)
+        if (error) return error
+      }
+      continue
+    }
+    for (const item of value as unknown[]) {
+      const error = detourShapeError(item, field)
+      if (error) return error
+    }
+  }
+  return null
+}
+
 // A snapshot that survived a reload of an older build keeps its old shape in state:
 // fill every field added since, so no reader ever meets undefined. Cheap and idempotent.
 export function upgrade(s: AtlasSnapshot): AtlasSnapshot {
@@ -774,8 +860,18 @@ export function setRecall(s: AtlasSnapshot, recall: AtlasRecall[]): AtlasSnapsho
   return { ...s, recall: recall.filter(r => r.sessionId !== s.sessionId).slice(0, 12) }
 }
 
-export function hasConfirmedMap(s: AtlasSnapshot): boolean {
-  return Boolean(s.goal || s.topics.length || s.decisions.length)
+export function hasReplaceableContent(s: AtlasSnapshot): boolean {
+  return Boolean(
+    s.goal ||
+    s.nextStep ||
+    s.detour ||
+    s.topics.length ||
+    s.decisions.length ||
+    s.questions.length ||
+    s.checkpoints.length ||
+    s.files.length ||
+    s.activity.length,
+  )
 }
 
 function highestIdSequence(value: unknown): number {
@@ -798,6 +894,7 @@ export function recoverFull(
   source: { id: string; sessionId: string; snapshot: unknown },
   now: number,
 ): AtlasSnapshot {
+  if (snapshotError(source.snapshot)) return current
   const loaded = upgrade(hydrate(source.snapshot, current.sessionId, current.root, now))
   const seq = Math.max(current.seq, loaded.seq, highestIdSequence(loaded))
   const adopted = [...new Set([...loaded.adopted, source.id])]

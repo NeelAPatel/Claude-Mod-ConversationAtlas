@@ -5,7 +5,7 @@
 //   .claude/trailhead/<session>.{a,b}.json Trailhead checkpoints (alternating slots)
 
 import type { AtlasRecall, AtlasSnapshot } from '../types'
-import { summary } from './model'
+import { snapshotError, summary } from './model'
 
 export const ATLAS_DIR = '.claude/atlas'
 export const TRAILHEAD_DIR = '.claude/trailhead'
@@ -43,31 +43,51 @@ function parse(text: string): Raw | null {
 }
 
 export function fromAtlasFile(text: string, root: string): AtlasRecall | null {
-  const full = fromAtlasFullFile(text, root)
-  if (!full || !isRecord(full.snapshot)) return null
-  const v = parse(text)
-  if (!v) return null
-  const snap = full.snapshot as Partial<AtlasSnapshot>
-  const settled = (snap.decisions ?? []).filter(d => d.status === 'settled').map(d => d.text)
+  const envelope = atlasEnvelope(text, root)
+  if (!envelope) return null
+  const { v, sessionId } = envelope
+  const snap = isRecord(v.snapshot) ? v.snapshot : {}
+  const decisions = Array.isArray(snap.decisions) ? snap.decisions.filter(isRecord) : []
+  const settled = decisions.filter(d => d.status === 'settled').map(d => str(d.text)).filter((x): x is string => Boolean(x))
+  const goal = isRecord(snap.goal) ? str(snap.goal.text) : null
+  const detour = isRecord(snap.detour) ? str(snap.detour.reason) : null
   return {
-    id: full.id,
+    id: `atlas:${sessionId}`,
     source: 'atlas',
-    sessionId: full.sessionId,
+    sessionId,
     at: typeof v.savedAt === 'number' ? v.savedAt : 0,
-    goal: snap.goal?.text ?? null,
-    nextStep: snap.nextStep ?? null,
-    detour: snap.detour?.reason ?? null,
+    goal,
+    nextStep: str(snap.nextStep),
+    detour,
     topic: isRecord(v.summary) ? str(v.summary.topic) : null,
     decisions: settled.slice(-8),
   }
 }
 
-export function fromAtlasFullFile(text: string, root: string): AtlasFullRecall | null {
+function atlasEnvelope(text: string, root: string): { v: Raw; sessionId: string } | null {
   const v = parse(text)
-  if (!v || v.format !== SAVE_FORMAT || !isRecord(v.snapshot)) return null
+  if (!v || v.format !== SAVE_FORMAT) return null
   const sessionId = str(v.sessionId)
   if (!sessionId || (str(v.root) && str(v.root)?.toLowerCase() !== root.toLowerCase())) return null
-  return { id: `atlas:${sessionId}`, sessionId, snapshot: v.snapshot }
+  return { v, sessionId }
+}
+
+export function atlasFullFileError(text: string, root: string): string | null {
+  const v = parse(text)
+  if (!v) return 'invalid JSON'
+  if (v.format !== SAVE_FORMAT) return 'not an Atlas save file'
+  const sessionId = str(v.sessionId)
+  if (!sessionId) return 'missing session id'
+  if (str(v.root) && str(v.root)?.toLowerCase() !== root.toLowerCase()) return 'save belongs to another project'
+  if (!isRecord(v.snapshot)) return 'missing snapshot object'
+  return snapshotError(v.snapshot)
+}
+
+export function fromAtlasFullFile(text: string, root: string): AtlasFullRecall | null {
+  if (atlasFullFileError(text, root)) return null
+  const envelope = atlasEnvelope(text, root)
+  if (!envelope || !isRecord(envelope.v.snapshot)) return null
+  return { id: `atlas:${envelope.sessionId}`, sessionId: envelope.sessionId, snapshot: envelope.v.snapshot }
 }
 
 // One Trailhead checkpoint envelope: { format, checkpointSequence, savedAt, projectRoot, sessionId, snapshot }.
