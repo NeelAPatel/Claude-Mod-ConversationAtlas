@@ -184,14 +184,15 @@ test('golden pane snapshots match the fixed sample', { timeoutMs: 20_000 }, asyn
       await legend.press({ key: 'bar-legend' })
       await legend.unmount()
 
-      const popup = await mountSample($, surface, bodyColumns, 'trail', null)
-      await popup.press({ key: 'tab-trail' })
-      const events = (await popup.findAll({ type: 'Button' })).filter((button: any) => String(button.props.key ?? '').startsWith('evb-'))
+      const expanded = await mountSample($, surface, bodyColumns, 'trail', null)
+      await expanded.press({ key: 'tab-trail' })
+      const events = (await expanded.findAll({ type: 'Button' })).filter((button: any) => String(button.props.key ?? '').startsWith('evb-'))
       expect(events.length).toBeGreaterThanOrEqual(3)
-      await popup.press({ key: String(events[2]?.props.key ?? '') })
-      await golden.assert($, `${surface}-${bodyColumns}-trail-popup`, await popup.drawn())
-      await popup.press({ key: 'popup-close' })
-      await popup.unmount()
+      await expanded.press({ key: String(events[2]?.props.key ?? '') })
+      await golden.assert($, `${surface}-${bodyColumns}-trail-expanded`, await expanded.drawn())
+      const close = (await expanded.findAll({ type: 'Button' })).find((button: any) => String(button.props.key ?? '').startsWith('close-evb-'))
+      await expanded.press({ key: String(close?.props.key ?? '') })
+      await expanded.unmount()
     }
   }
 })

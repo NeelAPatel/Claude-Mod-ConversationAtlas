@@ -197,7 +197,7 @@ export type AtlasTab = 'map' | 'trail' | 'open' | 'evidence'
 
 export type AtlasSelection = { kind: string; id: string; text: string }
 
-export type AtlasPopup = { kind: 'event' | 'item'; id?: string }
+export type AtlasPopup = { kind: 'legend' | 'item'; id?: string }
 
 export type AtlasView = {
   // The first-run consent screen is explicit UI state; render hooks only read it.
@@ -216,12 +216,12 @@ export type AtlasView = {
   legendScroll: number
   // First body row shown; the pane scrolls its own body so the app bar stays put.
   scroll: number
-  // First help line shown inside the open section expansion.
-  expandedScroll: number
   // Trail events: true = newest at the top.
   trailNewest: boolean
   // Id of the item drawn open in full (click a truncated row), or null.
   expanded: string | null
+  // First line shown inside the open section or row expansion.
+  expandedScroll: number
 }
 
 // A scan is transient render state, not part of the durable conversation map.

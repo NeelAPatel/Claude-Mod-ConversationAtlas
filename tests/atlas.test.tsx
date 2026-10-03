@@ -7,7 +7,8 @@ import { C, rowsOf } from '../hooks/view'
 import { buildEvidence } from '../hooks/screens/evidence'
 import { buildMap } from '../hooks/screens/map'
 import { buildOpen } from '../hooks/screens/open'
-import { buildTrail } from '../hooks/screens/trail'
+import { buildTrail, eventText } from '../hooks/screens/trail'
+import type { AtlasEvent } from '../types'
 
 const ROOT = 'F:/work/atlas'
 const OBSERVE = 'mcp__conversation-atlas__observe'
@@ -910,6 +911,17 @@ describe('milestone 2: screens and surface parity', () => {
     }
   })
 
+  test('Trail renders legacy task ids and doubled handoff arrows cleanly', () => {
+    const legacy: AtlasEvent = { id: 'legacy', at: 10, turn: 2, kind: 'report-back', text: '← ← <task-id>old-task</task-id> back · unverified · Codex' }
+    const snapshot = { ...emptySnapshot('legacy', ROOT, 0), events: [legacy] }
+    const rows = buildTrail(snapshot, screenView('trail'), 20).sections.flatMap(section => section.rows)
+    const row = rows.find(candidate => candidate.id === legacy.id)
+    expect(eventText(legacy.text)).toBe('back · unverified · Codex')
+    expect(row?.text).toBe('back · unverified · Codex')
+    expect(JSON.stringify(row)).not.toContain('task-id')
+    expect(JSON.stringify(row)).not.toContain('← ←')
+  })
+
   test('Legend stays compact and section headings open fuller inline help', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
@@ -1242,7 +1254,7 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     await ui.unmount()
   })
 
-  test('clicking any Trail event opens a boxed popup with full prompt text and bullets, and a tab closes it', { timeoutMs: 20_000 }, async ($, on) => {
+  test('clicking a Trail event expands its full text inline with actions', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     on('turn.start', () => ({ turnId: 'turn-1' }))
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
@@ -1256,32 +1268,24 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     expect(btn).toBeDefined()
     await ui.press({ key: btn ?? '' })
     t = await drawn(ui)
-    expect(t).toContain('EVENT')
-    const popup = await ui.find({ key: 'atlas-popup' })
-    expect(popup?.props.position).toBe('absolute')
-    expect(Number(popup?.props.width)).toBeLessThan(72)
-    expect(Number(popup?.props.width)).toBeGreaterThan(0)
-    expect(Number(popup?.props.height)).toBeGreaterThan(0)
-    expect(popup?.props.overflow).toBe('hidden')
-    expect(popup?.props.backgroundColor).toBe('#16161e')
-    const popupChildren = childrenOf(popup)
-    expect(popupChildren.length).toBe(3)
-    for (const child of popupChildren) expect(child.props.backgroundColor).toBe('#16161e')
-    const popupBody = popupChildren[1]
-    expect(popupBody?.props.backgroundColor).toBe('#16161e')
-    for (const row of childrenOf(popupBody)) expect(row.props.backgroundColor).toBe('#16161e')
-    // The runtime exposes the render tree, not terminal cells. These structural
-    // guarantees are the strongest opacity/flush-width check available here.
+    expect(await ui.find({ key: 'atlas-popup' })).toBeUndefined()
+    const expanded = await ui.find({ key: `expanded-detail-${btn?.slice(4)}` })
+    expect(expanded?.props.position).toBeUndefined()
+    expect(Number(expanded?.props.marginLeft)).toBe(2)
+    expect(t).toContain('kind: prompt')
+    expect(t).toContain('turn: 1')
+    expect(t).toContain('when: now')
     expect(t).toContain('Refactor the loader.')
-    expect(t.indexOf('add retries with backoff')).toBeGreaterThan(t.indexOf('EVENT'))
-    expect(t).toContain('• keep the API stable')
-    expect(t).toContain('"key":"add-ev-')
-    await ui.press({ key: 'tab-map' })
-    expect(await drawn(ui)).not.toContain('"children":["EVENT"]')
+    expect(t).toContain('add retries with backoff')
+    expect(t).toContain('"key":"add-evb-')
+    const close = t.match(/"key":"(close-evb-[^"]+)"/)?.[1]
+    expect(close).toBeDefined()
+    await ui.press({ key: close ?? '' })
+    expect(await drawn(ui)).not.toContain('kind: prompt')
     await ui.unmount()
   })
 
-  test('a long event popup stays small and scrolls its own list', { timeoutMs: 20_000 }, async ($, on) => {
+  test('a long Trail expansion shows six lines and scrolls its own detail', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     on('turn.start', () => ({ turnId: 'popup-scroll' }))
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
@@ -1293,16 +1297,17 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     expect(event).toBeDefined()
     await ui.press({ key: String(event?.props.key ?? '') })
     const before = await drawn(ui)
-    expect(await ui.find({ key: 'popup-down' })).toBeDefined()
-    const firstBefore = before.match(/"key":"popup-row-\d+"[\s\S]*?"children":\[\{"type":"Text"[^}]*\},"children":\["([^"\\]*)/)?.[1]
-    await ui.press({ key: 'popup-down' })
-    const firstAfter = (await drawn(ui)).match(/"key":"popup-row-\d+"[\s\S]*?"children":\[\{"type":"Text"[^}]*\},"children":\["([^"\\]*)/)?.[1]
-    expect(firstAfter).toBeDefined()
-    expect(firstAfter).not.toBe(firstBefore)
+    expect(before).toContain('"key":"expanded-down"')
+    expect(before).toContain('"key":"expanded-up"')
+    expect(before).toContain('│ kind: prompt')
+    await ui.press({ key: 'expanded-down' })
+    const after = await drawn(ui)
+    expect(after).not.toContain('│ kind: prompt')
+    expect(after).toContain('│ - point 2')
     await ui.unmount()
   })
 
-  test('a row popup is anchored inside the body near the clicked row', { timeoutMs: 20_000 }, async ($, on) => {
+  test('a Trail event expansion stays in normal flow under the clicked row', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     on('turn.start', (_$: any, e: any) => ({ turnId: e.turnId ?? 'anchor' }))
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
@@ -1315,9 +1320,10 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     const events = (await ui.findAll({ type: 'Button' })).filter((button: any) => String(button.props.key ?? '').startsWith('evb-'))
     expect(events.length).toBeGreaterThanOrEqual(3)
     await ui.press({ key: String(events.at(-1)?.props.key ?? '') })
-    const popup = await ui.find({ key: 'atlas-popup' })
-    expect(Number(popup?.props.top)).toBeGreaterThan(0)
-    expect(Number(popup?.props.top)).toBeLessThan(30)
+    expect(await ui.find({ key: 'atlas-popup' })).toBeUndefined()
+    const tree = await drawn(ui)
+    expect(tree).toContain('"key":"expanded-detail-')
+    expect(tree).not.toContain('"key":"atlas-popup"')
     await ui.unmount()
   })
 

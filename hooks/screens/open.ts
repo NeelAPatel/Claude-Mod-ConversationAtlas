@@ -2,7 +2,7 @@
 
 import { openQuestions } from '../model'
 import type { AtlasSnapshot } from '../../types'
-import { itemRow, popupModels, suggestionRow } from './shared'
+import { itemRow, suggestionRow } from './shared'
 import type { ScreenBuilder, ScreenModel, ScreenRow, ScreenSection } from './types'
 
 const explain: Record<string, string> = {
@@ -99,5 +99,5 @@ export const buildOpen: ScreenBuilder = (snapshot, view, now): ScreenModel => {
         },
       ]),
     )
-  return { tab: 'open', sections, popups: popupModels(snapshot, view, now) }
+  return { tab: 'open', sections }
 }

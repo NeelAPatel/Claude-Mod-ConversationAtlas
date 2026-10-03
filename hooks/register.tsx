@@ -81,9 +81,9 @@ const DEFAULT_VIEW: AtlasView = {
   popupScroll: 0,
   legendScroll: 0,
   scroll: 0,
-  expandedScroll: 0,
   trailNewest: true,
   expanded: null,
+  expandedScroll: 0,
 }
 
 const RULES = `# Conversation Atlas
@@ -120,8 +120,8 @@ let activitySeq = 0
 let maxScroll = 0
 // How far the currently open popup can scroll at the last draw.
 let maxPopupScroll = 0
-let maxLegendScroll = 0
 let maxExpandedScroll = 0
+let maxLegendScroll = 0
 let scanOnLaunch: 'off' | 'engine' | 'claude' = 'engine'
 let configuredMode: AtlasMode = 'claude'
 let observerToolRegistered = false
@@ -405,7 +405,7 @@ async function openPane($: EngineInterface, focus: boolean): Promise<boolean> {
 async function act($: EngineInterface, a: Action): Promise<void> {
   switch (a.type) {
     case 'tab':
-      return setView($, v => ({ ...v, tab: a.tab, scroll: 0, legend: false, popup: null, popupScroll: 0 }))
+      return setView($, v => ({ ...v, tab: a.tab, scroll: 0, legend: false, popup: null, popupScroll: 0, expanded: null, expandedScroll: 0 }))
     case 'legend':
       return setView($, v => ({ ...v, legend: !v.legend, legendScroll: 0, popup: null, popupScroll: 0 }))
     case 'open-setup':
@@ -419,7 +419,14 @@ async function act($: EngineInterface, a: Action): Promise<void> {
       return
     }
     case 'popup':
-      return setView($, v => ({ ...v, legend: false, popup: v.popup?.kind === a.popup.kind && v.popup.id === a.popup.id ? null : a.popup, popupScroll: 0 }))
+      return setView($, v => ({
+        ...v,
+        legend: false,
+        expanded: null,
+        expandedScroll: 0,
+        popup: v.popup?.kind === a.popup.kind && v.popup.id === a.popup.id ? null : a.popup,
+        popupScroll: 0,
+      }))
     case 'popup-scroll':
       return setView($, v => ({ ...v, popupScroll: Math.max(0, Math.min(maxPopupScroll, v.popupScroll + a.by)) }))
     case 'expanded-scroll':
@@ -430,7 +437,7 @@ async function act($: EngineInterface, a: Action): Promise<void> {
     case 'scroll-to':
       return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, a.at)), popup: null, popupScroll: 0 }))
     case 'trail-sort':
-      return setView($, v => ({ ...v, trailNewest: !v.trailNewest, popup: null, popupScroll: 0 }))
+      return setView($, v => ({ ...v, trailNewest: !v.trailNewest, popup: null, popupScroll: 0, expanded: null, expandedScroll: 0 }))
     case 'expand':
       return setView($, v => ({ ...v, expanded: v.expanded === a.id ? null : a.id, expandedScroll: 0, popup: null, popupScroll: 0 }))
     case 'exclude':
@@ -913,15 +920,16 @@ export const register: Register = (on, options) => {
     const drawn = pane({ el, surface, width, rows, now, mode, setupDefault: configuredMode, scan, view: renderView, live, act: a => void act($, a).catch(err => $.ui.toast(`atlas: ${err instanceof Error ? err.message : String(err)}`)) }, s)
     maxScroll = drawn.maxScroll
     maxPopupScroll = drawn.maxPopupScroll
-    maxLegendScroll = drawn.maxLegendScroll
     maxExpandedScroll = drawn.maxExpandedScroll
+    maxLegendScroll = drawn.maxLegendScroll
     return drawn.tree
   })
 
-  // The pane scrolls its own body (the app bar stays pinned), unless a popup is open.
+  // The pane scrolls its own body (the app bar stays pinned), unless a popup or
+  // an expanded Trail event is using the same wheel gesture.
   on('ui.scroll', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const view = (await $.state.get(VIEW)).value as AtlasView | undefined
-    if (view?.popup) {
+    if (view?.popup?.kind === 'legend' || view?.popup?.kind === 'item') {
       await setView($, v => ({ ...v, popupScroll: Math.max(0, Math.min(maxPopupScroll, v.popupScroll + e.by)) }))
       return {}
     }
@@ -929,7 +937,7 @@ export const register: Register = (on, options) => {
       await setView($, v => ({ ...v, legendScroll: Math.max(0, Math.min(maxLegendScroll, v.legendScroll + e.by)) }))
       return {}
     }
-    if (view?.expanded?.startsWith('section:')) {
+    if (view?.expanded && maxExpandedScroll > 0) {
       await setView($, v => ({ ...v, expandedScroll: Math.max(0, Math.min(maxExpandedScroll, v.expandedScroll + e.by)) }))
       return {}
     }

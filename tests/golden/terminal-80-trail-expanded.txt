@@ -1,14 +1,22 @@
- Conversation Atlas   {0:color:#7dcfff,bold}
-Map ▸Trail Open 4 Evid  {4:color:#b9f27c,bold}
-[ MAP OF TOPICS ]4  {17:dim}
+───────────────────────────── Conversation Atlas ─────────────────────────────  {0:dim|29:color:#7dcfff,bold|49:dim}
+Map ▸Trail Open 4 Evidence ▲ ▼  {4:color:#b9f27c,bold|27:dim}
+[MAP OF TOPICS]4┃  {15:dim}
 ○ Atlas foundationst1  {19:dim}
   ○ Map renderingt1  {0:dim|17:dim}
     ↳ Desktop parityt1  {0:dim|4:color:#e0af68|20:dim}
       ● Color tokenst1  {0:dim|6:color:#bb9af7,bold|20:dim}
-[ TRAIL ] ↑
+[TRAIL] [↑]  {8:color:#7dcfff|10:color:#7dcfff}
 ⚑ Milestone: Post-prompt milestoneturn 2 · now  {0:color:#7aa2f7|34:dim|41:dim|43:dim}
 ⚑ Commit: Post-prompt committurn 2 · now  {0:color:#7aa2f7|28:dim|35:dim|37:dim}
-• Review the visual regression boundary for the Atlas pane carefully. Preserve the existing action semantics while checking the fixed sample state.turn 2 · now  {0:dim|2:dim|147:dim|154:dim|156:dim}
+› ▾ Review the visual regression boundary for the Atlas pane carefully. Preserve the existing action semantics while checking the fixed sample state.turn 2 · now  {0:bold,dim|2:color:#7dcfff|4:dim|149:dim|156:dim|158:dim}
+│ kind: prompt  {0:dim}
+│ turn: 2  {0:dim}
+│ when: now  {0:dim}
+│ Review the visual regression boundary for the Atlas pane carefully. Preserve the existing action semantics while checking the fixed sample state.
+│ - compare terminal layout
+│ - compare desktop labels
+▲1/11▼  {0:dim|1:dim}
+Add to message [Close]  {15:color:#7dcfff|21:color:#7dcfff}
 → Manual import checkturn 1 · 1m  {0:color:#7aa2f7|21:dim|28:dim|30:dim}
 ← Initial snapshot review is ready · 1 files · 18 tests passturn 1 · 1m  {0:color:#9ece6a|60:dim|67:dim|69:dim}
 → Golden review · atlas-goldens.mdturn 1 · 1m  {0:color:#7aa2f7|34:dim|41:dim|43:dim}
@@ -27,10 +35,41 @@ Map ▸Trail Open 4 Evid  {4:color:#b9f27c,bold}
 ● Topic: Atlas foundationsturn 1 · 2m  {0:color:#bb9af7|26:dim|33:dim|35:dim}
 · Review the fixed pane sample and approve the visual boundary.turn 1 · 2m  {0:color:#bb9af7|63:dim|70:dim|72:dim}
 ◎ Build a dependable Conversation Atlas pane for long sessions.turn 1 · 2m  {0:color:#7dcfff|63:dim|70:dim|72:dim}
-• Build a dependable Conversation Atlas pane for long sessions. Keep the map readable while the work grows.turn 1 · 2m  {0:dim|2:dim|107:dim|114:dim|116:dim}
-EVENTClose  {0:bold}
-prompt · turn 2 · now
-Review the visual regression boundary for the Atlas pane carefully  {0:bold}
-Points  {0:bold}
-Add to message▲ 1/6 ▼  {14:dim|16:dim}
+› Build a dependable Conversation Atlas pane for long sessions. Keep the map readable while the work grows.turn 1 · 2m  {0:dim|2:dim|107:dim|114:dim|116:dim}
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+┃
+│  {0:dim}
+│  {0:dim}
+│  {0:dim}
+──────────────────────────────────────────────────────────────────────────────  {0:dim}
 Legend + Mark  {0:dim|7:dim}

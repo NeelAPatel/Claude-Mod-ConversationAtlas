@@ -84,6 +84,7 @@ export type ScreenRow = {
   depth?: number
   expandable?: boolean
   detail?: string[]
+  fullText?: string
   actions?: ScreenAction[]
   suggestedGoals?: ScreenRow[]
   interactive?: boolean
@@ -110,7 +111,7 @@ export type ScreenSection = {
 }
 
 export type ScreenPopup = {
-  kind: 'event' | 'item'
+  kind: 'legend' | 'item'
   id?: string
   title: string
   titleCount?: string
@@ -122,7 +123,6 @@ export type ScreenPopup = {
 export type ScreenModel = {
   tab: AtlasTab
   sections: ScreenSection[]
-  popups: ScreenPopup[]
 }
 
 export type ScreenView = AtlasView & { mode: AtlasMode }

@@ -2,7 +2,7 @@
 
 import { base, rel } from '../activity'
 import type { AtlasSnapshot } from '../../types'
-import { action, ago, itemRow, popupModels, sourceName, whenLine } from './shared'
+import { action, ago, itemRow, sourceName, whenLine } from './shared'
 import type { ScreenBuilder, ScreenModel, ScreenRow, ScreenSection } from './types'
 
 const explain: Record<string, string> = {
@@ -216,5 +216,5 @@ export const buildEvidence: ScreenBuilder = (snapshot, view, now): ScreenModel =
       { count: `${snapshot.files.length}` },
     ),
   )
-  return { tab: 'evidence', sections, popups: popupModels(snapshot, view, now) }
+  return { tab: 'evidence', sections }
 }

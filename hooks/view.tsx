@@ -247,7 +247,7 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
     ? () =>
         ctx.act(
           row.kind === 'event'
-            ? (row.actions?.[0]?.action ?? { type: 'expand', id: row.id })
+            ? { type: 'expand', id: row.id }
             : row.overflowPopup
               ? { type: 'popup', popup: { kind: 'item', id: row.id } }
               : { type: 'expand', id: row.id },
@@ -351,7 +351,7 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
           {
             key: `add-${row.key}`,
             label: 'Add to message',
-            action: { type: 'attach', ref: { kind: row.kind, id: row.id, text: row.text } },
+            action: { type: 'attach', ref: { kind: row.kind, id: row.id, text: row.fullText ?? row.text } },
             primary: true,
           },
           { key: `close-${row.key}`, label: 'Close', action: { type: 'expand', id: row.id } },
@@ -359,7 +359,7 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
   return (
     <Box key={row.key} flexDirection="column">
       {head}
-      <Detail ctx={ctx} row={row} />
+      {row.kind === 'event' ? <EventDetail ctx={ctx} row={row} /> : <Detail ctx={ctx} row={row} />}
       {row.suggestedGoals?.length ? (
         <Box flexDirection="column" marginLeft={2}>
           <Text dimColor>Suggested goals:</Text>
@@ -367,6 +367,35 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
         </Box>
       ) : null}
       {actions(ctx, extra)}
+    </Box>
+  )
+}
+
+type DetailLine = { text: string; dim?: boolean }
+
+function eventDetailLines(row: ScreenRow): DetailLine[] {
+  return (row.detail?.length ? row.detail : ['No additional details recorded.']).flatMap((line, index) =>
+    line.split(/\r?\n/).map(text => ({ text, dim: index < 3 })),
+  )
+}
+
+function EventDetail({ ctx, row }: { ctx: Ctx; row: ScreenRow }): RenderElement {
+  const { Box, Text, Button } = ctx.el
+  const lines = eventDetailLines(row)
+  const maxScroll = Math.max(0, lines.length - 6)
+  const at = Math.min(Math.max(0, ctx.view.expandedScroll), maxScroll)
+  return (
+    <Box key={`expanded-detail-${row.id}`} flexDirection="column" marginLeft={2}>
+      {lines.slice(at, at + 6).map((line, index) => (
+        <Text key={`expanded-line-${row.id}-${at + index}`} dimColor={line.dim} wrap="wrap">{`│ ${line.text}`}</Text>
+      ))}
+      {maxScroll > 0 ? (
+        <Box flexDirection="row" justifyContent="space-between">
+          <Button key="expanded-up" plain dimColor={at === 0} label="▲" onPress={() => ctx.act({ type: 'expanded-scroll', by: -1 })} />
+          <Text dimColor>{`${at + 1}/${lines.length}`}</Text>
+          <Button key="expanded-down" plain dimColor={at >= maxScroll} label="▼" onPress={() => ctx.act({ type: 'expanded-scroll', by: 1 })} />
+        </Box>
+      ) : null}
     </Box>
   )
 }
@@ -692,6 +721,7 @@ function popupPlacement(ctx: Ctx, popup: ScreenPopup, rowTop: number): { top: nu
   const top = below + height <= bodyRows ? below : Math.max(0, rowTop - height - 1)
   return { top: Math.max(0, Math.min(top, Math.max(0, bodyRows - height))), left: 2 }
 }
+
 function itemPopup(row: ScreenRow): ScreenPopup {
   return {
     kind: 'item',
@@ -723,7 +753,7 @@ function activePopup(ctx: Ctx, model: ScreenModel): ScreenPopup | undefined {
     const row = model.sections.flatMap(section => section.rows).find(candidate => candidate.id === ctx.view.popup?.id)
     return row ? itemPopup(row) : undefined
   }
-  return model.popups.find(popup => popup.kind === ctx.view.popup?.kind && (popup.kind !== 'event' || popup.id === ctx.view.popup?.id))
+  return undefined
 }
 function renderBody(ctx: Ctx, model: ScreenModel): RenderElement {
   const { Box } = ctx.el
@@ -731,12 +761,7 @@ function renderBody(ctx: Ctx, model: ScreenModel): RenderElement {
   return (
     <Box flexDirection="column" position="relative">
       {model.sections.map(section => {
-        const selectedIndex = section.rows.findIndex(
-          row =>
-            (row.kind === 'event' || row.overflowPopup) &&
-            ctx.view.popup?.id === row.id &&
-            (ctx.view.popup.kind === 'event' || ctx.view.popup.kind === 'item'),
-        )
+        const selectedIndex = section.rows.findIndex(row => row.overflowPopup && ctx.view.popup?.kind === 'item' && ctx.view.popup.id === row.id)
         const sectionTree = renderSection(ctx, section)
         const prefix = selectedIndex >= 0
           ? renderSection(ctx, { ...section, rows: section.rows.slice(0, selectedIndex), empty: undefined, input: undefined })
@@ -905,6 +930,11 @@ function scanBanner(ctx: Ctx): RenderElement | null {
   })
 }
 
+function expandedEvent(ctx: Ctx, model: ScreenModel): ScreenRow | undefined {
+  if (!ctx.view.expanded) return undefined
+  return model.sections.flatMap(section => section.rows).find(row => row.id === ctx.view.expanded && row.kind === 'event')
+}
+
 export function pane(ctx: Ctx, snapshot: AtlasSnapshot): {
   tree: RenderElement
   maxScroll: number
@@ -923,8 +953,8 @@ export function pane(ctx: Ctx, snapshot: AtlasSnapshot): {
       ),
       maxScroll: 0,
       maxPopupScroll: 0,
-      maxLegendScroll: 0,
       maxExpandedScroll: 0,
+      maxLegendScroll: 0,
     }
   const model = screenFor(snapshot, { ...ctx.view, mode: ctx.mode }, ctx.now)
   const appRows = appBarRows(ctx, snapshot)
@@ -941,9 +971,12 @@ export function pane(ctx: Ctx, snapshot: AtlasSnapshot): {
   const pinned = viewport >= 4
   const bodyCtx: Ctx = { ...ctx, bodyViewport: viewport }
   const expandedSection = model.sections.find(section => sectionExpansionId(section) === ctx.view.expanded)
+  const expanded = expandedEvent(bodyCtx, model)
   const maxExpandedScroll = expandedSection
     ? Math.max(0, expandedSection.help.length - visibleHelpRows(bodyCtx, expandedSection.help.length))
-    : 0
+    : expanded
+      ? Math.max(0, eventDetailLines(expanded).length - 6)
+      : 0
   let body = renderBody(bodyCtx, model)
   let content = rowsOf(body, ctx.width)
   const bar = pinned && content > viewport
