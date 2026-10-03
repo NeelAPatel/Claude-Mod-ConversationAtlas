@@ -472,7 +472,9 @@ function legendPanel(ctx: Ctx) {
   const rows: [string, string, string | undefined][][] = []
   for (let i = 0; i < LEGEND.length; i += cols) rows.push(LEGEND.slice(i, i + cols))
   return (
-    <Box key="legend-panel" flexDirection="column" borderStyle="round" borderColor={C.path} paddingX={1} marginBottom={1}>
+    <Box key="legend-panel" flexDirection="column" borderStyle="round" borderColor={C.path} paddingX={1} flexShrink={0}>
+      <Text bold>HOW TO USE</Text>
+      <Text dimColor wrap="wrap">Plain rows = click to expand structured details inline. [Bracketed] controls are actions. ◇ decisions and ? open questions open a boxed popup; ✕ Close or any other action dismisses it. Legend and Trail sort are toggles.</Text>
       <Text bold>LEGEND</Text>
       {rows.map((row, r) => (
         <Box key={`lg-${r}`} flexDirection="row">
@@ -484,8 +486,6 @@ function legendPanel(ctx: Ctx) {
           ))}
         </Box>
       ))}
-      <Text bold>How to use</Text>
-      <Text dimColor wrap="wrap">Plain rows = click to expand structured details inline. [Bracketed] controls are actions. ◇ decisions and ? open questions open a boxed popup; ✕ Close or any other action dismisses it. Legend and Trail sort are toggles.</Text>
       <Text dimColor wrap="wrap">
         Colors: violet path · amber detour · green decision · pink question · blue checkpoint. Nothing reaches Claude unless you add its chip to your message.
       </Text>
@@ -1089,13 +1089,16 @@ export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScro
     const tiny = ['≡', `◇${decisions}→`, `?${open}→`, '+ Mark']
     return 1 + (need(tiny) > ctx.width ? 1 : 0)
   })()
-  const fixed = 1 + tabBarRows(ctx, s, { max: 1 }) + 1 + appRows
+  // The Legend toggle opens a panel pinned just above the bottom bar, outside the scrolling body.
+  const legend = ctx.view.legend ? legendPanel(ctx) : null
+  const legendRows = legend ? Math.min(rowsOf(legend, ctx.width), Math.max(4, Math.floor(ctx.rows * 0.5))) : 0
+  const fixed = 1 + tabBarRows(ctx, s, { max: 1 }) + 1 + appRows + legendRows
   const viewport = ctx.rows - fixed
   const pinned = viewport >= 4
   const bodyCtx: Ctx = { ...ctx, bodyViewport: viewport }
   const build = (c: Ctx) => {
     const content = c.view.tab === 'trail' ? trailTab(c, s) : c.view.tab === 'open' ? openTab(c, s) : c.view.tab === 'evidence' ? evidenceTab(c, s) : mapTab(c, s)
-    return c.view.legend ? <Box flexDirection="column">{legendPanel(c)}{content}</Box> : content
+    return content
   }
   let body = build(bodyCtx)
   let content = rowsOf(body, ctx.width)
@@ -1130,6 +1133,11 @@ export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScro
         </Box>
       )}
       {rule}
+      {legend ? (
+        <Box flexDirection="column" flexShrink={0} height={legendRows} overflow="hidden">
+          {legend}
+        </Box>
+      ) : null}
       {appBar(ctx, s)}
     </Box>
   )
