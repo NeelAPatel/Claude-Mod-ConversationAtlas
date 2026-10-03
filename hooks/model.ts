@@ -537,6 +537,11 @@ export function endActivity(s: AtlasSnapshot, aid: string, state: 'done' | 'fail
   return { ...s, activity: s.activity.map(a => (a.id === aid ? { ...a, state, endedAt: now, label: label ?? a.label } : a)) }
 }
 
+function handoffBriefLabel(brief: string): string {
+  if (!/\$[A-Za-z_][\w-]*[\\/]/.test(brief)) return brief
+  return brief.replace(/\\/g, '/').split('/').at(-1) ?? brief
+}
+
 export function startHandoff(
   s: AtlasSnapshot,
   label: string,
@@ -564,7 +569,7 @@ export function startHandoff(
     reportFingerprint,
     taskId: taskId ? clip(taskId, 120) : null,
   }
-  const path = brief ? ` · ${brief}` : ''
+  const path = brief ? ` · ${handoffBriefLabel(brief)}` : ''
   return flash(event({ ...next, handoffs: keep([...next.handoffs, handoff], LIMITS.handoffs) }, 'handoff', `${body}${path}`, now), hid)
 }
 

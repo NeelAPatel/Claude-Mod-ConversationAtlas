@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { addCheckpoint, closeUnverifiedHandoffs, collapseEvents, confirmSuggestion, emptySnapshot, goalSuggestions, observe, promptBullets, reportHandoff, reportMarker, resolveRepoPath, returnFromDetour, setGoal, setItemStatus, startHandoff, startTurn, stripPromptMarkers, touchFile, upgrade } from '../hooks/model'
 import { expectedReportPath, handoffStart, parseHandoffReport, reportChanged, reportFingerprint } from '../hooks/delegation'
-import { collapseBarLabels, measuredBarItemWidth } from '../hooks/ui'
+import { cellWidth, collapseBarLabels, layoutRow, measuredBarItemWidth, truncateMiddleCells } from '../hooks/ui'
 import { C, rowsOf } from '../hooks/view'
 import { buildEvidence } from '../hooks/screens/evidence'
 import { buildMap } from '../hooks/screens/map'
@@ -651,6 +651,35 @@ describe('readability: app bar, legend, resizing', () => {
 })
 
 describe('milestone 1: UI primitives and engine noise', () => {
+  test('row truncation keeps priority segments and filenames at widths 20 through 100', () => {
+    const path = 'C:/Users/Neel/Documents/memory/atlas-branching.md'
+    const filename = 'atlas-branching.md'
+    for (let width = 20; width <= 100; width++) {
+      const middle = truncateMiddleCells(path, width)
+      expect(cellWidth(middle)).toBeLessThanOrEqual(width)
+      expect(middle.endsWith(filename)).toBe(true)
+
+      const row = layoutRow({
+        width,
+        prefix: '⚑ ',
+        text: path,
+        meta: 'turn 51 · extra context',
+        right: '3h',
+        middle: true,
+      })
+      const metadata = row.meta ? `${row.meta}${row.right ? ' · ' : ''}` : ''
+      const drawn = `⚑ ${row.text}${metadata}${row.right ?? ''}`
+      expect(cellWidth(drawn)).toBeLessThanOrEqual(width)
+      expect(row.right).toBeTruthy()
+    }
+
+    const preserved = layoutRow({ width: 32, prefix: '⚑ ', text: 'Keep the important text', meta: 'turn 51', right: '3h' })
+    expect(preserved.text).toBe('Keep the important text')
+    expect(preserved.meta).toBeUndefined()
+    expect(preserved.right).toBe('3h')
+    expect(layoutRow({ width: 24, prefix: '⚑ ', text: path, right: '3h', middle: true }).text.endsWith(filename)).toBe(true)
+  })
+
   test('bars choose the largest measured grid that fits at every width', () => {
     const tabs = [
       { key: 'map', label: 'Map', short: 'Map', compact: 'M', active: true, hotkey: 'm', onPress: () => undefined },
@@ -763,6 +792,9 @@ describe('milestone 1: UI primitives and engine noise', () => {
     const external = handoffStart('PowerShell', { command: 'wt -w 0 new-tab --title "Codex: Atlas" codex "Read C:/tmp/atlas-m1.md"', run_in_background: true })
     expect(external?.label).toBe('Codex: Atlas')
     expect(expectedReportPath(ROOT, external?.brief ?? null)).toBe(`${ROOT}/.claude/atlas/handoffs/atlas-m1.md`)
+    const variablePath = startHandoff(emptySnapshot('variable-path', ROOT, 0), 'Atlas review', 'Codex', '$W/.claude/atlas/handoffs/atlas-j1.md', null, 1)
+    expect(variablePath.events.at(-1)?.text).toContain('atlas-j1.md')
+    expect(variablePath.events.at(-1)?.text).not.toContain('$W')
     const watcher = handoffStart('PowerShell', { command: 'Get-Content .\\generated\\atlas.json -Wait\nWrite-Output still-watching', description: 'Watch generated Atlas files', run_in_background: true })
     expect(watcher).toBeNull()
     const fallback = handoffStart('PowerShell', { command: 'Get-Content .\\generated\\atlas.json -Wait\nWrite-Output still-watching', run_in_background: true })
@@ -1022,6 +1054,40 @@ describe('milestone 2: screens and surface parity', () => {
       expect(JSON.stringify(trail)).not.toContain('→ →')
       expect(JSON.stringify(trail)).not.toContain('← ←')
       await ui.unmount()
+    }
+  })
+
+  test('all tab rows stay one line on both surfaces at 46 and 80 columns', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.tool.call({ tool: 'Read', file_path: `${ROOT}/hooks/screens/map.ts` } as any)
+    await $.tool.call({
+      tool: OBSERVE,
+      topic: 'Every tab stays readable',
+      decisions: ['Keep rows bounded'],
+      questions: ['Does every surface stay one line?'],
+      next: 'Review the compact rows',
+      checkpoint: 'Row layout tested',
+    } as any)
+    await clock.settle()
+    for (const surface of ['terminal', 'desktop'] as const) {
+      for (const bodyColumns of [46, 80]) {
+        const ui = await $.ui.mount({
+          plugin: 'conversation-atlas',
+          surface,
+          component: 'Pane',
+          requestId: 'atlas',
+          props: { ...PANE_PROPS, bodyColumns },
+        })
+        for (const tab of ['map', 'trail', 'open', 'evidence'] as const) {
+          if (await ui.find({ key: `tab-${tab}`, type: 'Button' })) await ui.press({ key: `tab-${tab}` })
+          const tree = await ui.drawn()
+          const keys = [...JSON.stringify(tree).matchAll(/"key":"(head-[^"]+)"/g)].map(match => match[1] ?? '')
+          expect(keys.length).toBeGreaterThan(0)
+          for (const key of keys) expect(rowsOf(nodeByKey(tree, key), bodyColumns)).toBe(1)
+        }
+        await ui.unmount()
+      }
     }
   })
 

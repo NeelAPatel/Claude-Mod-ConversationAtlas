@@ -2,16 +2,16 @@
 ▸Map Trail Open 4 Evid ▲ ▼  {0:color:yellowBright,bold|23:dim}
 [ GOAL ] Edit┃
 What you are trying to do. Only you set it: confirm a suggestion, type one, or explicitly adopt Atlas’s detected aim.  {0:italic,dim}
-◎ Build a dependable Conversation Atlas pane for long sessions.· 3 suggestions  {0:color:#7dcfff|63:dim}
+◎ Build a dependable Conve…· 3 suggestions  {0:color:#7dcfff|27:dim}
 [ CURRENT PATH ]3 earlier  {16:dim}
 Topics from the start of the work to now; detour branches show where the main path paused. Claude keeps it current.  {0:italic,dim}
 Atlas foundations
   Map rendering↳ left here  {0:dim|15:dim}
-    ↳ Desktop parityunconfirmed · return: 2 back  {0:dim|4:color:#e0af68,dim|6:italic,dim|20:dim|32:dim|34:dim}
+    ↳ Desktop parityreturn: 2 back  {0:dim|4:color:#e0af68,dim|6:italic,dim|20:dim}
       ↳ Color tokensunconfirmed  {0:dim|6:color:#e0af68,dim|8:italic,dim|20:dim}
 [ POSSIBLE DETOUR ]
 Looks like a side trip. Take it to get a return point, or say it is not one.  {0:italic,dim}
-↳ Desktop paritydetour suggestion · from Claude · Compare native labels before returning.  {0:color:#e0af68,dim|2:italic,dim|16:dim}
+↳ Desktop paritydetour suggestion  {0:color:#e0af68,dim|2:italic,dim|16:dim}
 Take detour Not a detour
 [ ACTIVITY ]
 What Claude is doing: spinner = running, done, or failed.  {0:italic,dim}
@@ -27,10 +27,10 @@ Files touched lately: edited and read counts. Click one to point Claude at it.  
 Newest decisions and questions. Confirm decisions in the Open tab.  {0:italic,dim}
 ◆ Keep renderers pure  {0:color:#9ece6a}
 ◇ Use text goldens for visual review  {0:color:#9ece6a}
-? Which surface gets the first manual check?  {0:color:#f7768e}
+? Which surface gets the first manual che…  {0:color:#f7768e}
 [ RESUME NEXT ]pinned  {15:dim}
 Where to pick up. Pinned is yours; suggested is Claude’s guess.  {0:italic,dim}
-▸ Review the fixed pane sample and approve the visual boundary.  {0:color:#7dcfff}
+▸ Review the fixed pane sample and approv…  {0:color:#7dcfff}
 Pin as next step Dismiss
 ┃
 │  {0:dim}

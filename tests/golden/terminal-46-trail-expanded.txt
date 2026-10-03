@@ -6,9 +6,9 @@ Map ▸Trail Open 4 Evidence ▲ ▼  {4:color:#b9f27c,bold|27:dim}
     ↳ Desktop parityt1  {0:dim|4:color:#e0af68|20:dim}
       ● Color tokenst1  {0:dim|6:color:#bb9af7,bold|20:dim}
 [TRAIL] [↑]  {8:color:#7dcfff|10:color:#7dcfff}
-⚑ Milestone: Post-prompt milestoneturn 2 · now  {0:color:#7aa2f7|34:dim|41:dim|43:dim}
+⚑ Milestone: Post-prompt milestonet2 · now  {0:color:#7aa2f7|34:dim|37:dim|39:dim}
 ⚑ Commit: Post-prompt committurn 2 · now  {0:color:#7aa2f7|28:dim|35:dim|37:dim}
-› ▾ Review the visual regression boundary for the Atlas pane carefully. Preserve the existing action semantics while checking the fixed sample state.turn 2 · now  {0:bold,dim|2:color:#7dcfff|4:dim|149:dim|156:dim|158:dim}
+› ▾ Review the visual regression bound…now  {0:bold,dim|2:color:#7dcfff|4:dim|39:dim}
 │ kind: prompt  {0:dim}
 │ turn: 2  {0:dim}
 │ when: now  {0:dim}
@@ -16,26 +16,26 @@ Map ▸Trail Open 4 Evidence ▲ ▼  {4:color:#b9f27c,bold|27:dim}
 │ - compare terminal layout
 │ - compare desktop labels
 ▲1/11▼  {0:dim|1:dim}
-Add to message [Close]  {15:color:#7dcfff|21:color:#7dcfff}
+[Add to message] [Close]  {0:color:#7dcfff|15:color:#7dcfff|17:color:#7dcfff|23:color:#7dcfff}
 → Manual import checkturn 1 · 1m  {0:color:#7aa2f7|21:dim|28:dim|30:dim}
-← Initial snapshot review is ready · 1 files · 18 tests passturn 1 · 1m  {0:color:#9ece6a|60:dim|67:dim|69:dim}
-→ Golden review · atlas-goldens.mdturn 1 · 1m  {0:color:#7aa2f7|34:dim|41:dim|43:dim}
-⚑ Milestone: Pane snapshot milestoneturn 1 · 1m  {0:color:#7aa2f7|36:dim|43:dim|45:dim}
+← Initial snapshot review is ready · 1 …1m  {0:color:#9ece6a|40:dim}
+→ Golden review · atlas-goldens.mdt1 · 1m  {0:color:#7aa2f7|34:dim|37:dim|39:dim}
+⚑ Milestone: Pane snapshot milestone1m  {0:color:#7aa2f7|36:dim}
 ⚑ Commit: Review commit abc1234turn 1 · 1m  {0:color:#7aa2f7|31:dim|38:dim|40:dim}
 ⚑ Marked: Baseline capturedturn 1 · 1m  {0:color:#7aa2f7|27:dim|34:dim|36:dim}
-✓ Should the popup keep its compact width?turn 1 · 2m  {0:color:#9ece6a|42:dim|49:dim|51:dim}
+✓ Should the popup keep its compact wid…2m  {0:color:#9ece6a|40:dim}
 ◇ Settled: Keep renderers pureturn 1 · 2m  {0:color:#9ece6a|30:dim|37:dim|39:dim}
-? Which surface gets the first manual check?turn 1 · 2m  {0:color:#f7768e|44:dim|51:dim|53:dim}
-? Should the popup keep its compact width?turn 1 · 2m  {0:color:#f7768e|42:dim|49:dim|51:dim}
-◇ Use text goldens for visual reviewturn 1 · 2m  {0:color:#9ece6a|36:dim|43:dim|45:dim}
+? Which surface gets the first manual c…2m  {0:color:#f7768e|40:dim}
+? Should the popup keep its compact wid…2m  {0:color:#f7768e|40:dim}
+◇ Use text goldens for visual review2m  {0:color:#9ece6a|36:dim}
 ◇ Keep renderers pureturn 1 · 2m  {0:color:#9ece6a|21:dim|28:dim|30:dim}
 ● Possible detour: Color tokensturn 1 · 2m  {0:color:#bb9af7|31:dim|38:dim|40:dim}
-● Possible detour: Desktop parityturn 1 · 2m  {0:color:#bb9af7|33:dim|40:dim|42:dim}
+● Possible detour: Desktop parityt1 · 2m  {0:color:#bb9af7|33:dim|36:dim|38:dim}
 ● Topic: Map renderingturn 1 · 2m  {0:color:#bb9af7|22:dim|29:dim|31:dim}
 ● Topic: Atlas foundationsturn 1 · 2m  {0:color:#bb9af7|26:dim|33:dim|35:dim}
-· Review the fixed pane sample and approve the visual boundary.turn 1 · 2m  {0:color:#bb9af7|63:dim|70:dim|72:dim}
-◎ Build a dependable Conversation Atlas pane for long sessions.turn 1 · 2m  {0:color:#7dcfff|63:dim|70:dim|72:dim}
-› Build a dependable Conversation Atlas pane for long sessions. Keep the map readable while the work grows.turn 1 · 2m  {0:dim|2:dim|107:dim|114:dim|116:dim}
+· Review the fixed pane sample and appr…2m  {0:color:#bb9af7|40:dim}
+◎ Build a dependable Conversation Atlas…2m  {0:color:#7dcfff|40:dim}
+› Build a dependable Conversation Atlas…2m  {0:dim|2:dim|40:dim}
 ┃
 ┃
 ┃

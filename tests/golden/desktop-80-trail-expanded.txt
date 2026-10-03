@@ -8,7 +8,7 @@ Map ▸Trail Open 4 Evid ▲ ▼  {4:color:#b9f27c,bold|23:dim}
 [ TRAIL ] ↑
 ⚑ Milestone: Post-prompt milestoneturn 2 · now  {0:color:#7aa2f7|34:dim|41:dim|43:dim}
 ⚑ Commit: Post-prompt committurn 2 · now  {0:color:#7aa2f7|28:dim|35:dim|37:dim}
-• ▾ Review the visual regression boundary for the Atlas pane carefully. Preserve the existing action semantics while checking the fixed sample state.turn 2 · now  {0:bold,dim|2:color:#7dcfff|4:dim|149:dim|156:dim|158:dim}
+• ▾ Review the visual regression boundary for the Atlas pane carefully. …now  {0:bold,dim|2:color:#7dcfff|4:dim|73:dim}
 │ kind: prompt  {0:dim}
 │ turn: 2  {0:dim}
 │ when: now  {0:dim}
@@ -35,7 +35,7 @@ Add to message Close
 ● Topic: Atlas foundationsturn 1 · 2m  {0:color:#bb9af7|26:dim|33:dim|35:dim}
 · Review the fixed pane sample and approve the visual boundary.turn 1 · 2m  {0:color:#bb9af7|63:dim|70:dim|72:dim}
 ◎ Build a dependable Conversation Atlas pane for long sessions.turn 1 · 2m  {0:color:#7dcfff|63:dim|70:dim|72:dim}
-• Build a dependable Conversation Atlas pane for long sessions. Keep the map readable while the work grows.turn 1 · 2m  {0:dim|2:dim|107:dim|114:dim|116:dim}
+• Build a dependable Conversation Atlas pane for long sessions. Keep the …2m  {0:dim|2:dim|74:dim}
 ┃
 ┃
 ┃

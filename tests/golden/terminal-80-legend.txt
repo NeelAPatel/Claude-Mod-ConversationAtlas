@@ -2,7 +2,7 @@
 ▸Map Trail Open 4 Evidence ▲ ▼  {0:color:yellowBright,bold|27:dim}
 [GOAL] [Edit]┃  {7:color:#7dcfff|12:color:#7dcfff}
 What you are trying to do. Only you set it: confirm a suggestion, type one, or explicitly adopt Atlas’s detected aim.  {0:italic,dim}
-◎ Build a dependable Conversation Atlas pane for long sessions.· 3 suggestions  {0:color:#7dcfff|63:dim}
+◎ Build a dependable Conversation Atlas pane for long sessio…· 3 suggestions  {0:color:#7dcfff|61:dim}
 [CURRENT PATH]3 earlier  {14:dim}
 Topics from the start of the work to now; detour branches show where the main path paused. Claude keeps it current.  {0:italic,dim}
 Atlas foundations
@@ -11,7 +11,7 @@ Atlas foundations
       ↳ Color tokensunconfirmed  {0:dim|6:color:#e0af68,dim|8:italic,dim|20:dim}
 [POSSIBLE DETOUR]
 Looks like a side trip. Take it to get a return point, or say it is not one.  {0:italic,dim}
-↳ Desktop paritydetour suggestion · from Claude · Compare native labels before returning.  {0:color:#e0af68,dim|2:italic,dim|16:dim}
+↳ Desktop paritydetour suggestion · from Claude  {0:color:#e0af68,dim|2:italic,dim|16:dim}
 Take detour [Not a detour]  {12:color:#7dcfff|25:color:#7dcfff}
 [ACTIVITY]
 What Claude is doing: spinner = running, done, or failed.  {0:italic,dim}

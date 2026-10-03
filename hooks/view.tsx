@@ -11,6 +11,7 @@ import {
   collapseBarLabels,
   glyphsFor,
   isGui,
+  layoutRow,
   Popup as UiPopup,
   ScrollBox,
   Section,
@@ -213,27 +214,33 @@ function actions(
   )
 }
 
-function inlineMeta(ctx: Ctx, row: ScreenRow): RenderElement | null {
+function inlineMeta(ctx: Ctx, row: ScreenRow, layout: ReturnType<typeof layoutRow>): RenderElement | null {
   const { Box, Text } = ctx.el
-  const compact = ctx.width < 60
-  if (row.metaParts?.length) {
+  if (layout.metaParts.length) {
     return (
       <Box flexDirection="row" gap={1} flexShrink={0}>
-        {row.metaParts.map((part, index) => (
-          <Text key={`meta-${row.key}-${index}`} color={part.tone ? toneColor(part.tone) : undefined} dimColor={part.dim}>
-            {compact ? part.compact ?? part.text : part.text}
-          </Text>
-        ))}
-        {row.right ? <Text dimColor>{row.right}</Text> : null}
+        {layout.metaParts.map(part => {
+          const source = row.metaParts?.[part.sourceIndex]
+          return (
+            <Text
+              key={`meta-${row.key}-${part.sourceIndex}`}
+              color={source?.tone ? toneColor(source.tone) : undefined}
+              dimColor={source?.dim}
+            >
+              {part.text}
+            </Text>
+          )
+        })}
+        {layout.right ? <Text dimColor>{layout.right}</Text> : null}
       </Box>
     )
   }
-  if (!row.meta && !row.right) return null
+  if (!layout.meta && !layout.right) return null
   return (
     <Box flexDirection="row" gap={1} flexShrink={0}>
-      {row.meta ? <Text dimColor wrap="truncate-end">{row.meta}</Text> : null}
-      {row.meta && row.right ? <Text dimColor>·</Text> : null}
-      {row.right ? <Text dimColor wrap="truncate-end">{row.right}</Text> : null}
+      {layout.meta ? <Text dimColor wrap="truncate-end">{layout.meta}</Text> : null}
+      {layout.meta && layout.right ? <Text dimColor>·</Text> : null}
+      {layout.right ? <Text dimColor wrap="truncate-end">{layout.right}</Text> : null}
     </Box>
   )
 }
@@ -253,6 +260,16 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
               : { type: 'expand', id: row.id },
         )
     : undefined
+  const prefix = `${indent}${row.fresh ? `${GLYPH.fresh.char} ` : ''}${g ? `${g.char} ` : ''}${open ? `${GLYPH.expanded.char} ` : ''}`
+  const layout = layoutRow({
+    width: ctx.width,
+    prefix,
+    text: row.text,
+    meta: row.meta,
+    metaParts: row.metaParts,
+    right: row.right,
+    middle: row.kind === 'file' || (row.kind === 'activity' && /[\\/]/.test(row.text)),
+  })
   const head = (
     <Box key={`head-${row.key}`} flexDirection="row" flexShrink={0}>
       {indent ? <Text dimColor>{indent}</Text> : null}
@@ -269,17 +286,17 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
             key={row.key}
             plain
             dimColor={row.dim}
-            label={row.text}
+            label={layout.text}
             onPress={headPress}
           />
         ) : (
           <Text bold={row.bold} dimColor={row.dim} italic={row.italic} wrap="truncate-end">
-            {row.text}
+            {layout.text}
           </Text>
         )}
       </Box>
       <Box flexGrow={1} />
-      {inlineMeta(ctx, row)}
+      {inlineMeta(ctx, row, layout)}
     </Box>
   )
   if (row.kind === 'text')
@@ -352,7 +369,6 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
             key: `add-${row.key}`,
             label: 'Add to message',
             action: { type: 'attach', ref: { kind: row.kind, id: row.id, text: row.fullText ?? row.text } },
-            primary: true,
           },
           { key: `close-${row.key}`, label: 'Close', action: { type: 'expand', id: row.id } },
         ]
@@ -742,7 +758,6 @@ function itemPopup(row: ScreenRow): ScreenPopup {
         key: `add-${row.key}`,
         label: 'Add to message',
         action: { type: 'attach', ref: { kind: row.kind, id: row.id, text: row.text } },
-        primary: true,
       },
       { key: `close-${row.key}`, label: 'Close', action: { type: 'popup', popup: { kind: 'item', id: row.id } } },
     ],

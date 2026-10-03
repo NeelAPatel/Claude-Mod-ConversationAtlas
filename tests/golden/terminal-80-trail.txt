@@ -8,7 +8,7 @@ Map ▸Trail Open 4 Evidence  {4:color:#b9f27c,bold}
 [TRAIL] [↑]  {8:color:#7dcfff|10:color:#7dcfff}
 ⚑ Milestone: Post-prompt milestoneturn 2 · now  {0:color:#7aa2f7|34:dim|41:dim|43:dim}
 ⚑ Commit: Post-prompt committurn 2 · now  {0:color:#7aa2f7|28:dim|35:dim|37:dim}
-› Review the visual regression boundary for the Atlas pane carefully. Preserve the existing action semantics while checking the fixed sample state.turn 2 · now  {0:dim|2:dim|147:dim|154:dim|156:dim}
+› Review the visual regression boundary for the Atlas pane carefully. Pres…now  {0:dim|2:dim|75:dim}
 → Manual import checkturn 1 · 1m  {0:color:#7aa2f7|21:dim|28:dim|30:dim}
 ← Initial snapshot review is ready · 1 files · 18 tests passturn 1 · 1m  {0:color:#9ece6a|60:dim|67:dim|69:dim}
 → Golden review · atlas-goldens.mdturn 1 · 1m  {0:color:#7aa2f7|34:dim|41:dim|43:dim}
@@ -27,6 +27,6 @@ Map ▸Trail Open 4 Evidence  {4:color:#b9f27c,bold}
 ● Topic: Atlas foundationsturn 1 · 2m  {0:color:#bb9af7|26:dim|33:dim|35:dim}
 · Review the fixed pane sample and approve the visual boundary.turn 1 · 2m  {0:color:#bb9af7|63:dim|70:dim|72:dim}
 ◎ Build a dependable Conversation Atlas pane for long sessions.turn 1 · 2m  {0:color:#7dcfff|63:dim|70:dim|72:dim}
-› Build a dependable Conversation Atlas pane for long sessions. Keep the map readable while the work grows.turn 1 · 2m  {0:dim|2:dim|107:dim|114:dim|116:dim}
+› Build a dependable Conversation Atlas pane for long sessions. Keep the ma…2m  {0:dim|2:dim|76:dim}
 ──────────────────────────────────────────────────────────────────────────────  {0:dim}
 Legend + Mark  {0:dim|7:dim}

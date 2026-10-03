@@ -35,6 +35,10 @@ export function eventText(text: string): string {
   return text
     .replace(/<task-id\b[^>]*>[\s\S]*?<\/task-id>/gi, '')
     .replace(/^\s*(?:[→←]\s*)+/, '')
+    .replace(/\$[A-Za-z_][\w-]*[\\/][^\s·]*/g, value => {
+      const name = value.replace(/\\/g, '/').split('/').at(-1)
+      return name && name !== '…' ? name : 'handoff report'
+    })
     .trim()
 }
 

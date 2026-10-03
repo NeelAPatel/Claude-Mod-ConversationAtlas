@@ -152,6 +152,149 @@ export function truncateCells(value: string, width: number): string {
   return `${out}…`
 }
 
+function takeStartCells(value: string, width: number): string {
+  const limit = Math.max(0, Math.floor(width))
+  let out = ''
+  for (const ch of value) {
+    if (cellWidth(`${out}${ch}`) > limit) break
+    out += ch
+  }
+  return out
+}
+
+function takeEndCells(value: string, width: number): string {
+  const limit = Math.max(0, Math.floor(width))
+  let out = ''
+  for (const ch of Array.from(value).reverse()) {
+    if (cellWidth(`${ch}${out}`) > limit) break
+    out = `${ch}${out}`
+  }
+  return out
+}
+
+// Keep a path's filename intact while preserving the beginning and a small
+// amount of the tail. The filename is only truncated when it cannot fit by
+// itself, which makes this useful for both absolute and project-relative paths.
+export function truncateMiddleCells(value: string, width: number): string {
+  const limit = Math.max(1, Math.floor(width))
+  if (cellWidth(value) <= limit) return value
+  const slash = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'))
+  const filename = slash >= 0 ? value.slice(slash + 1) : value
+  if (cellWidth(filename) + 1 >= limit) return truncateCells(filename, limit)
+
+  const before = slash >= 0 ? value.slice(0, slash + 1) : ''
+  const spare = limit - cellWidth(filename) - 1
+  const tailBudget = Math.min(spare, Math.max(1, Math.floor(spare / 2)))
+  const tail = takeEndCells(before, tailBudget)
+  const suffix = `${tail}${filename}`
+  const head = takeStartCells(value, Math.max(0, limit - cellWidth(suffix) - 1))
+  const result = head ? `${head}…${suffix}` : `…${suffix}`
+  return cellWidth(result) <= limit ? result : truncateCells(filename, limit)
+}
+
+export type RowMetaInput = { text: string; compact?: string }
+
+export type RowLayoutInput = {
+  width: number
+  prefix: string
+  text: string
+  meta?: string
+  metaParts?: readonly RowMetaInput[]
+  right?: string
+  middle?: boolean
+}
+
+export type RowMetaOutput = { text: string; sourceIndex: number }
+
+export type RowLayout = {
+  text: string
+  meta?: string
+  metaParts: RowMetaOutput[]
+  right?: string
+}
+
+type MetaChoice = { meta?: string; parts: RowMetaOutput[]; width: number; separator: number }
+
+function oneLine(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function shortMetaPart(value: string): string {
+  const colon = value.indexOf(':')
+  if (colon > 0) return value.slice(colon + 1).trim()
+  return value.replace(/^turn\s+/i, 't').replace(/\bsuggestion\b/gi, 'suggestion')
+}
+
+function metaChoices(input: RowLayoutInput): MetaChoice[] {
+  if (input.metaParts?.length) {
+    const compact = input.width < 60
+    const parts = input.metaParts.map((part, sourceIndex) => ({
+      text: oneLine(compact ? part.compact ?? part.text : part.text),
+      sourceIndex,
+    }))
+    const choices: MetaChoice[] = []
+    for (let count = parts.length; count >= 0; count--) {
+      const selected = parts.slice(0, count)
+      choices.push({
+        parts: selected,
+        width: selected.reduce((sum, part, index) => sum + cellWidth(part.text) + (index ? 1 : 0), 0),
+        separator: selected.length ? 1 : 0,
+      })
+    }
+    return choices
+  }
+
+  const words = input.meta ? oneLine(input.meta).split(' · ').filter(Boolean) : []
+  const choices: MetaChoice[] = []
+  for (let count = words.length; count >= 0; count--) {
+    const selected = words.slice(0, count)
+    const value = selected.join(' · ')
+    const short = selected.map(shortMetaPart).join(' · ')
+    choices.push({ meta: value || undefined, parts: [], width: cellWidth(value), separator: value && input.right ? 3 : 0 })
+    if (short && short !== value) {
+      choices.push({ meta: short, parts: [], width: cellWidth(short), separator: short && input.right ? 3 : 0 })
+    }
+  }
+  return choices.length ? choices : [{ parts: [], width: 0, separator: 0 }]
+}
+
+function choiceWidth(choice: MetaChoice, right: string): number {
+  return choice.width + choice.separator + cellWidth(right)
+}
+
+// Layout the four row segments in priority order: prefix/glyph, text, low
+// priority metadata, and the right-side time or status. The renderer uses the
+// returned metadata indexes to keep each file count's color intact.
+export function layoutRow(input: RowLayoutInput): RowLayout {
+  const width = Math.max(1, Math.floor(input.width))
+  const prefix = input.prefix.replace(/[\r\n\t]+/g, ' ')
+  const text = oneLine(input.text)
+  const rightRaw = input.right ? oneLine(input.right) : ''
+  const prefixWidth = cellWidth(prefix)
+  const choices = metaChoices(input)
+  const fits = (choice: MetaChoice, candidateText: string, right: string): boolean =>
+    prefixWidth + cellWidth(candidateText) + choiceWidth(choice, right) <= width
+  const chosen = choices.find(choice => fits(choice, text, rightRaw)) ?? choices.at(-1) ?? { parts: [], width: 0, separator: 0 }
+  const availableText = Math.max(1, width - prefixWidth - choiceWidth(chosen, rightRaw))
+  const candidateText = input.middle ? truncateMiddleCells(text, availableText) : truncateCells(text, availableText)
+  const displayText = cellWidth(candidateText) <= availableText
+    ? candidateText
+    : availableText === 1
+      ? '…'
+      : `${takeStartCells(candidateText, availableText - 1)}…`
+  const right = prefixWidth + cellWidth(displayText) + choiceWidth(chosen, rightRaw) <= width
+    ? rightRaw || undefined
+    : rightRaw
+      ? truncateCells(rightRaw, Math.max(1, width - prefixWidth - cellWidth(displayText) - chosen.width - chosen.separator))
+      : undefined
+  return {
+    text: displayText,
+    meta: chosen.meta,
+    metaParts: chosen.parts,
+    right,
+  }
+}
+
 export type BarItem = {
   key: string
   label: string
@@ -247,7 +390,11 @@ export function barGrid(widths: readonly number[], availableWidth: number, gap =
 }
 
 function tierLabels(items: BarItem[], tier: BarLabels['tier']): string[] {
-  return items.map(item => tier === 'full' ? item.label : tier === 'short' ? (item.short ?? item.label) : (item.compact ?? item.icon ?? item.short ?? item.label.slice(0, 1)))
+  return items.map(item => tier === 'full'
+    ? item.label
+    : tier === 'short'
+      ? (item.short ?? item.label)
+      : (item.compact ?? item.icon ?? item.short ?? item.label.slice(0, 1)))
 }
 
 export function barWidth(labels: string[], gap = 1): number {
@@ -303,7 +450,13 @@ export function Tabs(ctx: UiContext, items: BarItem[], gap = 1): RenderElement {
               <Box key={`tab-cell-${item?.key ?? index}`} width={choice.grid.columnWidths[index % choice.grid.columns]} flexShrink={0} overflow="hidden">
                 {item?.active
                   ? <Text key={item.key} bold color={item.activeColor} wrap="truncate-end">{`▸${label}`}</Text>
-                  : <Button key={item?.key ?? String(index)} plain hotkey={choice.tier === 'compact' ? undefined : item?.hotkey} label={label} onPress={() => item?.onPress()} />}
+                  : <Button
+                      key={item?.key ?? String(index)}
+                      plain
+                      hotkey={choice.tier === 'compact' ? undefined : item?.hotkey}
+                      label={label}
+                      onPress={() => item?.onPress()}
+                    />}
               </Box>
             )
           })}
@@ -348,7 +501,11 @@ export function Bar(ctx: UiContext, items: BarItem[], gap = 1): RenderElement {
 
 export type ActionItem = { key: string; label: string; primary?: boolean; role?: 'dismiss'; onPress: () => void }
 
-export function ActionGroup(ctx: UiContext, items: ActionItem[], options: { marginLeft?: number; gap?: number; flexWrap?: 'wrap' | 'nowrap' } = {}): RenderElement {
+export function ActionGroup(
+  ctx: UiContext,
+  items: ActionItem[],
+  options: { marginLeft?: number; gap?: number; flexWrap?: 'wrap' | 'nowrap' } = {},
+): RenderElement {
   const { Box, Text, Button } = ctx.el
   const marginLeft = options.marginLeft ?? 2
   const gap = options.gap ?? 1
@@ -356,10 +513,23 @@ export function ActionGroup(ctx: UiContext, items: ActionItem[], options: { marg
   return (
     <Box flexDirection="row" gap={gap} marginLeft={marginLeft} flexWrap={flexWrap}>
       {items.map(item => item.primary || isGui(ctx.surface)
-        ? <Button key={item.key} label={item.label} variant={item.primary ? 'primary' : 'secondary'} {...(item.role ? { role: item.role } : {})} onPress={() => item.onPress()} />
+        ? <Button
+            key={item.key}
+            label={item.label}
+            variant={item.primary ? 'primary' : 'secondary'}
+            {...(item.role ? { role: item.role } : {})}
+            onPress={() => item.onPress()}
+          />
         : <Box key={`action-${item.key}`} flexDirection="row">
             <Text color="#7dcfff">[</Text>
-            <Button key={item.key} plain label={item.label} hover={{ color: '#7dcfff' }} {...(item.role ? { role: item.role } : {})} onPress={() => item.onPress()} />
+            <Button
+              key={item.key}
+              plain
+              label={item.label}
+              hover={{ color: '#7dcfff' }}
+              {...(item.role ? { role: item.role } : {})}
+              onPress={() => item.onPress()}
+            />
             <Text color="#7dcfff">]</Text>
           </Box>)}
     </Box>
@@ -368,6 +538,12 @@ export function ActionGroup(ctx: UiContext, items: ActionItem[], options: { marg
 
 export function Row(ctx: UiContext, row: UiRow): RenderElement {
   const { Box, Text, Button } = ctx.el
+  const layout = layoutRow({
+    width: ctx.width,
+    prefix: row.glyph ? `${row.glyph} ` : '',
+    text: row.text,
+    right: row.right,
+  })
   return (
     <Box key={row.key} flexDirection="row" gap={1} flexShrink={0}>
       {row.glyph ? (
@@ -377,17 +553,17 @@ export function Row(ctx: UiContext, row: UiRow): RenderElement {
       ) : null}
       <Box flexShrink={1} minWidth={0} overflow="hidden">
         {row.onPress ? (
-          <Button key={row.key} plain dimColor={row.dim} label={row.text} onPress={() => row.onPress?.()} />
+          <Button key={row.key} plain dimColor={row.dim} label={layout.text} onPress={() => row.onPress?.()} />
         ) : (
           <Text bold={row.bold} dimColor={row.dim} wrap="truncate-end">
-            {row.text}
+            {layout.text}
           </Text>
         )}
       </Box>
       <Box flexGrow={1} />
-      {row.right ? (
+      {layout.right ? (
         <Text dimColor wrap="truncate-end">
-          {row.right}
+          {layout.right}
         </Text>
       ) : null}
     </Box>
@@ -436,18 +612,48 @@ export function Section(ctx: UiContext, section: UiSection, children: RenderElem
   )
 }
 
-export function ScrollBox(ctx: UiContext, children: RenderElement[], options: { height: number; backgroundColor?: string } ): RenderElement {
+export function ScrollBox(
+  ctx: UiContext,
+  children: RenderElement[],
+  options: { height: number; backgroundColor?: string },
+): RenderElement {
   const { Box } = ctx.el
-  return <Box key="popup-body" flexDirection="column" height={options.height} overflow="hidden" backgroundColor={options.backgroundColor}>{children.map((child, i) => <Box key={`popup-row-${i}`} backgroundColor={options.backgroundColor} flexShrink={0}>{child}</Box>)}</Box>
+  return (
+    <Box key="popup-body" flexDirection="column" height={options.height} overflow="hidden" backgroundColor={options.backgroundColor}>
+      {children.map((child, i) => (
+        <Box key={`popup-row-${i}`} backgroundColor={options.backgroundColor} flexShrink={0}>{child}</Box>
+      ))}
+    </Box>
+  )
 }
 
-export function Popup(ctx: UiContext, children: RenderElement[], options: { width: number; height: number; backgroundColor: string; borderColor?: string; top?: number; left?: number; bottom?: number }): RenderElement {
+export function Popup(
+  ctx: UiContext,
+  children: RenderElement[],
+  options: { width: number; height: number; backgroundColor: string; borderColor?: string; top?: number; left?: number; bottom?: number },
+): RenderElement {
   const { Box } = ctx.el
   // The shell and each flow region carry the fill. This is intentional: an
   // absolute panel must paint every cell, including gaps beside short rows.
   return (
-    <Box key="atlas-popup" position="absolute" top={options.top} left={options.left} bottom={options.bottom} width={options.width} height={options.height} overflow="hidden" borderStyle="round" borderColor={options.borderColor} backgroundColor={options.backgroundColor} paddingX={1} flexDirection="column">
-      {children.map((child, i) => <Box key={`popup-fill-${i}`} backgroundColor={options.backgroundColor} flexShrink={0}>{child}</Box>)}
+      <Box
+        key="atlas-popup"
+        position="absolute"
+        top={options.top}
+        left={options.left}
+        bottom={options.bottom}
+        width={options.width}
+        height={options.height}
+        overflow="hidden"
+        borderStyle="round"
+        borderColor={options.borderColor}
+        backgroundColor={options.backgroundColor}
+        paddingX={1}
+        flexDirection="column"
+      >
+      {children.map((child, i) => (
+        <Box key={`popup-fill-${i}`} backgroundColor={options.backgroundColor} flexShrink={0}>{child}</Box>
+      ))}
     </Box>
   )
 }
