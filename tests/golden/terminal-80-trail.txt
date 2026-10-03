@@ -1,12 +1,12 @@
 ───────────────────────────── Conversation Atlas ─────────────────────────────  {0:dim|29:color:#7dcfff,bold|49:dim}
 Map ▸Trail Open 4 Evidence  {4:color:#b9f27c,bold}
 MAP OF TOPICS ⓘ4  {0:color:#b9f27c,bold|15:dim}
-○ Atlas foundationst1  {19:dim}
-  ○ Map renderingt1  {0:dim|17:dim}
-    ↳ Desktop parityt1  {0:dim|4:color:#e0af68|20:dim}
-      ● Color tokenst1  {0:dim|6:color:#bb9af7,bold|20:dim}
+○ Atlas foundations t1  {20:dim}
+  ○ Map rendering t1  {0:dim|18:dim}
+    ↳ Desktop parity t1  {0:dim|4:color:#e0af68|21:dim}
+      ● Color tokens t1  {0:dim|6:color:#bb9af7,bold|21:dim}
 TRAIL · Story ⓘ [View]  {0:color:#b9f27c,bold|16:color:#7dcfff|21:color:#7dcfff}
-› Review the visual regression boundary for the Atlas pane carefully.commit  {0:color:#7dcfff|69:dim}
-› …2 edits · 2 reads · commit · 4 topics · 3 decisions · 2 questions · 2 hand…  {0:color:#7dcfff|3:dim}
+› Review the visual regression boundary for the Atlas pane carefully. ⚑ now  {0:color:#7dcfff|70:color:#7aa2f7|72:dim}
+› Build a dependable Conversation Atlas pane for lo… 2e 2r ⚑ 4t 3d 2q 2h 1b 1m  {0:color:#7dcfff|53:color:#ff9e64|56:color:#bb9af7|59:color:#7aa2f7|61:color:#bb9af7|64:color:#9ece6a|67:color:#f7768e|70:color:#7aa2f7|73:color:#7aa2f7|76:dim}
 ──────────────────────────────────────────────────────────────────────────────  {0:dim}
 Legend + Mark  {0:dim|7:dim}

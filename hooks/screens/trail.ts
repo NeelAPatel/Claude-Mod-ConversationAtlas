@@ -23,7 +23,7 @@ const trailHelp = [
   'A chronological record of prompts, topics, decisions and checkpoints.',
   'Press an event to open its full text and points.',
   'Story groups each turn; Log lists today\'s events one per line.',
-  '› you; C Claude; ⚙ engine. Dim italic rows are observations or guesses.',
+  '› you; ✻ Claude; ⚙ engine. Dim italic rows are observations or guesses.',
   'Use View to switch layouts and sort order; press a row to expand it.',
   'The heading button opens this fuller explanation.',
   'Press the heading again to close it; row detail shares this one-open slot.',
@@ -35,7 +35,7 @@ const trailExplain =
 const SOURCE_MARK: Record<AtlasSource, { mark: string; color: string }> = {
   person: { mark: '›', color: '#7dcfff' },
   cue: { mark: '›', color: '#7dcfff' },
-  claude: { mark: 'C', color: '#bb9af7' },
+  claude: { mark: '✻', color: '#d97757' },
   engine: { mark: '⚙', color: '#7aa2f7' },
 }
 
@@ -164,30 +164,39 @@ function orderedEvents(snapshot: AtlasSnapshot, view: { trailNewest: boolean }, 
   return view.trailNewest ? events.reverse() : events
 }
 
-function turnSummary(snapshot: AtlasSnapshot, events: AtlasEvent[], turn: number): string {
+function turnSummary(snapshot: AtlasSnapshot, events: AtlasEvent[], turn: number): {
+  prose: string; metaParts: NonNullable<ScreenRow['metaParts']>
+} {
+  const metaParts: NonNullable<ScreenRow['metaParts']> = []
   const parts: string[] = []
   const files = snapshot.files.filter(file => file.turn === turn)
   const edits = files.reduce((sum, file) => sum + file.writes, 0)
   const reads = files.reduce((sum, file) => sum + file.reads, 0)
+  if (edits || reads) metaParts.push({ text: `${edits}e`, tone: 'write' }, { text: `${reads}r`, tone: 'read' })
   if (edits) parts.push(`${edits} edit${edits === 1 ? '' : 's'}`)
   if (reads) parts.push(`${reads} read${reads === 1 ? '' : 's'}`)
   const checkpoints = snapshot.checkpoints.filter(checkpoint => checkpoint.turn === turn)
   if (checkpoints.some(checkpoint => checkpoint.kind === 'tests')) parts.push('tests ✓')
   if (checkpoints.some(checkpoint => checkpoint.kind === 'commit')) parts.push('commit')
-  const counts: [AtlasEvent['kind'], string][] = [
-    ['topic', 'topic'],
-    ['decision', 'decision'],
-    ['question', 'question'],
+  if (checkpoints.some(checkpoint => checkpoint.kind === 'tests')) metaParts.push({ text: '✓', tone: 'ok' })
+  if (checkpoints.some(checkpoint => checkpoint.kind === 'commit')) metaParts.push({ text: '⚑', tone: 'checkpoint' })
+  const counts: [AtlasEvent['kind'], string, string, ScreenRow['tone']][] = [
+    ['topic', 'topic', 't', 'path'],
+    ['decision', 'decision', 'd', 'decision'],
+    ['question', 'question', 'q', 'question'],
   ]
-  for (const [kind, label] of counts) {
+  for (const [kind, label, letter, tone] of counts) {
     const count = events.filter(event => event.kind === kind).length
+    if (count) metaParts.push({ text: `${count}${letter}`, tone })
     if (count) parts.push(`${count} ${label}${count === 1 ? '' : 's'}`)
   }
   const handoffs = events.filter(event => event.kind === 'handoff').length
   const reports = events.filter(event => event.kind === 'report-back').length
+  if (handoffs) metaParts.push({ text: `${handoffs}h`, tone: 'checkpoint' })
+  if (reports) metaParts.push({ text: `${reports}b`, tone: 'checkpoint' })
   if (handoffs) parts.push(`${handoffs} hand-off${handoffs === 1 ? '' : 's'}`)
   if (reports) parts.push(`${reports} report${reports === 1 ? '' : 's'}`)
-  return parts.join(' · ') || `${Math.max(0, events.length - 1)} event${events.length === 2 ? '' : 's'}`
+  return { metaParts, prose: parts.join(' · ') || `${Math.max(0, events.length - 1)} event${events.length === 2 ? '' : 's'}` }
 }
 
 function storyRows(snapshot: AtlasSnapshot, events: AtlasEvent[], now: number): ScreenRow[] {
@@ -203,6 +212,8 @@ function storyRows(snapshot: AtlasSnapshot, events: AtlasEvent[], now: number): 
     if (!anchor) return []
     const title = prompt ? (sentences(eventText(prompt.text))[0] ?? eventText(prompt.text)) : eventText(anchor.text)
     const source = sourceDetails(snapshot, anchor)
+    const summary = turnSummary(snapshot, group.events, group.turn)
+    const latest = Math.max(...group.events.map(event => event.at))
     return [{
       id: `story-${group.turn}`,
       key: `evb-story-${group.turn}`,
@@ -211,11 +222,12 @@ function storyRows(snapshot: AtlasSnapshot, events: AtlasEvent[], now: number): 
       sourceMark: source.mark,
       sourceMarkColor: source.color,
       text: title,
-      meta: `turn ${group.turn}`,
-      right: turnSummary(snapshot, group.events, group.turn),
+      metaParts: summary.metaParts,
+      right: ago(now - latest),
       detail: [
         `turn: ${group.turn}`,
-        `when: ${ago(now - anchor.at)}`,
+        `when: ${ago(now - latest)}`,
+        `counts: ${summary.prose}`,
         ...group.events.map(event => `${trailSourceMark(snapshot, event)} ${eventText(event.text)}`),
       ],
       fullText: prompt ? eventText(prompt.text) : eventText(anchor.text),

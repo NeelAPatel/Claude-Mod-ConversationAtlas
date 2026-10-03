@@ -1,8 +1,8 @@
 ───────────────────────────── Conversation Atlas ─────────────────────────────  {0:dim|29:color:#7dcfff,bold|49:dim}
 Map Trail ▸Open 4 Evidence  {10:color:#f7768e,bold}
 NEEDS YOUR CALL ⓘ2  {0:color:#7dcfff,bold|17:dim}
-○ Check whether the native controls stay legible.next suggestion · from Claude  {49:dim}
-↳ Desktop paritydetour suggestion · from Claude  {0:color:#e0af68|16:dim}
+○ Check whether the native controls stay legibl… next suggestion · from Claude  {49:dim}
+↳ Desktop parity detour suggestion · from Claude  {0:color:#e0af68|17:dim}
 OBSERVED DECISIONS ⓘ1  {0:color:#9ece6a,bold|20:dim}
 ◇ Use text goldens for visual review  {0:color:#9ece6a}
 OPEN QUESTIONS ⓘ1  {0:color:#f7768e,bold|16:dim}

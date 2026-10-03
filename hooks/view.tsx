@@ -9,9 +9,10 @@ import {
   ActionGroup,
   Bar,
   collapseBarLabels,
+  cellWidth,
   glyphsFor,
   isGui,
-  layoutRow,
+  layoutRow as uiLayoutRow,
   Popup as UiPopup,
   ScrollBox,
   Section,
@@ -226,6 +227,17 @@ function actions(
   )
 }
 
+function layoutRow(input: Parameters<typeof uiLayoutRow>[0], keepCounts = false): ReturnType<typeof uiLayoutRow> {
+  const layout = uiLayoutRow(keepCounts ? { ...input, text: '' } : input)
+  const parts = layout.metaParts.map(part => part.text)
+  const meta = parts.length ? [...parts, ...(layout.right ? [layout.right] : [])].join(' ')
+    : [layout.meta, layout.right].filter(Boolean).join(' · ')
+  if (!meta) return layout
+  const available = Math.max(1, input.width - cellWidth(input.prefix) - cellWidth(meta) - 1)
+  const title = uiLayoutRow({ width: available, prefix: '', text: input.text, middle: input.middle })
+  return { ...layout, text: title.text }
+}
+
 function inlineMeta(ctx: Ctx, row: ScreenRow, layout: ReturnType<typeof layoutRow>): RenderElement | null {
   const { Box, Text } = ctx.el
   if (layout.metaParts.length) {
@@ -271,7 +283,9 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
 
 function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
   const { Box, Text, Button } = ctx.el
-  const g = row.glyph ? glyph(ctx, row.glyph) : undefined
+  const rawGlyph = row.glyph ? glyph(ctx, row.glyph) : undefined
+  const g = rawGlyph ? { ...rawGlyph, char: rawGlyph.char.replace(/\uFE0F/g, '') } : undefined
+  const sourceMark = g ? undefined : row.sourceMark?.replace(/\uFE0F/g, '')
   const indent = row.depth ? '  '.repeat(row.depth) : ''
   const open = row.expandable && ctx.view.expanded === row.id
   const headPress = row.interactive
@@ -287,7 +301,7 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
   const prefix = [
     indent,
     row.fresh ? `${GLYPH.fresh.char} ` : '',
-    row.sourceMark ? `${row.sourceMark} ` : '',
+    sourceMark ? `${sourceMark} ` : '',
     g ? `${g.char} ` : '',
     open ? `${GLYPH.expanded.char} ` : '',
   ].join('')
@@ -299,15 +313,15 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
     metaParts: row.metaParts,
     right: row.right,
     middle: row.kind === 'file' || (row.kind === 'activity' && /[\\/]/.test(row.text)),
-  })
+  }, row.kind === 'event' && Boolean(row.metaParts?.length))
   const head = (
     <Box key={`head-${row.key}`} flexDirection="row" flexShrink={0}>
       {indent ? <Text dimColor>{indent}</Text> : null}
       {row.fresh ? (
         <Text color={GLYPH.fresh.color} bold>{`${GLYPH.fresh.char} `}</Text>
       ) : null}
-      {row.sourceMark ? (
-        <Text color={row.sourceMarkColor} dimColor={row.dim} italic={row.italic}>{`${row.sourceMark} `}</Text>
+      {sourceMark ? (
+        <Text color={row.sourceMarkColor} dimColor={row.dim} italic={row.italic}>{`${sourceMark} `}</Text>
       ) : null}
       {g ? (
         <Text color={g.color} dimColor={row.dim} bold={row.bold || open}>{`${g.char} `}</Text>
@@ -328,7 +342,9 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
           </Text>
         )}
       </Box>
-      <Box flexGrow={1} />
+      <Box flexGrow={1}>
+        {layout.meta || layout.metaParts.length || layout.right ? <Text>{' '}</Text> : null}
+      </Box>
       {inlineMeta(ctx, row, layout)}
     </Box>
   )
@@ -441,7 +457,10 @@ function guideRow(ctx: Ctx, key: string, content: RenderElement): RenderElement 
 function eventGeometry(ctx: Ctx, row: ScreenRow) {
   const { Text } = ctx.el
   const items = eventDetailLines(row).map((line, index) =>
-    guideRow(ctx, `expanded-line-${row.id}-${index}`, <Text dimColor={line.dim} wrap="wrap">{line.text}</Text>),
+    guideRow(ctx, `expanded-line-${row.id}-${index}`, <Text dimColor={line.dim} wrap="wrap">
+      {line.text.startsWith('✻ ') ? <Text color="#d97757">✻</Text> : null}
+      {line.text.startsWith('✻ ') ? line.text.slice(1) : line.text}
+    </Text>),
   )
   const itemRows = items.map(item => rowsOf(item, Math.max(8, ctx.width - 2)))
   const total = itemRows.reduce((sum, rows) => sum + rows, 0)
@@ -634,7 +653,7 @@ function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
       <Text dimColor wrap="wrap">
         Topics from the start of the work to now stay observed; press an action to confirm intent.
       </Text>
-      <Text dimColor>Trail source marks: › you · C Claude · ⚙ engine</Text>
+      <Text dimColor>Trail source marks: › you · ✻ Claude · ⚙ engine</Text>
       <Box flexDirection="row" gap={1}>
         <Text dimColor>Observer mode:</Text>
         {actions(
@@ -650,6 +669,12 @@ function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
         )}
       </Box>
       <Text bold>LEGEND</Text>
+      <Text wrap="wrap">
+        counts: <Text color={C.write}>e</Text> edits <Text color={C.read}>r</Text> reads{' '}
+        <Text color={C.path}>t</Text> topics <Text color={C.decision}>d</Text> decisions{' '}
+        <Text color={C.question}>q</Text> questions <Text color={C.checkpoint}>h</Text> hand-offs{' '}
+        <Text color={C.checkpoint}>b</Text> report-backs
+      </Text>
       {legendRows.map((line, index) => (
         <Box key={`lg-${index}`} flexDirection="row">
           {line.map(([name, meaning]) => {

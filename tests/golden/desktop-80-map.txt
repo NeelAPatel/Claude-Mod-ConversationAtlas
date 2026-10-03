@@ -1,23 +1,23 @@
  Conversation Atlas   {0:color:#7dcfff,bold}
 ▸Map Trail Open 4 Evid  {0:color:yellowBright,bold}
 GOAL ⓘ Edit  {0:color:#7dcfff,bold}
-◎ Build a dependable Conversation Atlas pane for long sessions.· 3 suggestions  {0:color:#7dcfff|63:dim}
+◎ Build a dependable Conversation Atlas pane for long session… · 3 suggestions  {0:color:#7dcfff|63:dim}
 CURRENT PATH ⓘ3 earlier  {0:color:#bb9af7,bold|14:dim}
 Atlas foundations
-  Map rendering↳ left here  {0:dim|15:dim}
-    ↳ Desktop parityunconfirmed · return: 2 back  {0:dim|4:color:#e0af68,dim|6:italic,dim|20:dim|32:dim|34:dim}
-      ↳ Color tokensunconfirmed  {0:dim|6:color:#e0af68,dim|8:italic,dim|20:dim}
+  Map rendering ↳ left here  {0:dim|16:dim}
+    ↳ Desktop parity unconfirmed · return: 2 back  {0:dim|4:color:#e0af68,dim|6:italic,dim|21:dim|33:dim|35:dim}
+      ↳ Color tokens unconfirmed  {0:dim|6:color:#e0af68,dim|8:italic,dim|21:dim}
 POSSIBLE DETOUR ⓘ  {0:color:#e0af68,bold}
-↳ Desktop paritydetour suggestion · from Claude  {0:color:#e0af68,dim|2:italic,dim|16:dim}
+↳ Desktop parity detour suggestion · from Claude  {0:color:#e0af68,dim|2:italic,dim|17:dim}
 Take detour Not a detour
 ACTIVITY ⓘ  {0:color:#bb9af7,bold}
-× Codex · Reviewing the golden diffnow  {0:color:#f7768e|35:dim}
-✓ claude plugin test .1m  {0:color:#9ece6a,dim|2:dim|22:dim}
-× Scratch glyph check1m  {0:color:#f7768e|21:dim}
+× Codex · Reviewing the golden diff now  {0:color:#f7768e|36:dim}
+✓ claude plugin test . 1m  {0:color:#9ece6a,dim|2:dim|23:dim}
+× Scratch glyph check 1m  {0:color:#f7768e|22:dim}
 WORKING SET ⓘ3 files  {0:color:#ff9e64,bold|13:dim}
-✎ golden.test.tsx1e 0r 1m  {0:color:#ff9e64|17:color:#ff9e64|20:color:#bb9af7|23:dim}
-· atlas.test.tsx0e 1r 1m  {0:color:#bb9af7|16:color:#ff9e64|19:color:#bb9af7|22:dim}
-✎ view.tsx1e 1r 1m  {0:color:#ff9e64|10:color:#ff9e64|13:color:#bb9af7|16:dim}
+✎ golden.test.tsx 1e 0r 1m  {0:color:#ff9e64|18:color:#ff9e64|21:color:#bb9af7|24:dim}
+· atlas.test.tsx 0e 1r 1m  {0:color:#bb9af7|17:color:#ff9e64|20:color:#bb9af7|23:dim}
+✎ view.tsx 1e 1r 1m  {0:color:#ff9e64|11:color:#ff9e64|14:color:#bb9af7|17:dim}
 LATEST ⓘ confirm in Open  {0:color:#7aa2f7,bold|9:dim}
 ◆ Keep renderers pure  {0:color:#9ece6a}
 ◇ Use text goldens for visual review  {0:color:#9ece6a}

@@ -800,7 +800,7 @@ describe('readability: app bar, legend, resizing', () => {
     const ui = await mountPane($)
     await ui.press({ key: 'tab-open' })
     const collapsed = await drawn(ui)
-    const suggestionButton = (await ui.findAll({ type: 'Button' })).find((button: any) => button.props.label === 'Check the next action')
+    const suggestionButton = (await ui.findAll({ type: 'Button' })).find((button: any) => String(button.props.label).startsWith('Check the next act'))
     const suggestionKey = String(suggestionButton?.props.key ?? '')
     const decisionKey = collapsed.match(/"key":"(dsel-[^"]+)"/)?.[1]
     expect(suggestionKey).toBeDefined()
@@ -1371,15 +1371,15 @@ describe('milestone 2: screens and surface parity', () => {
     expect(story?.heading).toBe('TRAIL · Story')
     expect(story?.rows).toHaveLength(1)
     expect(row?.text).toBe('Build the story view.')
-    expect(row?.right).toContain('topic')
+    expect(row?.metaParts?.some(part => part.text === '1t')).toBe(true)
     expect(row?.detail?.join('\n')).toContain('Build the story view. Keep the prompt intact.')
-    expect(row?.detail?.join('\n')).toContain('C Topic: Story layout')
+    expect(row?.detail?.join('\n')).toContain('✻ Topic: Story layout')
     expect(row?.sourceMark).toBe('›')
 
     const log = buildTrail(snapshot, { ...screenView('trail'), trailView: 'log' }, 3).sections.find(section => section.key === 'events')
     expect(log?.heading).toBe('TRAIL · Log')
     expect(log?.rows.length).toBeGreaterThan(1)
-    expect(log?.rows.some(candidate => candidate.sourceMark === 'C')).toBe(true)
+    expect(log?.rows.some(candidate => candidate.sourceMark === '✻')).toBe(true)
   })
 
   test('terminal and desktop render every screen at narrow and wide widths', { timeoutMs: 20_000 }, async ($, on) => {
@@ -2411,5 +2411,82 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     await clock.settle()
     expect(seen.opens.length).toBeGreaterThan(before)
     await ui.unmount()
+  })
+})
+
+
+function rowText(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (!value || typeof value !== 'object') return ''
+  const node = value as DrawnNode
+  if (typeof node.props?.label === 'string') return node.props.label
+  const gap = node.props?.flexDirection === 'row' ? ' '.repeat(Number(node.props?.gap) || 0) : ''
+  return (Array.isArray(node.children) ? node.children : []).map(rowText).join(gap)
+}
+
+describe('b4 row anatomy', () => {
+  test('gutter, Story counts and single Trail icons draw on both surfaces at 46 and 80', async ($, on) => {
+    const now = 1_800_000_000_000
+    let snapshot = startTurn(emptySnapshot('b4', ROOT, now - 120_000), 'Review the row layout.', now - 110_000)
+    snapshot = observe(snapshot, { topic: 'Row layout', decisions: ['Reserve a blank cell', 'Color each count by its kind'] }, now - 100_000)
+    for (let i = 0; i < 2; i++) snapshot = touchFile(snapshot, `${ROOT}/${'long-name-'.repeat(10)}.ts`, 'write', now - 90_000)
+    for (let i = 0; i < 3; i++) snapshot = touchFile(snapshot, `${ROOT}/${'long-name-'.repeat(10)}.ts`, 'read', now - 80_000)
+    snapshot = addCheckpoint(snapshot, 'Milestone for Claude', 'claude', null, now - 60_000)
+    let tab: AtlasView['tab'] = 'map'
+    let log = false
+    on('ui.render', { component: 'Pane', requestId: 'b4-rows' }, ($, e) => {
+      const view = { ...scrollTestView(), tab, trailView: log ? 'log' as const : 'story' as const,
+        expanded: tab === 'trail' && !log ? 'story-1' : null }
+      const ctx = { ...scrollTestContext($.ui.resolve(e), e.props.bodyColumns, 100, view), now, surface: e.surface }
+      return pane(ctx, snapshot).tree
+    })
+    const story = buildTrail(snapshot, { ...scrollTestView(), tab: 'trail', mode: 'claude' }, now)
+      .sections.find(section => section.key === 'events')?.rows[0]
+    expect(story?.meta).toBeUndefined()
+    expect(story?.right).toBe('1m')
+    expect(story?.metaParts?.map(part => [part.text, part.tone])).toEqual([
+      ['2e', 'write'], ['3r', 'read'], ['1t', 'path'], ['2d', 'decision'],
+    ])
+    expect(story?.detail?.[2]).toBe('counts: 2 edits · 3 reads · 1 topic · 2 decisions')
+    for (const surface of ['terminal', 'desktop'] as const) {
+      for (const width of [46, 80]) {
+        tab = 'map'
+        log = false
+        const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'b4-rows',
+          props: scrollPaneProps(width, 100) })
+        let tree = await ui.drawn()
+        const file = buildMap(snapshot, { ...scrollTestView(), mode: 'claude' }, now)
+          .sections.flatMap(section => section.rows).find(row => row.kind === 'file')
+        const head = nodeByKey(tree, `head-${file?.key}`)
+        const line = rowText(head)
+        expect(line).toContain('… ')
+        expect(line).toMatch(/… .*1m$/)
+        expect(cellWidth(line)).toBeLessThanOrEqual(width)
+        tab = 'trail'
+        await ui.redraw()
+        tree = await ui.drawn()
+        const storyHead = nodeByKey(tree, 'head-evb-story-1')
+        expect(rowText(storyHead)).toContain('2e 3r 1t 2d 1m')
+        expect(rowText(storyHead)).not.toContain('turn 1')
+        expect(rowText(storyHead).startsWith('› ')).toBe(true)
+        const encoded = JSON.stringify(storyHead)
+        for (const color of [C.write, C.read, C.path, C.decision]) expect(encoded).toContain(color)
+        const eventLine = story?.detail?.findIndex(line => line.startsWith('✻ ')) ?? -1
+        const detail = nodeByKey(tree, `expanded-line-story-1-${eventLine}`)
+        expect(rowText(detail)).toMatch(/^│ ✻ /)
+        expect(JSON.stringify(detail)).toContain('#d97757')
+        log = true
+        await ui.redraw()
+        tree = await ui.drawn()
+        const checkpoint = snapshot.events.find(event => event.kind === 'checkpoint')
+        const checkpointHead = rowText(nodeByKey(tree, `head-evb-${checkpoint?.id}`))
+        expect(checkpointHead.startsWith('⚑ ')).toBe(true)
+        expect(checkpointHead).not.toContain('✻')
+        expect(checkpointHead).not.toMatch(/^C /)
+        expect(checkpointHead.match(/⚑/g)?.length).toBe(1)
+        expect(JSON.stringify(tree)).not.toContain('\uFE0F')
+        await ui.unmount()
+      }
+    }
   })
 })
