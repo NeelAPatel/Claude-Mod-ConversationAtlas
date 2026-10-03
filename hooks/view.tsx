@@ -10,7 +10,7 @@
 
 import type { Elements, RenderElement } from 'claude-code'
 
-import type { AtlasCheckpoint, AtlasItem, AtlasMode, AtlasPopup, AtlasRecall, AtlasSelection, AtlasSnapshot, AtlasSuggestion, AtlasTab, AtlasTopic, AtlasView } from '../types'
+import type { AtlasCheckpoint, AtlasItem, AtlasMode, AtlasPopup, AtlasRecall, AtlasScanState, AtlasSelection, AtlasSnapshot, AtlasSuggestion, AtlasTab, AtlasTopic, AtlasView } from '../types'
 import { base, rel } from './activity'
 import type { LiveRow, LiveSeg } from './live'
 import { activeDecisions, currentTopic, openQuestions, pathOf, resumeHint, sentences } from './model'
@@ -20,6 +20,7 @@ export const C = {
   action: '#7dcfff',
   path: '#bb9af7',
   trail: '#b9f27c',
+  map: 'yellowBright',
   detour: '#e0af68',
   decision: '#9ece6a',
   question: '#f7768e',
@@ -55,7 +56,7 @@ export const GLYPH = {
 } as const
 
 const TAB_ACCENT: Record<AtlasTab, string> = {
-  map: C.path,
+  map: C.map,
   trail: C.trail,
   open: C.question,
   evidence: C.checkpoint,
@@ -109,8 +110,9 @@ export type Ctx = {
   now: number
   mode: AtlasMode
   setupDefault: AtlasMode
+  scan: AtlasScanState
   view: AtlasView
-  live: (key: string, rows: LiveRow[]) => RenderElement
+  live: (key: string, rows: LiveRow[], scan?: { active: boolean; startedAt: number; result: string | null; resultAt: number; now: number }) => RenderElement
   act: (action: Action) => void
 }
 
@@ -220,8 +222,9 @@ export function rowsOf(v: unknown, width: number): number {
     case 'Select':
       return 1 + extra
     case 'Client': {
-      const props = p.props as { rows?: unknown[] } | undefined
-      return (props?.rows?.length ?? 1) + extra
+      const props = p.props as { rows?: unknown[]; scan?: { active?: boolean; result?: string | null } } | undefined
+      const scanRows = props?.scan?.active ? 2 : props?.scan?.result ? 1 : 0
+      return Math.max(scanRows, props?.rows?.length ?? 1) + extra
     }
     case 'Box': {
       if (p.display === 'none') return 0
@@ -564,7 +567,7 @@ function legendPanel(ctx: Ctx) {
         </Box>
       ))}
       <Text dimColor wrap="wrap">
-        Colors: violet path · amber detour · green decision · pink question · blue checkpoint. Nothing reaches Claude unless you add its chip to your message.
+        Colors: light-yellow Map tab/headings · violet path · amber detour · green decision · pink question · blue checkpoint. Nothing reaches Claude unless you add its chip to your message.
       </Text>
     </Box>
   )
@@ -638,7 +641,7 @@ function popupWindow(items: RenderElement[], itemRows: number[], at: number, bod
   return { visible: items.slice(start, Math.max(start + (items.length ? 1 : 0), end)), start }
 }
 
-function popupShell(ctx: Ctx, title: string, items: RenderElement[], popupState: AtlasPopup, placement: PopupPlacement, itemCount: number, footer?: RenderElement) {
+function popupShell(ctx: Ctx, title: string, items: RenderElement[], popupState: AtlasPopup, placement: PopupPlacement, itemCount: number, footer?: RenderElement, titleCount?: string) {
   const { Box, Button, Text } = ctx.el
   const geometry = popupGeometry(ctx, items)
   const at = Math.min(Math.max(0, ctx.view.popupScroll), geometry.maxScroll)
@@ -649,11 +652,11 @@ function popupShell(ctx: Ctx, title: string, items: RenderElement[], popupState:
   return (
     <Box key="atlas-popup" position="absolute" {...anchored} width={popupWidth(ctx)} height={geometry.height} overflow="hidden" borderStyle="round" borderColor={C.path} backgroundColor="#16161e" paddingX={1} flexDirection="column">
       <Box flexDirection="row" justifyContent="space-between" flexShrink={0}>
-        <Text bold>{title}</Text>
         <Box flexDirection="row" gap={1}>
-          <Button key="popup-up" plain dimColor={at === 0} label="▲" onPress={() => ctx.act({ type: 'popup-scroll', by: -1 })} />
-          {actions(ctx, [{ key: 'popup-close', label: 'Close', role: 'dismiss', act: { type: 'popup', popup: popupState } }], { marginLeft: 0, gap: 0, flexWrap: 'nowrap' })}
+          <Text bold>{title}</Text>
+          {titleCount ? <Text dimColor>{titleCount}</Text> : null}
         </Box>
+        {actions(ctx, [{ key: 'popup-close', label: 'Close', role: 'dismiss', act: { type: 'popup', popup: popupState } }], { marginLeft: 0, gap: 0, flexWrap: 'nowrap' })}
       </Box>
       <Box flexDirection="column" height={geometry.bodyRows} overflow="hidden">
         {window.visible}
@@ -661,6 +664,7 @@ function popupShell(ctx: Ctx, title: string, items: RenderElement[], popupState:
       <Box flexDirection="row" justifyContent="space-between" flexShrink={0}>
         {footer ?? <Text dimColor />}
         <Box flexDirection="row" gap={1}>
+          <Button key="popup-up" plain dimColor={at === 0} label="▲" onPress={() => ctx.act({ type: 'popup-scroll', by: -1 })} />
           <Text dimColor>{`${position}/${itemCount}`}</Text>
           <Button key="popup-down" plain dimColor={at >= geometry.maxScroll} label="▼" onPress={() => ctx.act({ type: 'popup-scroll', by: 1 })} />
         </Box>
@@ -674,30 +678,25 @@ function allDecisions(s: AtlasSnapshot): AtlasItem[] {
   return [...s.decisions].filter(d => d.status === 'settled' || d.status === 'observed' || d.status === 'excluded').sort((a, b) => rank(a) - rank(b) || b.at - a.at)
 }
 
-type PopupContent = { items: RenderElement[]; itemCount: number; footer?: RenderElement }
+type PopupContent = { items: RenderElement[]; itemCount: number; footer?: RenderElement; title?: string }
 
 function decisionsPopupContent(ctx: Ctx, s: AtlasSnapshot): PopupContent {
-  const { Box, Text } = ctx.el
+  const { Text } = ctx.el
   const list = allDecisions(s)
   const pctx = popupContext(ctx)
+  const settled = list.filter(d => d.status === 'settled').length
+  const heard = list.filter(d => d.status === 'observed').length
   return {
-    items: list.length
-      ? [...list.map(d => decisionRow(pctx, s, d, true)), (
-          <Box flexDirection="row" gap={1}>
-            <Text color={GLYPH.settledDecision.color}>{GLYPH.settledDecision.char}</Text>
-            <Text dimColor>settled first ·</Text>
-            <Text color={GLYPH.observedDecision.color}>{GLYPH.observedDecision.char}</Text>
-            <Text dimColor>observed · excluded dim</Text>
-          </Box>
-        )]
-      : [<Text dimColor>No decisions yet.</Text>],
+    items: list.length ? list.map(d => decisionRow(pctx, s, d, true)) : [<Text dimColor>No decisions yet.</Text>],
     itemCount: list.length,
+    footer: list.length ? <Text dimColor>{`${GLYPH.settledDecision.char} settled first · ${GLYPH.observedDecision.char} heard · excluded dim`}</Text> : undefined,
+    title: `${settled} settled · ${heard} heard`,
   }
 }
 
 function decisionsPopup(ctx: Ctx, s: AtlasSnapshot, placement: PopupPlacement) {
   const content = decisionsPopupContent(ctx, s)
-  return popupShell(ctx, 'DECISIONS', content.items, { kind: 'decisions' }, placement, content.itemCount)
+  return popupShell(ctx, 'DECISIONS MADE', content.items, { kind: 'decisions' }, placement, content.itemCount, content.footer, content.title)
 }
 
 function questionsPopupContent(ctx: Ctx, s: AtlasSnapshot): PopupContent {
@@ -709,7 +708,7 @@ function questionsPopupContent(ctx: Ctx, s: AtlasSnapshot): PopupContent {
 
 function questionsPopup(ctx: Ctx, s: AtlasSnapshot, placement: PopupPlacement) {
   const content = questionsPopupContent(ctx, s)
-  return popupShell(ctx, 'OPEN QUESTIONS', content.items, { kind: 'questions' }, placement, content.itemCount)
+  return popupShell(ctx, 'OPEN QUESTIONS', content.items, { kind: 'questions' }, placement, content.itemCount, undefined, `${content.itemCount} open`)
 }
 
 function eventPopupContent(ctx: Ctx, ev: AtlasSnapshot['events'][number]): PopupContent {
@@ -1103,7 +1102,7 @@ function trailTab(ctx: Ctx, s: AtlasSnapshot) {
     <Box flexDirection="column">
       {heading(ctx, 'MAP OF TOPICS', needsObserver ? undefined : C.trail, `${s.topics.length}`, needsObserver)}
       {needsObserver ? <Text dimColor wrap="truncate-end">{OBSERVER_NOTE}</Text> : null}
-      {s.scanned !== 'claude' ? actions(ctx, [{ key: 'scan', label: ctx.mode === 'engine' ? 'Map earlier conversation (1 Claude request)' : 'Map earlier conversation', act: { type: 'scan' }, primary: true }]) : null}
+      {ctx.scan.active ? <Text dimColor>mapping…</Text> : s.scanned !== 'claude' ? actions(ctx, [{ key: 'scan', label: ctx.mode === 'engine' ? 'Map earlier conversation (1 Claude request)' : 'Map earlier conversation', act: { type: 'scan' }, primary: true }]) : null}
       {tree.length === 0 ? <Text dimColor>No topics yet.</Text> : null}
       {topicRows}
       {heading(ctx, 'TRAIL', undefined, sort)}
@@ -1170,7 +1169,6 @@ function checkpointLine(ctx: Ctx, s: AtlasSnapshot, c: AtlasCheckpoint) {
   ]
   return (
     <Box key={`cpl-${c.id}`} flexDirection="row">
-      <Text color={GLYPH.settledDecision.color}>{GLYPH.settledDecision.char}</Text>
       <Box flexShrink={1}>{selectable(ctx, `csel-${c.id}`, { kind: 'Checkpoint', id: c.id, text }, fit(c.name, ctx.width - 20), C.checkpoint, s.fresh.includes(c.id), details, [], GLYPH.settledDecision)}</Box>
       <Box flexGrow={1} />
       <Text dimColor>{`${kind} · ${ago(ctx.now - c.at)}`}</Text>
@@ -1255,6 +1253,16 @@ function scrollbarCells(ctx: Ctx, viewport: number, content: number, at: number,
   )
 }
 
+const SCAN_RESULT_MS = 4_000
+
+function scanBanner(ctx: Ctx): RenderElement | null {
+  const active = ctx.scan.active
+  const resultVisible = !active && Boolean(ctx.scan.result) && ctx.now - ctx.scan.resultAt < SCAN_RESULT_MS
+  if (!active && !resultVisible) return null
+  const label = active ? 'Mapping earlier conversation…' : ctx.scan.result ?? ''
+  return ctx.live('scan', [{ segs: [{ t: label }] }], { ...ctx.scan, result: resultVisible ? ctx.scan.result : null, now: ctx.now })
+}
+
 // The whole pane. Returns the tree and how far the body can scroll, which the hooks
 // module keeps to clamp the next wheel or page move.
 export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScroll: number; maxPopupScroll: number } {
@@ -1275,10 +1283,12 @@ export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScro
     const tiny = ['≡', `◇${decisions}→`, `?${open}→`, '+ Mark']
     return 1 + (need(tiny) > ctx.width ? 1 : 0)
   })()
+  const scan = scanBanner(ctx)
+  const scanRows = scan ? rowsOf(scan, ctx.width) : 0
   // The Legend toggle opens a panel pinned just above the bottom bar, outside the scrolling body.
   const legend = ctx.view.legend ? legendPanel(ctx) : null
   const legendRows = legend ? Math.min(rowsOf(legend, ctx.width), Math.max(4, Math.floor(ctx.rows * 0.5))) : 0
-  const fixed = 1 + tabBarRows(ctx, s, { max: 1 }) + 1 + appRows + legendRows
+  const fixed = 1 + tabBarRows(ctx, s, { max: 1 }) + 1 + scanRows + appRows + legendRows
   const viewport = ctx.rows - fixed
   const pinned = viewport >= 4
   const bodyCtx: Ctx = { ...ctx, bodyViewport: viewport }
@@ -1324,6 +1334,7 @@ export function pane(ctx: Ctx, s: AtlasSnapshot): { tree: RenderElement; maxScro
           {legend}
         </Box>
       ) : null}
+      {scan}
       {appBar(ctx, s)}
     </Box>
   )

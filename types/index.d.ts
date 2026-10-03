@@ -199,12 +199,22 @@ export type AtlasView = {
   expanded: string | null
 }
 
+// A scan is transient render state, not part of the durable conversation map.
+// The Client owns the elapsed-time display between these two hook writes.
+export type AtlasScanState = {
+  active: boolean
+  startedAt: number
+  result: string | null
+  resultAt: number
+}
+
 declare module 'claude-code' {
   interface PluginState {
     'conversation-atlas': {
       snapshot: AtlasSnapshot
       view: AtlasView
       mode: AtlasMode
+      scanning: AtlasScanState
     }
   }
 }

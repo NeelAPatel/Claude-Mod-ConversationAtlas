@@ -139,7 +139,7 @@ pane stops pinning and lets Claude Code scroll it.
 
 | Tab | Hotkey | Accent | What it shows |
 |---|---|---|---|
-| **Map** | `m` | violet | ◎ goal, current topic path (the current node pulses when new), ↳ possible or active detour, live activity (spinner and shimmer while a tool runs, ✓ or ✗ after), working set, latest decisions and questions, ▸ resume next |
+| **Map** | `m` | light yellow (`yellowBright`) | ◎ goal, current topic path (the current node pulses when new), ↳ possible or active detour, live activity (spinner and shimmer while a tool runs, ✓ or ✗ after), working set, latest decisions and questions, ▸ resume next |
 | **Trail** | `t` | light green | The full topic tree, then a timeline of prompts, topic shifts, decisions, detours, returns and checkpoints |
 | **Open** | `o` | pink | Everything waiting on you: suggestions (goal, detour, return, next step, resume), observed decisions (**Settle** / **Drop**; ones observed during a detour get **Keep** / **Exclude**) and open questions (**Resolved**) |
 | **Evidence** | `e` | blue | Checkpoints (click one to see the goal, topic and files at that moment), the settled-decision ledger, resolved questions, past detours, files and earlier sessions (**Resume this**) |
@@ -166,8 +166,9 @@ way, and their keys stay present at 26, 34, 48 and 72 body columns.
   Prompt events also show the full text, bullets and **Add to message**. ◇ decisions and
   ? open questions open one small popup above their bottom-bar button, with each row
   expandable and showing its actions. Popups are at most 52 columns wide and 10 rows tall,
-  scroll their own content with ▲▼ or the mouse wheel, and show an `n/m` position. `✕ Close`
-  or any other action dismisses a popup.
+  measure each row at the popup's inner width, and put the scroll controls together at the
+  bottom as `▲ n/m ▼`; **Close** stays at the top right. `✕ Close` or any other action
+  dismisses a popup.
 
 ### Glyphs and colours
 
@@ -184,7 +185,8 @@ In engine-only mode, the Claude-sourced sections are dimmed with a `/atlas obser
 note: the current path, possible detours, detected-goal text, topic map and the
 Claude-suggested **RESUME NEXT**. Cue-sourced detours and engine observations stay normal.
 **Map earlier conversation** stays available as an explicit one-request action and is labelled
-as such.
+as such. While it runs, Atlas pins an animated indeterminate bar above the bottom bar with
+the elapsed seconds; on completion it shows the mapping result for about four seconds.
 
 ### What updates itself, and what needs you
 
@@ -335,7 +337,7 @@ The runtime tests in `tests/atlas.test.tsx` cover the following:
 - responsive bars at 26, 34, 48 and 72 columns, and pinned scrolling
 - message-chip boundaries
 
-**Last result (Claude Code 2.1.288):** validation passed and **30/30** runtime tests passed.
+**Last result (Claude Code 2.1.288):** validation passed and **33/33** runtime tests passed.
 `tsc --strict` was clean against the build's generated declarations.
 
 The API reference for your installed build is in the generated declarations in

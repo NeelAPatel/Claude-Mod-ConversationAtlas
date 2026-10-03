@@ -9,7 +9,7 @@
 
 import { type EngineInterface, type Register, type Timer, update } from 'claude-code'
 
-import type { AtlasMode, AtlasSnapshot, AtlasView } from '../types'
+import type { AtlasMode, AtlasScanState, AtlasSnapshot, AtlasView } from '../types'
 import { askedQuestions, classify, planTitle, posix } from './activity'
 import type { LiveRow } from './live'
 import {
@@ -55,11 +55,13 @@ import { type Action, oneLine, pane, TONES } from './view'
 const PLUGIN = 'conversation-atlas'
 const SNAP = { plugin: 'conversation-atlas', key: 'snapshot' } as const
 const VIEW = { plugin: 'conversation-atlas', key: 'view' } as const
+const SCAN = { plugin: 'conversation-atlas', key: 'scanning' } as const
 const PANE = 'atlas'
 const TOOL = 'mcp__conversation-atlas__observe'
 const FLASH_MS = 4_000
 const SAVE_MS = 2_000
 const KEEP_SESSIONS = 12
+const SCAN_RESULT_MS = 4_000
 const MODE = { plugin: 'conversation-atlas', key: 'mode' } as const
 const DEFAULT_VIEW: AtlasView = { setup: false, tab: 'map', refs: {}, nextRef: 1, editingGoal: false, legend: false, popup: null, popupScroll: 0, scroll: 0, trailNewest: true, expanded: null }
 
@@ -85,7 +87,6 @@ let maxScroll = 0
 // How far the currently open popup can scroll at the last draw.
 let maxPopupScroll = 0
 let scanOnLaunch: 'off' | 'engine' | 'claude' = 'engine'
-let scanning = false
 let configuredMode: AtlasMode = 'claude'
 let observerToolRegistered = false
 const agentNames = new Map<string, string>()
@@ -95,6 +96,21 @@ const agentNames = new Map<string, string>()
 async function snap($: EngineInterface): Promise<AtlasSnapshot | undefined> {
   const value = (await $.state.get(SNAP)).value
   return value ? upgrade(value) : value
+}
+
+function isScanState(value: unknown): value is AtlasScanState {
+  if (!value || typeof value !== 'object') return false
+  const scan = value as Partial<AtlasScanState>
+  return typeof scan.active === 'boolean' && typeof scan.startedAt === 'number' && (typeof scan.result === 'string' || scan.result === null) && typeof scan.resultAt === 'number'
+}
+
+async function scanState($: EngineInterface): Promise<AtlasScanState> {
+  const value = (await $.state.get(SCAN)).value
+  return isScanState(value) ? value : EMPTY_SCAN
+}
+
+async function ensureScanState($: EngineInterface): Promise<void> {
+  await update($, SCAN, cur => isScanState(cur) ? cur : EMPTY_SCAN)
 }
 
 async function identity($: EngineInterface): Promise<{ sid: string; root: string }> {
@@ -191,6 +207,7 @@ async function bind($: EngineInterface): Promise<void> {
   const who = await identity($)
   sid = who.sid
   root = who.root
+  await ensureScanState($)
   const mode = await syncMode($)
   const cur = await snap($)
   if (cur?.sessionId === sid) return
@@ -223,21 +240,47 @@ async function history($: EngineInterface): Promise<ScanRow[]> {
 // One forked request over the session's own transcript (served mostly from the prompt
 // cache): topics, decisions, open questions and a next step, added as observations.
 async function mapWithClaude($: EngineInterface): Promise<string> {
-  if (scanning) return 'A scan is already running.'
-  scanning = true
+  const current = await scanState($)
+  if (current.active) return 'A scan is already running.'
+  const startedAt = await $.clock.now()
+  await update($, SCAN, cur => {
+    const previous = isScanState(cur) ? cur : EMPTY_SCAN
+    return previous.active ? previous : { active: true, startedAt, result: null, resultAt: 0 }
+  })
+  scanResultTimer?.cancel()
+  scanResultTimer = null
+  let outcome = ''
   try {
     $.ui.toast('Atlas: mapping the conversation so far…')
     const reply = await $.model.fork({ prompt: MAP_PROMPT })
-    if (!reply.isAnswered) return `Atlas could not map the conversation: ${reply.reason}`
-    const map = parseMap(reply.text)
-    if (!map) return 'Atlas could not read the map Claude returned.'
-    await edit($, (s, now) => ({ ...applyMap(s, map, now), scanned: 'claude' }))
-    const text = `Mapped ${map.topics.length} topics, ${map.rest.decisions?.length ?? 0} decisions, ${map.rest.questions?.length ?? 0} open questions. All are observations: confirm what is true in the Open tab.`
-    $.ui.toast(text)
-    return text
+    if (!reply.isAnswered) outcome = `Atlas could not map the conversation: ${reply.reason}`
+    else {
+      const map = parseMap(reply.text)
+      if (!map) outcome = 'Atlas could not read the map Claude returned.'
+      else {
+        await edit($, (s, now) => ({ ...applyMap(s, map, now), scanned: 'claude' }))
+        outcome = `Mapped ${map.topics.length} topics, ${map.rest.decisions?.length ?? 0} decisions, ${map.rest.questions?.length ?? 0} open questions. All are observations: confirm what is true in the Open tab.`
+      }
+    }
+  } catch (err) {
+    outcome = `Atlas could not map the conversation: ${err instanceof Error ? err.message : String(err)}`
   } finally {
-    scanning = false
+    const result = outcome || 'Atlas could not map the conversation.'
+    const resultAt = await $.clock.now()
+    await update($, SCAN, cur => {
+      const previous = isScanState(cur) ? cur : EMPTY_SCAN
+      return { ...previous, active: false, startedAt, result, resultAt }
+    })
+    scanResultTimer = $.clock.after(SCAN_RESULT_MS, () => {
+      scanResultTimer = null
+      void update($, SCAN, cur => {
+        if (!isScanState(cur) || cur.resultAt !== resultAt) return isScanState(cur) ? cur : EMPTY_SCAN
+        return { ...cur, result: null, resultAt: 0 }
+      }).catch(() => undefined)
+    })
+    $.ui.toast(result)
   }
+  return outcome || 'Atlas could not map the conversation.'
 }
 
 // Earlier sessions of this project from its .claude folder: Atlas saves and Trailhead checkpoints.
@@ -530,6 +573,9 @@ async function command($: EngineInterface, args: string): Promise<string> {
 let ready: Promise<void> | null = null
 let lastProblem: string | null = null
 let saving: Timer | null = null
+let scanResultTimer: Timer | null = null
+
+const EMPTY_SCAN: AtlasScanState = { active: false, startedAt: 0, result: null, resultAt: 0 }
 
 function setup($: EngineInterface): Promise<void> {
   ready ??= (async () => {
@@ -574,6 +620,8 @@ export const register: Register = (on, options) => {
   })
 
   on('session.end', async ($, e, next) => {
+    scanResultTimer?.cancel()
+    scanResultTimer = null
     await save($).catch(() => undefined)
     if (e.reason === 'clear') sid = ''
     return next(e)
@@ -739,11 +787,12 @@ export const register: Register = (on, options) => {
     const renderView = { ...view, setup: view.setup || !choice }
     const mode = await modeOf($)
     const now = await $.clock.now()
+    const scan = await scanState($)
     const width = Math.max(20, (e.props.bodyColumns || 48) - 2)
     const Client = 'Client' in t ? t.Client : undefined
-    const live = (key: string, rows: LiveRow[]) =>
+    const live = (key: string, rows: LiveRow[], scanProps?: { active: boolean; startedAt: number; result: string | null; resultAt: number; now: number }) =>
       Client ? (
-        <Client key={`live-${key}`} module="./live.tsx" props={{ rows: plain(rows), tones: TONES }} />
+        <Client key={`live-${key}`} module="./live.tsx" props={scanProps ? { rows: plain(rows), tones: TONES, scan: scanProps } : { rows: plain(rows), tones: TONES }} />
       ) : (
         <Box key={`live-${key}`} flexDirection="column">
           {rows.map(r => (
@@ -753,7 +802,7 @@ export const register: Register = (on, options) => {
       )
     const el = { Box: t.Box, Text: t.Text, Button: t.Button, Input: 'Input' in t ? t.Input : undefined }
     const rows = Math.max(8, e.props.scroll?.bodyRows ?? e.viewport?.rows ?? 30)
-    const drawn = pane({ el, width, rows, now, mode, setupDefault: configuredMode, view: renderView, live, act: a => void act($, a).catch(err => $.ui.toast(`atlas: ${err instanceof Error ? err.message : String(err)}`)) }, s)
+    const drawn = pane({ el, width, rows, now, mode, setupDefault: configuredMode, scan, view: renderView, live, act: a => void act($, a).catch(err => $.ui.toast(`atlas: ${err instanceof Error ? err.message : String(err)}`)) }, s)
     maxScroll = drawn.maxScroll
     maxPopupScroll = drawn.maxPopupScroll
     return drawn.tree

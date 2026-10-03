@@ -359,11 +359,14 @@ describe('readability: app bar, legend, resizing', () => {
     await ui.unmount()
   })
 
-  test('active Trail is coloured Text and its heading uses the Trail accent', { timeoutMs: 20_000 }, async ($, on) => {
+  test('active tabs are coloured Text and their headings use the tab accent', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await clock.settle()
     const ui = await mountPane($)
+    if (await ui.find({ key: 'tab-map', type: 'Button' })) await ui.press({ key: 'tab-map' })
+    const map = await drawn(ui)
+    expect(map).toContain('"color":"yellowBright"')
     await ui.press({ key: 'tab-trail' })
     expect(await ui.find({ key: 'tab-trail', type: 'Button' })).toBeUndefined()
     const t = await drawn(ui)
@@ -371,6 +374,10 @@ describe('readability: app bar, legend, resizing', () => {
     expect(t).toContain(`"color":"${C.trail}"`)
     expect(t).toContain('"children":["TRAIL"]')
     await ui.unmount()
+    const desktop = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    if (await desktop.find({ key: 'tab-map', type: 'Button' })) await desktop.press({ key: 'tab-map' })
+    expect(await drawn(desktop)).toContain('"color":"yellowBright"')
+    await desktop.unmount()
   })
 
   test('settled decisions draw the checkpoint glyph in checkpoint blue', { timeoutMs: 20_000 }, async ($, on) => {
@@ -400,6 +407,34 @@ describe('readability: app bar, legend, resizing', () => {
     expect(t).toContain('Observed decision')
     const popup = t.slice(t.indexOf('"key":"atlas-popup"'))
     expect(popup.indexOf('Settled decision')).toBeLessThan(popup.indexOf('Observed decision'))
+    await ui.unmount()
+  })
+
+  test('a capped decisions popup fills its body with at least five collapsed rows', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    for (const text of ['Keep native', 'Ship pane', 'Use cache', 'Read docs', 'Add tests', 'Open tab', 'Show map', 'Pin goal', 'Close popup']) {
+      await $.command.run({ command: 'atlas', args: `decision ${text}`, origin: { kind: 'composer' } } as any)
+    }
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    await ui.press({ key: 'bar-decisions' })
+    const popup = (await drawn(ui)).slice((await drawn(ui)).indexOf('"key":"atlas-popup"'))
+    expect(popup).toContain('DECISIONS MADE')
+    expect(popup).toContain('9 settled · 0 heard')
+    expect((popup.match(/"key":"dsel-/g) ?? []).length).toBeGreaterThanOrEqual(5)
+    await ui.unmount()
+  })
+
+  test('checkpoint rows draw exactly one checkpoint glyph', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.command.run({ command: 'atlas', args: 'mark UI checkpoint' , origin: { kind: 'composer' } } as any)
+    await clock.settle()
+    const ui = await mountPane($)
+    await ui.press({ key: 'tab-evidence' })
+    const t = await drawn(ui)
+    expect((t.match(/◆/g) ?? []).length).toBe(1)
     await ui.unmount()
   })
 })
@@ -443,6 +478,24 @@ describe('joining a conversation late', () => {
     text = await drawn(ui)
     for (const word of ['Checklist pane', 'Owner column', 'CI flakiness']) expect(text).toContain(word)
     expect(text).not.toContain('Map earlier conversation')
+    await ui.unmount()
+  })
+
+  test('shows scan progress while the fork is pending and the result after it finishes', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    on('model.fork', async () => {
+      await clock.sleep(2_000)
+      return { value: { isAnswered: true, text: MAP_REPLY, usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } }
+    })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await clock.settle()
+    const running = $.command.run({ command: 'atlas', args: 'scan', origin: { kind: 'composer' } } as any)
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    expect(await drawn(ui)).toContain('Mapping earlier conversation…')
+    await clock.advance(2_000)
+    await running
+    expect(await drawn(ui)).toContain('Mapped 3 topics, 1 decisions, 1 open questions')
     await ui.unmount()
   })
 
