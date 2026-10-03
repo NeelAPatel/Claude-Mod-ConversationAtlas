@@ -86,6 +86,19 @@ Keep it from getting complex:
 
 Suggested order: 2 and 7 (fixes) → 1 (turn grouping) → 4 (engine semantics) → the View menu with the Log and Story layouts → 3, 5, 6 as filters and options inside it → 8 (only if the user wants it).
 
+## Settled with the user (2026-10-03)
+
+The Trail discussion above is closed:
+- **View menu: two layouts only, `Story` (default) and `Log`.** No `Compact`, because the Map already covers it. The sort toggle moves into the menu. **No filter toggles yet**; add one only when the user misses it.
+- **Source marks (you / Claude / engine) are on by default,** not a filter.
+- **Engine-derived decisions** (plan approvals, AskUserQuestion answers) are **heard, not settled**. Commit messages become milestones. **No working-set clusters as topics.**
+- **No per-turn Claude summaries** for now.
+- **Observer health and silence** is its own Codex job, right after milestone 1.
+- **Delegation must be visible (user ask).** When work is handed off (a Codex tab, a background shell, an Agent subagent), the Trail shows it so it never reads "prompt → ??? → tests run":
+  - a **hand-off row** (→ agent, title, brief path), open while the work runs;
+  - a **report-back row** (←) built from the `<task-notification>` or `<agent-message>` that is today mislogged as a prompt;
+  - where it can be measured, **what changed while it was away** (files changed that Claude did not edit).
+
 ## Milestones
 
 1. **Library + both renderers for the broken parts:** Tabs, Bar, ActionGroup, Popup (opaque), ScrollBox, Glyph sets. Also fix the GUI `live.tsx` load and the Trail prompt noise. Tests on terminal and desktop at many widths.
