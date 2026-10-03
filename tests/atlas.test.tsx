@@ -987,12 +987,16 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
       return t.slice(t.indexOf('"trail-sort"'))
     }
     let t = await events()
-    expect(t).toContain('newest first')
+    expect(String((await ui.find({ key: 'trail-sort', type: 'Button' }))?.props.label).trim()).toBe('↑')
+    expect(t).not.toContain('newest first')
     expect(t.indexOf('Omega topic')).toBeLessThan(t.indexOf('Alpha topic'))
     await ui.press({ key: 'trail-sort' })
     t = await events()
-    expect(t).toContain('oldest first')
+    expect(String((await ui.find({ key: 'trail-sort', type: 'Button' }))?.props.label).trim()).toBe('↓')
+    expect(t).not.toContain('oldest first')
     expect(t.indexOf('Alpha topic')).toBeLessThan(t.indexOf('Omega topic'))
+    await ui.press({ key: 'bar-legend' })
+    expect(await drawn(ui)).toContain('↑ = newest first; ↓ = oldest first.')
     await ui.unmount()
   })
 

@@ -8,7 +8,7 @@ import type { ScreenBuilder, ScreenModel, ScreenRow, ScreenSection } from './typ
 const explain: Record<string, string> = {
   'MAP OF TOPICS':
     'Every topic so far, nested where it branched. Click one for its kind, status, turns, children, decisions, questions and actions.',
-  TRAIL: 'What happened: prompts, topics, decisions, checkpoints, hand-offs and reports. Click an event for its full text.',
+  TRAIL: 'What happened: prompts, topics, decisions, checkpoints, hand-offs and reports. Click an event for its full text. ↑ = newest first; ↓ = oldest first.',
 }
 
 function section(key: string, heading: string, rows: ScreenRow[], extra: Partial<ScreenSection> = {}): ScreenSection {
@@ -78,8 +78,7 @@ export const buildTrail: ScreenBuilder = (snapshot: AtlasSnapshot, view, now): S
     }),
     section('events', 'TRAIL', eventRows, {
       tone: 'trail',
-      right: view.trailNewest ? 'newest first' : 'oldest first',
-      actions: [action('trail-sort', view.trailNewest ? 'newest first' : 'oldest first', { type: 'trail-sort' })],
+      actions: [action('trail-sort', view.trailNewest ? '↑' : '↓', { type: 'trail-sort' })],
       empty: 'Nothing recorded yet.',
     }),
   ]
