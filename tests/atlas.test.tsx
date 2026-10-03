@@ -1790,6 +1790,15 @@ function wrappedTextRows(value: unknown, width: number): string[] {
   if (!value || typeof value !== 'object') return []
   const node = value as DrawnNode
   const children = Array.isArray(node.children) ? node.children : []
+  if (node.type === 'Box' && node.props?.flexDirection === 'row' &&
+      (children[0] as DrawnNode)?.props?.width === 2) {
+    const guide = children[0] as DrawnNode
+    expect(guide.props?.flexShrink).toBe(0)
+    const text = children[1] as DrawnNode
+    expect(text.props?.flexGrow).toBe(1)
+    expect(text.props?.flexShrink).toBe(1)
+    return wrappedTextRows(text, width - 2).map((line, index) => `${index === 0 ? '│ ' : '  '}${line}`)
+  }
   if (node.type === 'Text') {
     expect(node.props?.wrap).toBe('wrap')
     return children.join('').split('\n').flatMap(line =>
@@ -1806,6 +1815,130 @@ function visibleWindow(tree: unknown, bodyKey: string, windowKey: string, width:
   const offset = -Number(window?.props?.marginTop ?? 0)
   return wrappedTextRows(window, width).slice(offset, offset + Number(body?.props?.height))
 }
+
+function childrenOfNode(node: DrawnNode | undefined): DrawnNode[] {
+  return Array.isArray(node?.children) ? node.children.filter(child => child && typeof child === 'object') as DrawnNode[] : []
+}
+
+describe('expansion hanging indent, spacing and section tones', () => {
+  test('row expansions wrap beside the guide and count the drawn height at 46 and 80', async ($, on) => {
+    const long = `Review ${'the loader and its retries '.repeat(4)}ENDMARK`
+    let snapshot = emptySnapshot('expansion-test', ROOT, 0)
+    snapshot = setGoal(snapshot, long, 'person', 1)
+    let measured: ReturnType<typeof pane> | undefined
+    let open = true
+    on('ui.render', { component: 'Pane', requestId: 'expansion-test' }, ($, e) => {
+      const view = { ...scrollTestView(), expanded: open ? 'goal' : null }
+      measured = pane(scrollTestContext($.ui.resolve(e), e.props.bodyColumns, 100, view), snapshot)
+      return measured.tree
+    })
+    for (const surface of ['terminal', 'desktop'] as const) {
+      for (const width of [46, 80]) {
+        open = true
+        const ui = await $.ui.mount({
+          plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'expansion-test',
+          props: scrollPaneProps(width, 100),
+        })
+        const tree = await ui.drawn()
+        const expansion = nodeByKey(tree, 'expansion-goal-row')
+        expect(expansion).toBeDefined()
+        const detail = nodeByKey(tree, 'detail-goal-row-0')
+        expect(detail).toBeDefined()
+        const lines = wrappedTextRows(detail, width - 2)
+        expect(lines.length).toBeGreaterThan(1)
+        expect(lines[0]?.startsWith('│ ')).toBe(true)
+        for (const line of lines.slice(1)) expect(line.startsWith('  ')).toBe(true)
+        expect(lines.join('')).not.toContain('…')
+        expect(lines.map(line => line.slice(2)).join('')).toContain('ENDMARK')
+        expect(rowsOf(detail, width - 2)).toBe(lines.length)
+        // Header, wrapped detail, action row and exactly one trailing empty row.
+        const detailLines = buildMap(snapshot, { ...scrollTestView(), mode: 'claude' }, 0).sections[0]?.rows[0]?.detail ?? []
+        const drawnDetailHeight = detailLines.reduce((height, _, index) =>
+          height + wrappedTextRows(nodeByKey(tree, `detail-goal-row-${index}`), width - 2).length, 0)
+        expect(rowsOf(expansion, width)).toBe(1 + drawnDetailHeight + 1 + 1)
+        const children = childrenOfNode(expansion)
+        expect(children.at(-1)?.props?.key).toBe('expansion-gap-goal-row')
+        expect(children.at(-1)?.props?.height).toBe(1)
+        expect(children.filter(child => String(child.props?.key ?? '').startsWith('expansion-gap-'))).toHaveLength(1)
+        open = false
+        await ui.redraw()
+        expect(nodeByKey(await ui.drawn(), 'expansion-gap-goal-row')).toBeUndefined()
+        expect(measured?.maxExpandedScroll).toBe(0)
+        await ui.unmount()
+      }
+    }
+  })
+
+  test('a wrapped Trail detail scrolls to its final row and counts its six-row window', async ($, on) => {
+    const snapshot = startTurn(emptySnapshot('event-wrap', ROOT, 0), `Review ${'all loader retries '.repeat(18)}ENDMARK`, 1)
+    let width = 46
+    let scroll = 0
+    let measured: ReturnType<typeof pane> | undefined
+    const view = { ...scrollTestView(), tab: 'trail' as const }
+    const event = buildTrail(snapshot, { ...view, mode: 'claude' }, 0).sections
+      .flatMap(section => section.rows).find(row => row.kind === 'event')
+    expect(event).toBeDefined()
+    on('ui.render', { component: 'Pane', requestId: 'event-wrap' }, ($, e) => {
+      const ctx = scrollTestContext($.ui.resolve(e), width, 100, {
+        ...view, expanded: event?.id ?? null, expandedScroll: scroll,
+      })
+      measured = pane({ ...ctx, now: 0 }, snapshot)
+      return measured.tree
+    })
+    for (const surface of ['terminal', 'desktop'] as const) {
+      for (width of [46, 80]) {
+        scroll = 0
+        const ui = await $.ui.mount({
+          plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'event-wrap', props: scrollPaneProps(width, 100),
+        })
+        const expected = (event?.detail ?? []).flatMap(line => line.split(/\r?\n/).flatMap(text =>
+          Array.from({ length: Math.max(1, Math.ceil(text.length / (width - 4))) }, (_, i) =>
+            `${i === 0 ? '│ ' : '  '}${text.slice(i * (width - 4), (i + 1) * (width - 4))}`),
+        ))
+        expect(measured?.maxExpandedScroll).toBe(expected.length - 6)
+        scroll = measured?.maxExpandedScroll ?? 0
+        await ui.redraw()
+        const tree = await ui.drawn()
+        const visible = visibleWindow(tree, `expanded-body-${event?.id}`, `expanded-window-${event?.id}`, width - 2)
+        expect(visible).toEqual(expected.slice(-6))
+        expect(visible.join('')).toContain('ENDMARK')
+        expect(visible.join('')).not.toContain('…')
+        expect(rowsOf(nodeByKey(tree, `expanded-detail-${event?.id}`), width)).toBe(7)
+        expect(rowsOf(nodeByKey(tree, `expansion-${event?.key}`), width)).toBe(10)
+        await ui.unmount()
+      }
+    }
+  })
+
+  test('section help ends with one empty row and collapsed help has none', async ($, on) => {
+    const { clock, fixture } = scrollWorld(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    await clock.settle()
+    await setScrollView(fixture, { ...scrollTestView(), tab: 'trail', expanded: 'section:events' })
+    const ui = await $.ui.mount({
+      plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: scrollPaneProps(48, 40),
+    })
+    const help = nodeByKey(await ui.drawn(), 'help-events')
+    const children = childrenOfNode(help)
+    expect(children.at(-1)?.props?.key).toBe('help-gap-events')
+    expect(children.at(-1)?.props?.height).toBe(1)
+    expect(children.filter(child => child.props?.key === 'help-gap-events')).toHaveLength(1)
+    await ui.press({ key: 'events-heading' })
+    expect(nodeByKey(await ui.drawn(), 'help-gap-events')).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('only the requested section headings gain their specified tones', () => {
+    let snapshot = observe(emptySnapshot('heading-test', ROOT, 0), { decisions: ['Keep the API'] }, 1)
+    snapshot = touchFile(snapshot, `${ROOT}/loader.ts`, 'write', 2)
+    const view = { ...scrollTestView(), mode: 'claude' as const }
+    const map = buildMap(snapshot, view, 3)
+    expect(map.sections.find(section => section.heading === 'ACTIVITY')?.tone).toBe('path')
+    expect(map.sections.find(section => section.heading === 'WORKING SET')?.tone).toBe('write')
+    expect(map.sections.find(section => section.heading === 'LATEST')?.tone).toBe('checkpoint')
+    expect(buildEvidence(snapshot, view, 3).sections.find(section => section.heading === 'FILES')?.tone).toBe('write')
+  })
+})
 
 describe('popup and help row scrolling', () => {
   test('popup windows reach every row of oversized and mixed items on both surfaces', async ($, on) => {
@@ -1888,8 +2021,10 @@ describe('popup and help row scrolling', () => {
       const help = buildTrail(snapshot, { ...scrollTestView(), mode: 'claude' }, 0).sections.find(s => s.key === 'events')?.help
       const width = 44 // 46 columns less the help's two-column indent; this empty Trail has no scrollbar.
       const expected = (help ?? []).flatMap(text => {
-        const line = `│ ${text}`
-        return Array.from({ length: Math.ceil(line.length / width) }, (_, i) => line.slice(i * width, (i + 1) * width))
+        return text.split('\n').flatMap(line =>
+          Array.from({ length: Math.max(1, Math.ceil(line.length / (width - 2))) }, (_, i) =>
+            `${i === 0 ? '│ ' : '  '}${line.slice(i * (width - 2), (i + 1) * (width - 2))}`),
+        )
       })
       expect(expected[0]).not.toContain('checkpoints.')
       const reached = new Set<string>()
@@ -2165,7 +2300,7 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     const expanded = await ui.find({ key: `expanded-detail-${btn?.slice(4)}` })
     expect(expanded?.props.position).toBeUndefined()
     expect(Number(expanded?.props.marginLeft)).toBe(2)
-    expect(t).toContain('│ › Refactor the loader.')
+    expect(t).toContain('› Refactor the loader.')
     expect(t).toContain('turn: 1')
     expect(t).toContain('when: now')
     expect(t).toContain('Refactor the loader.')
@@ -2192,11 +2327,11 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     const before = await drawn(ui)
     expect(before).toContain('"key":"expanded-down"')
     expect(before).toContain('"key":"expanded-up"')
-    expect(before).toContain('│ › Refactor the loader.')
+    expect(before).toContain('› Refactor the loader.')
     await ui.press({ key: 'expanded-down' })
     const after = await drawn(ui)
-    expect(after).not.toContain('│ kind: prompt')
-    expect(after).toContain('│ - point 2')
+    expect(after).not.toContain('kind: prompt')
+    expect(after).toContain('- point 2')
     await ui.unmount()
   })
 

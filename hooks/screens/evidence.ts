@@ -226,7 +226,7 @@ export const buildEvidence: ScreenBuilder = (snapshot, view, now): ScreenModel =
       'files',
       'FILES',
       files.map(file => fileRow(snapshot, file, now)),
-      { count: `${snapshot.files.length}` },
+      { tone: 'write', count: `${snapshot.files.length}` },
     ),
   )
   return { tab: 'evidence', sections }

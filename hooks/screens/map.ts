@@ -292,7 +292,9 @@ function activity(snapshot: AtlasSnapshot, now: number): ScreenSection {
     interactive: false,
   }))
   const running = snapshot.activity.filter(item => item.state === 'running').length
-  return section('activity', 'ACTIVITY', rows, { count: running ? `${running} running` : undefined, empty: 'Waiting for Claude to work.' })
+  return section('activity', 'ACTIVITY', rows, {
+    tone: 'path', count: running ? `${running} running` : undefined, empty: 'Waiting for Claude to work.',
+  })
 }
 
 function fileRow(snapshot: AtlasSnapshot, file: AtlasSnapshot['files'][number], now: number, full: boolean): ScreenRow {
@@ -371,7 +373,7 @@ export const buildMap: ScreenBuilder = (snapshot, view, now): ScreenModel => {
         'files',
         'WORKING SET',
         recentFiles.map(file => fileRow(snapshot, file, now, false)),
-        { count: `${snapshot.files.length} files` },
+        { tone: 'write', count: `${snapshot.files.length} files` },
       ),
     )
   if (decisions.length || questions.length)
@@ -383,7 +385,7 @@ export const buildMap: ScreenBuilder = (snapshot, view, now): ScreenModel => {
           ...decisions.map(item => itemRow(snapshot, item, now, view, false)),
           ...questions.map(item => itemRow(snapshot, item, now, view, false)),
         ],
-        { right: 'confirm in Open' },
+        { tone: 'checkpoint', right: 'confirm in Open' },
       ),
     )
   const resume = next(snapshot, view)

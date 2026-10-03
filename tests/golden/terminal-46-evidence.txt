@@ -10,7 +10,7 @@ SETTLED (LEDGER) ⓘ1  {0:color:#9ece6a,bold|18:dim}
 ◆ Keep renderers pure  {0:color:#9ece6a}
 RESOLVED ⓘ  {0:color:#f7768e,bold}
 ✓ Should the popup keep its compact width?  {0:color:#9ece6a}
-FILES ⓘ3  {0:bold|7:dim}
+FILES ⓘ3  {0:color:#ff9e64,bold|7:dim}
 ✎ tests/golden.test.tsx1 0 1m  {0:color:#ff9e64|23:color:#ff9e64|25:color:#bb9af7|27:dim}
 ✎ hooks/view.tsx1 1 1m  {0:color:#ff9e64|16:color:#ff9e64|18:color:#bb9af7|20:dim}
 · tests/atlas.test.tsx0 1 1m  {0:color:#bb9af7|22:color:#ff9e64|24:color:#bb9af7|26:dim}

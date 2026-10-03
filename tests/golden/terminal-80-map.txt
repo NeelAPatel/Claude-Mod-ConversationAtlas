@@ -10,15 +10,15 @@ Atlas foundations
 POSSIBLE DETOUR ⓘ  {0:color:#e0af68,bold}
 ↳ Desktop paritydetour suggestion · from Claude  {0:color:#e0af68,dim|2:italic,dim|16:dim}
 Take detour [Not a detour]  {12:color:#7dcfff|25:color:#7dcfff}
-ACTIVITY ⓘ  {0:bold}
+ACTIVITY ⓘ  {0:color:#bb9af7,bold}
 ✗ Codex · Reviewing the golden diffnow  {0:color:#f7768e|35:dim}
 ✓ claude plugin test .1m  {0:color:#9ece6a,dim|2:dim|22:dim}
 ✗ Scratch glyph check1m  {0:color:#f7768e|21:dim}
-WORKING SET ⓘ3 files  {0:bold|13:dim}
+WORKING SET ⓘ3 files  {0:color:#ff9e64,bold|13:dim}
 ✎ golden.test.tsx1e 0r 1m  {0:color:#ff9e64|17:color:#ff9e64|20:color:#bb9af7|23:dim}
 · atlas.test.tsx0e 1r 1m  {0:color:#bb9af7|16:color:#ff9e64|19:color:#bb9af7|22:dim}
 ✎ view.tsx1e 1r 1m  {0:color:#ff9e64|10:color:#ff9e64|13:color:#bb9af7|16:dim}
-LATEST ⓘ confirm in Open  {0:bold|9:dim}
+LATEST ⓘ confirm in Open  {0:color:#7aa2f7,bold|9:dim}
 ◆ Keep renderers pure  {0:color:#9ece6a}
 ◇ Use text goldens for visual review  {0:color:#9ece6a}
 ? Which surface gets the first manual check?  {0:color:#f7768e}
