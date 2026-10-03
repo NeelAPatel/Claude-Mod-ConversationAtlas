@@ -1,5 +1,16 @@
 # ConversationAtlas self-audit: decision summary (2026-10-03)
 
+> **Superseded in part by `RECONCILIATION.md`** (Codex's independent review, 2026-10-03). Claude spot-checked R1, U1 and U5 there and confirmed them in code. Where the two disagree, the reconciliation wins. Corrections:
+> - The installed snapshot changes 7 files, **not** `live.tsx`, `view.tsx` or `ui/index.tsx` (the brief's claim was line-ending noise).
+> - The four prominent buttons in the goal expansion sit across separate groups, so "one primary per group" isn't literally broken.
+> - Lists are bounded, not uncapped.
+> - `C`+⚑ means source plus event type, not a duplicate.
+> - Popups remain intended for Trail View and item overflow.
+> - Typed actions stay; there is no string-ID dispatch.
+> - New recovery defects R1–R6 (R1 is highest priority overall) and UI defects U1–U6 are added.
+> - The job order is replaced by the one in RECONCILIATION §7.
+
+
 Consolidates reports A (docs, hygiene, dead code), B (architecture) and C (visual/UX) in `reports/`. Base: checkout `5d642de` (TUI frozen, tag `tui-freeze-2026-10-03`). Snapshot `a70e975` (adopt-full) differs only in recovery files, so all view findings apply to both. No tests were run during the audit. Visual claims rest on screenshots plus static code. Synthesised by a Sonnet subagent with spot-checks of the key citations.
 
 ## 1. Top findings (deduplicated)
