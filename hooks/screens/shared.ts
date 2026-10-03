@@ -3,6 +3,18 @@
 import type { AtlasItem, AtlasSnapshot, AtlasSuggestion, AtlasTopic } from '../../types'
 import type { Action, GlyphKey, ScreenAction, ScreenRow, ScreenView, ToneKey } from './types'
 
+export function filterHiddenRows<T extends { sections: { rows: ScreenRow[] }[] }>(model: T, hidden: string[]): T {
+  if (!hidden.length) return model
+  const hiddenSet = new Set(hidden)
+  return {
+    ...model,
+    sections: model.sections.map(section => ({
+      ...section,
+      rows: section.rows.filter(row => !(hiddenSet.has('b') && row.glyph === 'reportBack') && !(hiddenSet.has('h') && row.glyph === 'handoff')),
+    })),
+  }
+}
+
 export function ago(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000))
   if (s < 45) return 'now'

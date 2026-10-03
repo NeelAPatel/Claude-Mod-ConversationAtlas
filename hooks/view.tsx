@@ -101,7 +101,7 @@ export type Ctx = {
   mode: AtlasMode
   setupDefault: AtlasMode
   scan: AtlasScanState
-  view: AtlasView
+  view: AtlasView & { hidden?: string[]; settingsPage?: number }
   live: (
     key: string,
     rows: LiveRow[],
@@ -799,12 +799,31 @@ export function popupShell(ctx: Ctx, popup: ScreenPopup, placement: { top?: numb
           <Text bold>{popup.title}</Text>
           {popup.titleCount ? <Text dimColor>{popup.titleCount}</Text> : null}
         </Box>
+        {popup.page ? (
+          <Box flexDirection="row" gap={1}>
+            <Button
+              key="settings-page-prev"
+              plain
+              dimColor={popup.page.current <= 0}
+              label="‹"
+              onPress={() => ctx.act({ type: 'trail-settings-page', page: popup.page!.current - 1 })}
+            />
+            <Text dimColor>{`${popup.page.current + 1}/${popup.page.total}`}</Text>
+            <Button
+              key="settings-page-next"
+              plain
+              dimColor={popup.page.current >= popup.page.total - 1}
+              label="›"
+              onPress={() => ctx.act({ type: 'trail-settings-page', page: popup.page!.current + 1 })}
+            />
+          </Box>
+        ) : null}
         {actions(
           ctx,
           [
             {
               key: 'popup-close',
-              label: 'Close',
+              label: popup.closeGlyph ? '✕' : 'Close',
               role: 'dismiss',
               action: { type: 'popup', popup: { kind: popup.kind, ...(popup.id ? { id: popup.id } : {}) } },
             },
@@ -871,7 +890,7 @@ function itemPopup(row: ScreenRow): ScreenPopup {
   }
 }
 function activePopup(ctx: Ctx, model: ScreenModel): ScreenPopup | undefined {
-  if (ctx.view.popup?.kind === 'trail-view') return trailViewPopup(ctx.view.trailView)
+  if (ctx.view.popup?.kind === 'trail-view') return trailViewPopup(ctx.view.trailView, ctx.view.trailNewest, ctx.view.hidden ?? [], ctx.view.settingsPage ?? 0)
   if (ctx.view.popup?.kind === 'item') {
     const row = model.sections.flatMap(section => section.rows).find(candidate => candidate.id === ctx.view.popup?.id)
     return row ? itemPopup(row) : undefined

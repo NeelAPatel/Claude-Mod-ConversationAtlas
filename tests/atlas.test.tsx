@@ -1740,7 +1740,7 @@ const scrollPaneProps = (bodyColumns: number, bodyRows: number) => ({
 const viewKey = { plugin: 'conversation-atlas', key: 'view' } as const
 const snapshotKey = { plugin: 'conversation-atlas', key: 'snapshot' } as const
 
-type ScrollFixture = { view: AtlasView; snapshot?: AtlasSnapshot }
+type ScrollFixture = { view: AtlasView & { hidden?: string[]; settingsPage?: number }; snapshot?: AtlasSnapshot }
 
 function scrollWorld(on: On) {
   const base = world(on)
@@ -2050,7 +2050,7 @@ describe('popup and help row scrolling', () => {
     }
   })
 
-  test('the Trail View popup owns wheel gestures even when the body can scroll', async ($, on) => {
+  test('Trail Settings owns wheel gestures even when the body can scroll', async ($, on) => {
     const { clock, fixture } = scrollWorld(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
     const now = 1_800_000_000_000
@@ -2187,7 +2187,7 @@ describe('scroll bounds belong to the rendering surface', () => {
 describe('pane interactions: sort, scrollbar, expand, footer', () => {
   const mountPane = ($: any, props: any = PANE_PROPS) => $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props })
 
-  test('the Trail View menu switches layouts and its sort control flips event order', { timeoutMs: 20_000 }, async ($, on) => {
+  test('Trail Settings pages through view and order controls', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await $.tool.call({ tool: OBSERVE, topic: 'Alpha topic' } as any)
@@ -2196,9 +2196,11 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     const ui = await mountPane($)
     await ui.press({ key: 'tab-trail' })
     await ui.press({ key: 'trail-view-menu' })
-    expect(await drawn(ui)).toContain('TRAIL VIEW')
+    expect(await drawn(ui)).toContain('TRAIL SETTINGS')
+    expect(await drawn(ui)).toContain('1/3')
+    expect(String((await ui.find({ key: 'trail-view-menu', type: 'Button' }))?.props.label).trim()).toBe('≡')
     expect(await ui.find({ key: 'trail-view-log', type: 'Button' })).toBeDefined()
-    expect(await ui.find({ key: 'trail-sort', type: 'Button' })).toBeDefined()
+    expect(await ui.find({ key: 'trail-sort', type: 'Button' })).toBeUndefined()
     await ui.press({ key: 'trail-view-log' })
     const events = async () => {
       const t = await drawn(ui)
@@ -2208,12 +2210,17 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     let t = await events()
     expect(t).toContain('TRAIL · Log')
     await ui.press({ key: 'trail-view-menu' })
+    expect(await drawn(ui)).toContain('1/3')
+    await ui.press({ key: 'settings-page-next' })
+    expect(await drawn(ui)).toContain('2/3')
+    expect(await ui.find({ key: 'trail-sort', type: 'Button' })).toBeDefined()
     expect(String((await ui.find({ key: 'trail-sort', type: 'Button' }))?.props.label).trim()).toBe('Sort')
     await ui.press({ key: 'trail-sort' })
     t = await events()
     expect(t).not.toContain('newest first')
     expect(t.indexOf('Alpha topic')).toBeLessThan(t.indexOf('Omega topic'))
     await ui.press({ key: 'trail-view-menu' })
+    await ui.press({ key: 'settings-page-next' })
     await ui.press({ key: 'trail-sort' })
     t = await events()
     expect(t).toContain('TRAIL · Log')
@@ -2222,6 +2229,96 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     await ui.press({ key: 'bar-legend' })
     expect(await drawn(ui)).toContain('↑ = newest first; ↓ = oldest first.')
     await ui.unmount()
+  })
+
+  test('Trail Settings pages clamp and hide toggles stay open without changing intent', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock, fixture } = scrollWorld(on)
+    const runAtlas = (args: string) => $.command.run({
+      command: 'atlas', args, origin: { kind: 'composer' },
+    } as Parameters<typeof $.command.run>[0])
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    await runAtlas('goal Keep intent')
+    await runAtlas('next Preserve next')
+    const before = fixture.snapshot
+    await runAtlas('hide h')
+    const listed = await runAtlas('filters')
+    expect(listed.text).toContain('h (hand-offs)')
+    const rejected = await runAtlas('hide x')
+    expect(rejected.text).toContain('b (report-backs), h (hand-offs)')
+    await runAtlas('show h')
+    expect((await runAtlas('filters')).text).toBe('no filters')
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    await ui.press({ key: 'tab-trail' })
+    await ui.press({ key: 'trail-view-menu' })
+    await ui.press({ key: 'settings-page-prev' })
+    expect(await drawn(ui)).toContain('1/3')
+    await ui.press({ key: 'settings-page-next' })
+    await ui.press({ key: 'settings-page-next' })
+    await ui.press({ key: 'settings-page-next' })
+    expect(await drawn(ui)).toContain('3/3')
+    await ui.press({ key: 'settings-page-prev' })
+    expect(await drawn(ui)).toContain('2/3')
+    await ui.press({ key: 'settings-page-next' })
+    expect(await drawn(ui)).toContain('3/3')
+    expect(await ui.find({ key: 'trail-filter-b-toggle', type: 'Button' })).toBeDefined()
+    await ui.press({ key: 'trail-filter-b-toggle' })
+    expect(await drawn(ui)).toContain('TRAIL SETTINGS')
+    expect(await drawn(ui)).toContain('hidden')
+    const closed = await ui.find({ key: 'popup-close', type: 'Button' })
+    expect(String(closed?.props.label).trim()).toBe('✕')
+    expect(await drawn(ui)).not.toContain('⚙')
+    expect(await drawn(ui)).not.toContain('\uFE0F')
+    await ui.press({ key: 'popup-close' })
+    expect(await drawn(ui)).not.toContain('TRAIL SETTINGS')
+    expect(fixture.view.hidden).toContain('b')
+    const snapshot = fixture.snapshot as AtlasSnapshot
+    expect(snapshot.goal).toEqual(before?.goal)
+    expect(snapshot.nextStep).toEqual(before?.nextStep)
+    expect(snapshot.detour).toEqual(before?.detour)
+    expect(snapshot.checkpoints.filter(item => item.kind === 'marked')).toEqual(before?.checkpoints.filter(item => item.kind === 'marked'))
+    expect(snapshot.goal?.text).toBe('Keep intent')
+    expect(snapshot.nextStep).toBe('Preserve next')
+    await clock.settle()
+    await ui.unmount()
+  })
+
+  test('hide and show report-backs filter Trail rows while counts and snapshot remain intact', { timeoutMs: 20_000 }, async ($, on) => {
+    const now = 1_800_000_000_000
+    const { clock, fixture } = scrollWorld(on)
+    const runAtlas = (args: string) => $.command.run({
+      command: 'atlas', args, origin: { kind: 'composer' },
+    } as Parameters<typeof $.command.run>[0])
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    const prompt = startTurn(emptySnapshot('filter-test', ROOT, now), 'Review the build.', now + 1)
+    const original = reportHandoff(prompt, 'Build done', now + 2, 'Codex')
+    await setScrollSnapshot(fixture, original)
+    await setScrollView(fixture, { ...scrollTestView(), tab: 'trail', trailView: 'log' })
+    const hiddenView = {
+      ...scrollTestView(), mode: 'claude' as const, tab: 'trail' as const, trailView: 'log' as const, hidden: ['b'],
+    }
+    const filtered = buildTrail(original, hiddenView, now + 2)
+    const events = filtered.sections.find(section => section.key === 'events')
+    expect(events?.rows.map(row => row.text)).toEqual(['Review the build.'])
+    expect(events?.count).toBe('1 hidden')
+    expect(original.events.some(event => event.kind === 'report-back')).toBe(true)
+    expect(original.handoffs).toEqual([])
+    const visible = buildTrail(original, { ...hiddenView, hidden: [] }, now + 2)
+    expect(new Set(visible.sections.find(section => section.key === 'events')?.rows.map(row => row.text))).toEqual(
+      new Set(['Review the build.', 'Build done']),
+    )
+    const story = buildTrail(original, { ...hiddenView, trailView: 'story' }, now + 2)
+    const summary = story.sections.find(section => section.key === 'events')?.rows[0]
+    expect(summary?.metaParts?.some(part => part.text === '1b')).toBe(true)
+    await runAtlas('hide b')
+    expect(fixture.view.hidden).toContain('b')
+    await runAtlas('show b')
+    expect(fixture.view.hidden).not.toContain('b')
+    const after = fixture.snapshot as AtlasSnapshot
+    expect(after.goal).toEqual(original.goal)
+    expect(after.detour).toEqual(original.detour)
+    expect(after.nextStep).toEqual(original.nextStep)
+    expect(after.checkpoints.filter(item => item.kind === 'marked')).toEqual(original.checkpoints.filter(item => item.kind === 'marked'))
+    await clock.settle()
   })
 
   test('a scrollbar appears when the body overflows and its cells jump the scroll', { timeoutMs: 20_000 }, async ($, on) => {

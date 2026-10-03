@@ -86,7 +86,7 @@ const SAVE_MS = 2_000
 const KEEP_SESSIONS = 12
 const SCAN_RESULT_MS = 4_000
 const MODE = { plugin: 'conversation-atlas', key: 'mode' } as const
-const DEFAULT_VIEW: AtlasView = {
+const DEFAULT_VIEW: AtlasViewState = {
   setup: false,
   tab: 'map',
   refs: {},
@@ -102,7 +102,11 @@ const DEFAULT_VIEW: AtlasView = {
   expanded: null,
   expandedScroll: 0,
   fullConfirm: null,
+  hidden: [],
+  settingsPage: 0,
 }
+
+type AtlasViewState = AtlasView & { hidden: string[]; settingsPage: number }
 
 const RULES = `# Conversation Atlas
  A side pane maps this session for the user. Keep it accurate with ${TOOL}: at the end of a turn where the topic moved, a decision was reached,
@@ -218,7 +222,7 @@ function scheduleUnflash($: EngineInterface): void {
   })
 }
 
-async function setView($: EngineInterface, fn: (v: AtlasView) => AtlasView): Promise<void> {
+async function setView($: EngineInterface, fn: (v: AtlasViewState) => AtlasViewState): Promise<void> {
   await update($, VIEW, cur => fn({ ...DEFAULT_VIEW, ...(cur ?? {}) }))
 }
 
@@ -254,7 +258,11 @@ async function syncMode($: EngineInterface): Promise<AtlasMode> {
   const mode: AtlasMode = choice?.observer ?? 'engine'
   await $.state.set(MODE, mode)
   const trailView = await trailViewChoice($)
-  await setView($, v => ({ ...v, setup: !choice, trailView }))
+  const savedView = await $.store.get(TRAIL_VIEW_STORE)
+  const hidden = savedView && typeof savedView === 'object' && Array.isArray((savedView as Raw).hidden)
+    ? (savedView as { hidden: unknown[] }).hidden.filter((type): type is string => type === 'b' || type === 'h')
+    : []
+  await setView($, v => ({ ...v, setup: !choice, trailView, hidden }))
   return mode
 }
 
@@ -517,7 +525,18 @@ async function act($: EngineInterface, a: Action, surface: Surface): Promise<voi
         expandedScroll: 0,
         popup: v.popup?.kind === a.popup.kind && v.popup.id === a.popup.id ? null : a.popup,
         popupScroll: 0,
+        settingsPage: a.popup.kind === 'trail-view' ? 0 : v.settingsPage,
       }))
+    case 'trail-settings-page':
+      return setView($, v => ({ ...v, settingsPage: Math.max(0, Math.min(2, a.page)), popupScroll: 0 }))
+    case 'trail-filter': {
+      const current = (await $.state.get(VIEW)).value as AtlasViewState | undefined
+      const hidden = (current?.hidden ?? []).includes(a.filter)
+        ? (current?.hidden ?? []).filter(type => type !== a.filter)
+        : [...(current?.hidden ?? []), a.filter]
+      await $.store.set(TRAIL_VIEW_STORE, { view: current?.trailView ?? 'story', hidden, at: await $.clock.now() })
+      return setView($, v => ({ ...v, hidden }))
+    }
     case 'popup-scroll':
       return setView($, v => ({ ...v, popupScroll: Math.max(0, Math.min(maxPopupScroll, v.popupScroll + a.by)) }))
     case 'expanded-scroll':
@@ -531,7 +550,11 @@ async function act($: EngineInterface, a: Action, surface: Surface): Promise<voi
       return setView($, v => ({ ...v, trailNewest: !v.trailNewest, popup: null, popupScroll: 0, expanded: null, expandedScroll: 0 }))
     case 'trail-view': {
       const at = await $.clock.now()
-      await $.store.set(TRAIL_VIEW_STORE, { view: a.view, at })
+      const current = await $.store.get(TRAIL_VIEW_STORE)
+      const hidden = current && typeof current === 'object' && Array.isArray((current as Raw).hidden)
+        ? (current as { hidden: string[] }).hidden
+        : []
+      await $.store.set(TRAIL_VIEW_STORE, { view: a.view, hidden, at })
       return setView($, v => ({ ...v, trailView: a.view, popup: null, popupScroll: 0, expanded: null, expandedScroll: 0 }))
     }
     case 'expand':
@@ -660,6 +683,10 @@ const HELP = [
   '  /atlas return                   end the detour; Claude gets one recap',
   '  /atlas promote                  make the detour your goal',
   '  /atlas observer [claude|engine] show or change the observer mode',
+  '  /atlas hide <b|h>               hide report-backs (b) or hand-offs (h)',
+  '  /atlas show <b|h>               show a hidden type',
+  '  /atlas filters                  list hidden types',
+  '  Trail: use ≡ for Trail settings: view, order and hidden types',
   '  /atlas setup                    show the first-run setup screen again',
   '  /atlas scan                     map the conversation so far with Claude (one cached request)',
   '  /atlas recover [n]              list earlier sessions (Atlas + Trailhead), or resume number n',
@@ -676,6 +703,25 @@ async function command($: EngineInterface, args: string): Promise<string> {
       return (await openPane($, true)) ? 'Atlas opened.' : 'Atlas is waiting for room: widen the terminal or use /tui fullscreen.'
     case 'help':
       return HELP
+    case 'filters': {
+      const state = (await $.state.get(VIEW)).value as AtlasViewState | undefined
+      const hidden = state?.hidden ?? []
+      return hidden.length ? `Hidden types: ${hidden.map(type => `${type} (${type === 'b' ? 'report-backs' : 'hand-offs'})`).join(', ')}` : 'no filters'
+    }
+    case 'hide':
+    case 'show': {
+      const type = text.toLowerCase()
+      if (type !== 'b' && type !== 'h') return 'Valid type letters: b (report-backs), h (hand-offs).'
+      const state = (await $.state.get(VIEW)).value as AtlasViewState | undefined
+      const current = state?.hidden ?? []
+      const hidden = verb === 'hide'
+        ? [...new Set([...current, type])]
+        : current.filter(value => value !== type)
+      await $.store.set(TRAIL_VIEW_STORE, { view: state?.trailView ?? 'story', hidden, at: await $.clock.now() })
+      await setView($, value => ({ ...value, hidden }))
+      const name = type === 'b' ? 'report-backs' : 'hand-offs'
+      return verb === 'hide' ? `Hidden ${type} (${name}).` : `Shown ${type} (${name}).`
+    }
     case 'observer': {
       const current = await modeOf($)
       if (!text) {
@@ -794,7 +840,11 @@ function setup($: EngineInterface): Promise<void> {
         $.ui.log(`${PLUGIN}: ${name} failed: ${err instanceof Error ? err.message : String(err)}`)
       }
     }
-    await step('command /atlas', () => $.command.register({ name: 'atlas', description: 'ConversationAtlas: open the pane, or goal, next, mark, decision, detour, outcome, exclude, return, promote, scan, recover, help', argumentHint: '[goal|next|mark|decision|detour|outcome|exclude|return|promote|scan|recover|help] [text]' }))
+    await step('command /atlas', () => $.command.register({
+      name: 'atlas',
+      description: 'ConversationAtlas: open the pane or set goal, next, mark, decision, detour, hide, show, filters, scan, recover, help',
+      argumentHint: '[goal|next|mark|decision|detour|hide|show|filters|scan|recover|help] [text]',
+    }))
     await step('session binding', () => bind($))
     // The tool is inert until setup consent. Registration itself does not call Claude;
     // this lets tests and an already-equipped model receive the short "off" result.

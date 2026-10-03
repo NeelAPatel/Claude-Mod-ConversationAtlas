@@ -2,7 +2,7 @@
 
 import { base, rel } from '../activity'
 import type { AtlasSnapshot } from '../../types'
-import { action, ago, itemRow, sourceName, whenLine } from './shared'
+import { action, ago, filterHiddenRows, itemRow, sourceName, whenLine } from './shared'
 import type { ScreenBuilder, ScreenModel, ScreenRow, ScreenSection } from './types'
 
 const explain: Record<string, string> = {
@@ -229,5 +229,5 @@ export const buildEvidence: ScreenBuilder = (snapshot, view, now): ScreenModel =
       { tone: 'write', count: `${snapshot.files.length}` },
     ),
   )
-  return { tab: 'evidence', sections }
+  return filterHiddenRows({ tab: 'evidence', sections }, view.hidden ?? [])
 }

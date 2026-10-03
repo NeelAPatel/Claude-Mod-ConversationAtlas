@@ -3,7 +3,7 @@
 import { activeDecisions, goalSuggestions, openQuestions, pathOf, resumeHint } from '../model'
 import { base, rel } from '../activity'
 import type { AtlasSnapshot } from '../../types'
-import { action, ago, itemRow, sourceName, suggestionRow, topicName, whenLine } from './shared'
+import { action, ago, filterHiddenRows, itemRow, sourceName, suggestionRow, topicName, whenLine } from './shared'
 import type { ScreenBuilder, ScreenModel, ScreenRow, ScreenSection, ScreenView } from './types'
 
 const explain: Record<string, string> = {
@@ -390,8 +390,8 @@ export const buildMap: ScreenBuilder = (snapshot, view, now): ScreenModel => {
     )
   const resume = next(snapshot, view)
   if (resume) sections.push(resume)
-  return {
+  return filterHiddenRows({
     tab: 'map',
     sections: sections.filter((value): value is ScreenSection => Boolean(value)),
-  }
+  }, view.hidden ?? [])
 }

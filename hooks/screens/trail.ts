@@ -2,7 +2,7 @@
 
 import { collapseEvents, similar, sentences } from '../model'
 import type { AtlasEvent, AtlasSnapshot, AtlasSource } from '../../types'
-import { ago, action, topicRows } from './shared'
+import { ago, action, filterHiddenRows, topicRows } from './shared'
 import type { ScreenBuilder, ScreenModel, ScreenPopup, ScreenRow, ScreenSection } from './types'
 
 const explain: Record<string, string> = {
@@ -24,13 +24,14 @@ const trailHelp = [
   'Press an event to open its full text and points.',
   'Story groups each turn; Log lists today\'s events one per line.',
   'Marks: › you · ✻ Claude · ⌬ Codex. Dim italic rows are observations or guesses.',
-  'Use View to switch layouts and sort order; press a row to expand it.',
+  'Use ≡ for Trail settings: view, order and hidden types.',
   'The heading button opens this fuller explanation.',
   'Press the heading again to close it; row detail shares this one-open slot.',
+  '≡ Trail settings · ✕ close · ‹ › pages.',
 ]
 
 const trailExplain =
-  'A chronological record of prompts, topics, decisions and checkpoints. View switches between Story and Log. ' +
+  'A chronological record of prompts, topics, decisions and checkpoints. Use ≡ for Trail settings: view, order and hidden types. ' +
   '↑ = newest first; ↓ = oldest first. Marks: › you · ✻ Claude · ⌬ Codex.'
 
 export const SOURCE_MARK: Record<AtlasSource | 'codex', { mark: string; color: string }> = {
@@ -250,43 +251,42 @@ function section(key: string, heading: string, rows: ScreenRow[], extra: Partial
   return { key, heading, explain: explain[heading] ?? heading, help: help[heading] ?? [explain[heading] ?? heading], rows, ...extra }
 }
 
-export function trailViewPopup(view: 'story' | 'log'): ScreenPopup {
-  return {
-    kind: 'trail-view',
-    title: 'TRAIL VIEW',
-    rows: [
+export function trailViewPopup(
+  view: 'story' | 'log', newest = true, hidden: string[] = [], page = 0,
+): ScreenPopup {
+  const rows: ScreenRow[] = page === 0 ? [
       {
-        id: 'trail-choice-story',
-        key: 'trail-choice-story',
-        kind: 'suggestion',
-        text: 'Grouped by turn',
-        meta: view === 'story' ? 'active · default' : 'default',
-        expandable: false,
+        id: 'trail-choice-story', key: 'trail-choice-story', kind: 'suggestion', text: 'Grouped by turn',
+        meta: view === 'story' ? 'active · default' : 'default', expandable: false,
         actions: [action('trail-view-story', 'Story', { type: 'trail-view', view: 'story' }, view === 'story')],
       },
       {
-        id: 'trail-choice-log',
-        key: 'trail-choice-log',
-        kind: 'suggestion',
-        text: "Today's events, one per line",
-        meta: view === 'log' ? 'active' : undefined,
-        expandable: false,
+        id: 'trail-choice-log', key: 'trail-choice-log', kind: 'suggestion', text: "Today's events, one per line",
+        meta: view === 'log' ? 'active' : undefined, expandable: false,
         actions: [action('trail-view-log', 'Log', { type: 'trail-view', view: 'log' }, view === 'log')],
       },
+    ] : page === 1 ? [
       {
-        id: 'trail-choice-sort',
-        key: 'trail-choice-sort',
-        kind: 'suggestion',
-        text: 'Order',
-        meta: 'newest first or oldest first',
-        expandable: false,
+        id: 'trail-choice-sort', key: 'trail-choice-sort', kind: 'suggestion', text: 'Event order',
+        meta: newest ? 'newest first' : 'oldest first', expandable: false,
         actions: [action('trail-sort', 'Sort', { type: 'trail-sort' })],
       },
-    ],
+    ] : [
+      { id: 'trail-filter-b', key: 'trail-filter-b', kind: 'suggestion', glyph: 'reportBack', text: 'Report-backs',
+        meta: hidden.includes('b') ? 'hidden' : 'shown', expandable: false,
+        actions: [action('trail-filter-b-toggle', hidden.includes('b') ? 'Show' : 'Hide', { type: 'trail-filter', filter: 'b' })] },
+      { id: 'trail-filter-h', key: 'trail-filter-h', kind: 'suggestion', glyph: 'handoff', text: 'Hand-offs',
+        meta: hidden.includes('h') ? 'hidden' : 'shown', expandable: false,
+        actions: [action('trail-filter-h-toggle', hidden.includes('h') ? 'Show' : 'Hide', { type: 'trail-filter', filter: 'h' })] },
+    ]
+  return {
+    kind: 'trail-view',
+    title: 'TRAIL SETTINGS', page: { current: page, total: 3 }, closeGlyph: true, rows,
   }
 }
 
 export const buildTrail: ScreenBuilder = (snapshot: AtlasSnapshot, view, now): ScreenModel => {
+  const hidden = view.hidden ?? []
   const topics = topicRows(snapshot, view, now)
   const events = orderedEvents(snapshot, view, now)
   const eventRows = view.trailView === 'log' ? events.map(event => eventRow(snapshot, event, now)) : storyRows(snapshot, events, now)
@@ -303,9 +303,11 @@ export const buildTrail: ScreenBuilder = (snapshot: AtlasSnapshot, view, now): S
       explain: trailExplain,
       help: trailHelp,
       tone: 'trail',
-      actions: [action('trail-view-menu', 'View', { type: 'popup', popup: { kind: 'trail-view' } })],
+      actions: [action('trail-view-menu', '≡', { type: 'popup', popup: { kind: 'trail-view' } })],
       empty: 'Nothing recorded yet.',
     }),
   ]
-  return { tab: 'trail', sections }
+  const eventsSection = sections.find(value => value.key === 'events')
+  if (eventsSection && hidden.length) eventsSection.count = `${hidden.length} hidden`
+  return filterHiddenRows({ tab: 'trail', sections }, hidden)
 }

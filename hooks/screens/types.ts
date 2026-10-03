@@ -12,6 +12,8 @@ export type Action =
   | { type: 'scroll-to'; at: number }
   | { type: 'trail-sort' }
   | { type: 'trail-view'; view: AtlasTrailView }
+  | { type: 'trail-settings-page'; page: number }
+  | { type: 'trail-filter'; filter: 'b' | 'h' }
   | { type: 'expand'; id: string }
   | { type: 'confirm'; id: string }
   | { type: 'dismiss'; id: string }
@@ -119,6 +121,8 @@ export type ScreenPopup = {
   id?: string
   title: string
   titleCount?: string
+  page?: { current: number; total: number }
+  closeGlyph?: boolean
   rows: ScreenRow[]
   footer?: string
   footerActions?: ScreenAction[]
@@ -129,6 +133,6 @@ export type ScreenModel = {
   sections: ScreenSection[]
 }
 
-export type ScreenView = AtlasView & { mode: AtlasMode }
+export type ScreenView = AtlasView & { mode: AtlasMode; hidden?: string[]; settingsPage?: number }
 
 export type ScreenBuilder = (snapshot: AtlasSnapshot, view: ScreenView, now: number) => ScreenModel
