@@ -1,6 +1,8 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { confirmSuggestion, emptySnapshot, observe, promptBullets, returnFromDetour, setItemStatus, startTurn, upgrade } from '../hooks/model'
+import { addCheckpoint, closeUnverifiedHandoffs, collapseEvents, confirmSuggestion, emptySnapshot, observe, promptBullets, reportHandoff, reportMarker, returnFromDetour, setItemStatus, startHandoff, startTurn, stripPromptMarkers, touchFile, upgrade } from '../hooks/model'
+import { expectedReportPath, handoffStart, parseHandoffReport } from '../hooks/delegation'
+import { barWidth, collapseBarLabels } from '../hooks/ui'
 import { C } from '../hooks/view'
 
 const ROOT = 'F:/work/atlas'
@@ -159,6 +161,7 @@ describe('hooks', () => {
       const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
       const text = await drawn(ui)
       for (const word of ['Passive observatory', 'model.ts', 'Tests passed', 'Wire the pane', 'Keep the UI native']) expect(text).toContain(word)
+      if (surface === 'desktop') expect(text).not.toContain('did not load')
       expect(await ui.find({ key: 'tab-open' })).toBeDefined()
       await ui.press({ key: 'tab-evidence' })
       expect(await drawn(ui)).toContain('Tests passed')
@@ -434,8 +437,118 @@ describe('readability: app bar, legend, resizing', () => {
     const ui = await mountPane($)
     await ui.press({ key: 'tab-evidence' })
     const t = await drawn(ui)
-    expect((t.match(/◆/g) ?? []).length).toBe(1)
+    expect((t.match(/⚑/g) ?? []).length).toBe(1)
     await ui.unmount()
+  })
+
+  test('delegation rows cover in-session agents, visible terminal tabs, report files and unverified return', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    on('turn.start', (_$: any, e: any) => ({ turnId: e.turnId ?? 'test' }))
+    on('fs.read', (_$: any, e: any) => /atlas-m1\.md$/i.test(String(e.path))
+      ? { value: 'status: done\nsummary: UI work complete\nbranch: feat/m1-ui-library\ntests: 42 pass\nfiles:\n- hooks/view.tsx\n- hooks/model.ts' }
+      : { value: '' })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.tool.call({ tool: 'Agent', description: 'Build the UI', subagent_type: 'general-purpose' } as any)
+    await $.tool.call({ tool: 'PowerShell', command: 'wt -w 0 new-tab --title "Codex: Atlas M1" codex "Read C:/tmp/atlas-m1.md"', run_in_background: true } as any)
+    await clock.advance(2_000)
+    await clock.settle()
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    await ui.press({ key: 'tab-trail' })
+    let text = await drawn(ui)
+    expect(text).toContain('→ Build the UI')
+    expect(text).toContain('← general-purpose completed')
+    expect(text).toContain('→ Codex: Atlas')
+    expect(text).toContain('← UI work complete')
+    expect(text).toContain('2 files')
+
+    await $.turn.start({ turnId: 'notification', text: '<task-notification>Finished checking the report</task-notification>' } as any)
+    await clock.settle()
+    text = await drawn(ui)
+    expect(text).not.toContain('› Finished checking the report')
+    expect(text).toContain('← Finished checking the report')
+
+    await $.tool.call({ tool: 'PowerShell', command: 'wt new-tab --title "Codex: No report" codex "Read C:/tmp/no-report.md"', run_in_background: true } as any)
+    await $.turn.start({ turnId: 'typed', text: 'Continue the main work.' } as any)
+    await clock.settle()
+    expect(await drawn(ui)).toContain('← back · unverified')
+    await ui.unmount()
+  })
+})
+
+describe('milestone 1: UI primitives and engine noise', () => {
+  test('bar labels collapse without dropping the active tab or Mark at every width and surface', () => {
+    const tabs = [
+      { key: 'map', label: 'Map', short: 'Map', compact: 'M', active: true, onPress: () => undefined },
+      { key: 'trail', label: 'Trail', short: 'Trail', compact: 'T', onPress: () => undefined },
+      { key: 'open', label: 'Open 12', short: 'Open 12', compact: 'O', onPress: () => undefined },
+      { key: 'evidence', label: 'Evidence', short: 'Evid', compact: 'E', onPress: () => undefined },
+    ]
+    const bottom = [
+      { key: 'legend', label: 'Legend', short: 'Legend', compact: '≡', onPress: () => undefined },
+      { key: 'decisions', label: '12 decisions →', short: '12 dec →', compact: '12→', onPress: () => undefined },
+      { key: 'questions', label: '8 open →', short: '8 open →', compact: '8→', onPress: () => undefined },
+      { key: 'mark', label: '+ Mark', short: '+ Mark', compact: '+', onPress: () => undefined },
+    ]
+    for (const surface of ['terminal', 'desktop'] as const) {
+      for (let width = 20; width <= 100; width++) {
+        const t = collapseBarLabels(tabs, width, surface)
+        const b = collapseBarLabels(bottom, width, surface)
+        expect(t.labels).toHaveLength(4)
+        expect(b.labels).toHaveLength(4)
+        expect(barWidth(t.labels)).toBeLessThanOrEqual(width)
+        expect(barWidth(b.labels)).toBeLessThanOrEqual(width)
+        expect(t.labels[0]).toBeTruthy()
+        expect(b.labels[3]).toBeTruthy()
+      }
+    }
+  })
+
+  test('prompt markers leave only typed text and marker-only turns make no prompt event', () => {
+    expect(stripPromptMarkers('<task-notification>done</task-notification>')).toBe('')
+    expect(stripPromptMarkers('<agent-message from="Codex">done</agent-message>')).toBe('')
+    expect(stripPromptMarkers('<pasted_content>one\ntwo</pasted_content>')).toBe('pasted 2 lines')
+    expect(stripPromptMarkers('[Image #4]')).toBe('image')
+    expect(stripPromptMarkers('Please use this. <pasted_content>a\nb</pasted_content> [Image #4]')).toBe('Please use this. pasted 2 lines image')
+    let s = startTurn(emptySnapshot('s', ROOT, 0), '<task-notification>done</task-notification>', 1)
+    s = startTurn(s, '<agent-message from="Codex">done</agent-message>', 2)
+    expect(s.events.some(e => e.kind === 'prompt')).toBe(false)
+    expect(s.suggestions).toHaveLength(0)
+    s = startTurn(s, 'Build this with [Image #4].', 3)
+    expect(s.events.find(e => e.kind === 'prompt')?.text).toBe('Build this with image.')
+  })
+
+  test('checkpoint text is not echoed and consecutive identical checkpoints collapse', () => {
+    let s = emptySnapshot('s', ROOT, 0)
+    s = touchFile(s, `${ROOT}/hooks/model.ts`, 'write', 1)
+    s = addCheckpoint(s, 'Tests passed', 'tests', 'claude plugin test .', 2)
+    s = touchFile(s, `${ROOT}/hooks/model.ts`, 'write', 3)
+    s = addCheckpoint(s, 'Tests passed', 'tests', 'claude plugin test .', 4)
+    const events = collapseEvents(s.events.filter(e => e.kind === 'checkpoint'))
+    expect(events).toHaveLength(1)
+    expect(events[0]?.text).toBe('Tests passed · claude plugin test . ×2')
+    expect(events[0]?.text).not.toContain('Tests passed: Tests passed')
+  })
+
+  test('delegation detection, reports, malformed files and unverified closure are pure and bounded', () => {
+    const agent = handoffStart('Agent', { description: 'Build the UI', subagent_type: 'general-purpose' })
+    expect(agent?.label).toBe('Build the UI')
+    const external = handoffStart('PowerShell', { command: 'wt -w 0 new-tab --title "Codex: Atlas" codex "Read C:/tmp/atlas-m1.md"', run_in_background: true })
+    expect(external?.label).toBe('Codex: Atlas')
+    expect(expectedReportPath(ROOT, external?.brief ?? null)).toBe(`${ROOT}/.claude/atlas/handoffs/atlas-m1.md`)
+    expect(parseHandoffReport('status: pending')).toBeNull()
+    const partial = parseHandoffReport('status: done\nfiles:\n- hooks/view.tsx')
+    expect(partial?.summary).toBe('No summary provided')
+    expect(partial?.files).toEqual(['hooks/view.tsx'])
+
+    let s = emptySnapshot('s', ROOT, 0)
+    s = startHandoff(s, external?.label ?? 'Codex', external?.agent ?? 'Codex', external?.brief ?? null, expectedReportPath(ROOT, external?.brief ?? null), 1)
+    s = reportHandoff(s, partial?.summary ?? 'done', 2, 'Codex', s.handoffs[0]?.id, partial?.tests ?? null, partial?.files ?? [])
+    expect(s.handoffs[0]?.status).toBe('reported')
+    expect(s.events.at(-1)?.kind).toBe('report-back')
+    s = startHandoff(s, 'unverified', 'Codex', null, null, 3)
+    s = closeUnverifiedHandoffs(s, 4)
+    expect(s.handoffs.at(-1)?.status).toBe('closed')
+    expect(s.events.at(-1)?.text).toContain('back · unverified')
   })
 })
 

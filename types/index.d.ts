@@ -101,6 +101,8 @@ export type AtlasFile = {
   lastOp: 'read' | 'write'
   at: number
   turn: number
+  // The engine or an explicitly named delegated agent last wrote this file.
+  source?: string
 }
 
 export type AtlasActivityKind = 'read' | 'search' | 'edit' | 'bash' | 'test' | 'git' | 'web' | 'agent' | 'ask' | 'plan' | 'other'
@@ -119,10 +121,26 @@ export type AtlasEvent = {
   id: string
   at: number
   turn: number
-  kind: 'prompt' | 'topic' | 'goal' | 'detour' | 'return' | 'promote' | 'decision' | 'question' | 'resolved' | 'checkpoint' | 'next' | 'resume' | 'dismiss'
+  kind: 'prompt' | 'topic' | 'goal' | 'detour' | 'return' | 'promote' | 'decision' | 'question' | 'resolved' | 'checkpoint' | 'next' | 'resume' | 'dismiss' | 'handoff' | 'report-back'
   text: string
   // A prompt's own bullets and sentences after the title, shown on hover or click in the Trail.
   detail?: string[]
+}
+
+export type AtlasHandoffStatus = 'open' | 'reported' | 'closed'
+
+export type AtlasHandoff = {
+  id: string
+  label: string
+  agent: string
+  brief: string | null
+  reportPath: string | null
+  at: number
+  turn: number
+  status: AtlasHandoffStatus
+  summary: string | null
+  tests: string | null
+  files: string[]
 }
 
 // An earlier session of this project that can be resumed: an Atlas save file or a
@@ -160,6 +178,7 @@ export type AtlasSnapshot = {
   checkpoints: AtlasCheckpoint[]
   files: AtlasFile[]
   activity: AtlasActivity[]
+  handoffs: AtlasHandoff[]
   events: AtlasEvent[]
   // Text the next prompt from the composer carries to Claude once (a return packet).
   pendingContext: string[]

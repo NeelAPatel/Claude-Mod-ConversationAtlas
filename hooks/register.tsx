@@ -12,10 +12,12 @@ import { type EngineInterface, type Register, type Timer, update } from 'claude-
 import type { AtlasMode, AtlasScanState, AtlasSnapshot, AtlasView } from '../types'
 import { askedQuestions, classify, planTitle, posix } from './activity'
 import type { LiveRow } from './live'
+import { expectedReportPath, handoffStart, parseHandoffReport } from './delegation'
 import {
   addCheckpoint,
   addQuestion,
   clearFresh,
+  closeUnverifiedHandoffs,
   clip,
   confirmSuggestion,
   dismissSuggestion,
@@ -29,13 +31,16 @@ import {
   offerResume,
   openQuestions,
   promoteDetour,
+  reportHandoff,
   resolveQuestions,
+  reportMarker,
   returnFromDetour,
   sentences,
   setGoal,
   setItemStatus,
   setNextStep,
   startActivity,
+  startHandoff,
   startDetour,
   startTurn,
   summary,
@@ -51,6 +56,7 @@ import {
 import { applyMap, MAP_PROMPT, parseMap, replay, type ScanRow } from './scan'
 import { ATLAS_DIR, fromAtlasFile, fromTrailheadFile, mergeRecall, safeName, saveFile, TRAILHEAD_DIR } from './recall'
 import { type Action, oneLine, pane, TONES } from './view'
+import type { Surface } from './ui'
 
 const PLUGIN = 'conversation-atlas'
 const SNAP = { plugin: 'conversation-atlas', key: 'snapshot' } as const
@@ -310,6 +316,30 @@ async function loadRecall($: EngineInterface): Promise<number> {
   const recall = mergeRecall(found)
   await edit($, s => setRecall(s, recall))
   return recall.filter(r => r.sessionId !== sid).length
+}
+
+// External agents cannot send a turn notification back through the engine. A
+// report file is the deliberately visible bridge; malformed or still-written
+// files are ignored until a later turn/timer check.
+async function checkHandoffReports($: EngineInterface): Promise<void> {
+  const current = await snap($)
+  const open = current?.handoffs.filter(h => h.status === 'open' && h.reportPath) ?? []
+  if (!open.length) return
+  for (const handoff of open) {
+    let raw: unknown
+    try {
+      raw = await $.fs.read(handoff.reportPath as string)
+    } catch {
+      continue
+    }
+    const report = parseHandoffReport(raw)
+    if (!report) continue
+    await edit($, (s, now) => {
+      let next = reportHandoff(s, report.summary, now, handoff.agent, handoff.id, report.tests, report.files)
+      for (const file of report.files) next = touchFile(next, file, 'write', now, handoff.agent)
+      return next
+    })
+  }
 }
 
 async function ensureBound($: EngineInterface): Promise<void> {
@@ -594,7 +624,10 @@ function setup($: EngineInterface): Promise<void> {
     // this lets tests and an already-equipped model receive the short "off" result.
     await step('observe tool', () => registerObserverTool($))
     saving?.cancel()
-    saving = $.clock.every(SAVE_MS, () => void save($).catch(() => undefined))
+    saving = $.clock.every(SAVE_MS, () => {
+      void checkHandoffReports($).catch(() => undefined)
+      void save($).catch(() => undefined)
+    })
     await step('pane', () => openPane($, false))
     const problem = failed.join(', ')
     if (problem !== lastProblem) $.ui.toast(problem ? `Atlas loaded with problems: ${problem}` : 'Atlas ready: /atlas or the footer button')
@@ -667,7 +700,18 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     observedThisTurn = false
     await ensureBound($)
-    await edit($, (s, now) => startTurn(s, e.text, now))
+    await checkHandoffReports($)
+    const rawText = String(e.text ?? '')
+    const marker = reportMarker(rawText)
+    await edit($, (s, now) => {
+      let nextState = startTurn(s, rawText, now)
+      if (marker) return reportHandoff(nextState, marker.summary, now, marker.agent ?? undefined)
+      // Only a genuinely typed remainder closes an unreported hand-off. A
+      // marker-only engine turn therefore neither creates a prompt nor closes
+      // the running delegation.
+      if (nextState.events.at(-1)?.kind === 'prompt') nextState = closeUnverifiedHandoffs(nextState, now)
+      return nextState
+    })
     return result
   })
 
@@ -717,12 +761,18 @@ export const register: Register = (on, options) => {
     const input = e as unknown as Raw
     const c = classify(tool, input)
     if (!c) return next(e)
+    const delegation = handoffStart(tool, input)
     await ensureBound($)
     const aid = `a${++activitySeq}`
     const agent = e.agentId ? (agentNames.get(e.agentId) ?? 'agent') : null
     const asked = tool === 'AskUserQuestion' ? askedQuestions(input) : []
+    let handoffId: string | undefined
     await edit($, (s, now) => {
       let out = startActivity(s, { id: aid, kind: c.kind, label: c.label, at: now, agent })
+      if (delegation) {
+        out = startHandoff(out, delegation.label, delegation.agent, delegation.brief, expectedReportPath(root, delegation.brief), now)
+        handoffId = out.handoffs.at(-1)?.id
+      }
       for (const q of asked) out = addQuestion(out, q, 'claude', now)
       return out
     })
@@ -749,6 +799,10 @@ export const register: Register = (on, options) => {
       }
       return out
     })
+    if (delegation && !delegation.external) {
+      const summaryText = `${delegation.agent} ${failed ? 'failed' : 'completed'}`
+      await edit($, (s, now) => reportHandoff(s, summaryText, now, delegation.agent, handoffId))
+    }
     return ran
   })
 
@@ -789,20 +843,25 @@ export const register: Register = (on, options) => {
     const now = await $.clock.now()
     const scan = await scanState($)
     const width = Math.max(20, (e.props.bodyColumns || 48) - 2)
-    const Client = 'Client' in t ? t.Client : undefined
+    // The generated declarations say desktop accepts Client, but the current
+    // desktop host can still reject this plugin's surface module at load. Keep
+    // the literal path for terminal Client modules and use a static renderer on
+    // desktop so the host's diagnostic never becomes pane content.
+    const Client = e.surface === 'desktop' ? undefined : ('Client' in t ? t.Client : undefined)
     const live = (key: string, rows: LiveRow[], scanProps?: { active: boolean; startedAt: number; result: string | null; resultAt: number; now: number }) =>
       Client ? (
         <Client key={`live-${key}`} module="./live.tsx" props={scanProps ? { rows: plain(rows), tones: TONES, scan: scanProps } : { rows: plain(rows), tones: TONES }} />
       ) : (
         <Box key={`live-${key}`} flexDirection="column">
-          {rows.map(r => (
-            <Text wrap="truncate-end">{r.segs.map(seg => (seg.spin ? '… ' : seg.t)).join('')}</Text>
+          {rows.map((r, i) => (
+            <Text key={`static-${i}`} wrap="truncate-end">{r.segs.map(seg => (seg.spin ? '… ' : seg.t)).join('')}</Text>
           ))}
         </Box>
       )
     const el = { Box: t.Box, Text: t.Text, Button: t.Button, Input: 'Input' in t ? t.Input : undefined }
     const rows = Math.max(8, e.props.scroll?.bodyRows ?? e.viewport?.rows ?? 30)
-    const drawn = pane({ el, width, rows, now, mode, setupDefault: configuredMode, scan, view: renderView, live, act: a => void act($, a).catch(err => $.ui.toast(`atlas: ${err instanceof Error ? err.message : String(err)}`)) }, s)
+    const surface = (e.surface ?? 'terminal') as Surface
+    const drawn = pane({ el, surface, width, rows, now, mode, setupDefault: configuredMode, scan, view: renderView, live, act: a => void act($, a).catch(err => $.ui.toast(`atlas: ${err instanceof Error ? err.message : String(err)}`)) }, s)
     maxScroll = drawn.maxScroll
     maxPopupScroll = drawn.maxPopupScroll
     return drawn.tree

@@ -12,6 +12,7 @@ import type {
   AtlasDetour,
   AtlasEvent,
   AtlasFile,
+  AtlasHandoff,
   AtlasItem,
   AtlasRecall,
   AtlasSnapshot,
@@ -30,6 +31,7 @@ export const LIMITS = {
   checkpoints: 40,
   suggestions: 10,
   history: 20,
+  handoffs: 20,
 } as const
 
 export type Shift = 'same' | 'subtopic' | 'sibling' | 'possible-detour' | 'return'
@@ -96,6 +98,7 @@ export function emptySnapshot(sessionId: string, root: string, now: number): Atl
     checkpoints: [],
     files: [],
     activity: [],
+    handoffs: [],
     events: [],
     pendingContext: [],
     recall: [],
@@ -112,18 +115,18 @@ export function hydrate(raw: unknown, sessionId: string, root: string, now: numb
   const s = raw as Partial<AtlasSnapshot>
   if (s.v !== 1) return base
   const detour = s.detour ? { ...s.detour, exclusions: s.detour.exclusions ?? [] } : null
-  return { ...base, ...s, detour, sessionId, root, fresh: [], activity: (s.activity ?? []).map(a => (a.state === 'running' ? { ...a, state: 'failed' as const, endedAt: a.endedAt ?? now } : a)) }
+  return { ...base, ...s, detour, sessionId, root, fresh: [], activity: (s.activity ?? []).map(a => (a.state === 'running' ? { ...a, state: 'failed' as const, endedAt: a.endedAt ?? now } : a)), handoffs: (s.handoffs ?? []).map(h => h.status === 'open' ? { ...h, status: 'closed' as const, summary: h.summary ?? 'session ended', tests: h.tests ?? null } : h) }
 }
 
 // A snapshot that survived a reload of an older build keeps its old shape in state:
 // fill every field added since, so no reader ever meets undefined. Cheap and idempotent.
 export function upgrade(s: AtlasSnapshot): AtlasSnapshot {
   const partial = s as Partial<AtlasSnapshot>
-  const needs = partial.detectedGoal === undefined || !Array.isArray(partial.recall) || !Array.isArray(partial.adopted) || !partial.scanned || (s.detour && !Array.isArray(s.detour.exclusions)) || s.detourHistory.some(d => !Array.isArray(d.exclusions))
+  const needs = partial.detectedGoal === undefined || !Array.isArray(partial.recall) || !Array.isArray(partial.adopted) || !partial.scanned || !Array.isArray(partial.handoffs) || (s.detour && !Array.isArray(s.detour.exclusions)) || s.detourHistory.some(d => !Array.isArray(d.exclusions))
   if (!needs) return s
   const base = emptySnapshot(s.sessionId, s.root, s.startedAt)
   const withEx = <T extends { exclusions?: string[] }>(d: T) => ({ ...d, exclusions: d.exclusions ?? [] })
-  return { ...base, ...s, detectedGoal: partial.detectedGoal ?? null, recall: partial.recall ?? [], adopted: partial.adopted ?? [], scanned: partial.scanned ?? 'none', detour: s.detour ? withEx(s.detour) : null, detourHistory: s.detourHistory.map(withEx) }
+  return { ...base, ...s, detectedGoal: partial.detectedGoal ?? null, recall: partial.recall ?? [], adopted: partial.adopted ?? [], scanned: partial.scanned ?? 'none', handoffs: partial.handoffs ?? [], detour: s.detour ? withEx(s.detour) : null, detourHistory: s.detourHistory.map(withEx) }
 }
 
 function id(s: AtlasSnapshot, prefix: string): [string, AtlasSnapshot] {
@@ -139,6 +142,24 @@ function event(s: AtlasSnapshot, kind: AtlasEvent['kind'], text: string, now: nu
   const [eid, next] = id(s, 'e')
   const made: AtlasEvent = { id: eid, at: now, turn: s.turn, kind, text: kind === 'prompt' ? text : clip(text, 160), ...(detail?.length ? { detail } : {}) }
   return { ...next, events: keep([...next.events, made], LIMITS.events) }
+}
+
+// Rendering a long run of identical evidence rows as one event keeps the Trail
+// useful without growing the stored event list or changing LIMITS.
+export function collapseEvents(events: AtlasEvent[]): AtlasEvent[] {
+  const out: AtlasEvent[] = []
+  for (const current of events) {
+    const previous = out[out.length - 1]
+    const currentText = current.text.replace(/ ×\d+$/, '')
+    const previousText = previous?.text.replace(/ ×\d+$/, '') ?? ''
+    if (previous && current.kind === 'checkpoint' && previous.kind === 'checkpoint' && currentText === previousText) {
+      const count = Number(/ ×(\d+)$/.exec(previous.text)?.[1] ?? 1) + 1
+      out[out.length - 1] = { ...current, text: `${currentText} ×${count}` }
+    } else {
+      out.push(current)
+    }
+  }
+  return out
 }
 
 function flash(s: AtlasSnapshot, ...ids: string[]): AtlasSnapshot {
@@ -357,6 +378,40 @@ export function sentences(text: string): string[] {
   return (text.match(/[^.!?\n]+[.!?]*/g) ?? [text]).map(p => p.trim()).filter(Boolean)
 }
 
+type ReportMarker = { agent: string | null; summary: string }
+
+function markerLines(body: string): string[] {
+  return body.replace(/<\/?(?:task-notification|agent-message)\b[^>]*>/gi, '').split(/\r?\n/).map(line => line.replace(/^\s+|\s+$/g, '')).filter(Boolean)
+}
+
+// Engine-originated blocks are not prompts. Pasted content and image notices
+// remain visible as compact typed-language stand-ins; notification blocks are
+// consumed by delegation observation instead.
+export function stripPromptMarkers(text: string): string {
+  let body = text
+  body = body.replace(/<task-notification\b[^>]*>[\s\S]*?<\/task-notification>/gi, '')
+  body = body.replace(/<agent-message\b[^>]*>[\s\S]*?<\/agent-message>/gi, '')
+  body = body.replace(/<pasted_content\b[^>]*>([\s\S]*?)<\/pasted_content>/gi, (_whole, inner: string) => {
+    const count = inner.trim() ? inner.trim().split(/\r?\n/).length : 0
+    return `pasted ${count} lines`
+  })
+  body = body.replace(/\[Image\s+#\d+\]/gi, 'image')
+  return body.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+export function reportMarker(text: string): ReportMarker | null {
+  const matches = [...text.matchAll(/<(task-notification|agent-message)\b([^>]*)>([\s\S]*?)<\/\1>/gi)]
+  if (!matches.length) return null
+  const last = matches[matches.length - 1]
+  const attrs = last?.[2] ?? ''
+  const fromMatch = /\bfrom\s*=\s*(?:["']([^"']+)["']|([^\s>]+))/i.exec(attrs)
+  const from = fromMatch?.[1] ?? fromMatch?.[2] ?? null
+  const lines = markerLines(last?.[3] ?? '')
+  const chosen = lines.find(line => /^summary\s*:/i.test(line)) ?? lines.find(line => /^status\s*:/i.test(line)) ?? lines[0]
+  const summary = chosen?.replace(/^(?:summary|status)\s*:\s*/i, '').trim() || (from ? `Report from ${from}` : 'Report received')
+  return { agent: from, summary: clip(summary, 140) }
+}
+
 // The points a longer prompt makes, after its first sentence: list items as written,
 // other lines split into sentences. The event keeps the full prompt separately.
 // Heuristic, no model; at most 6.
@@ -387,7 +442,7 @@ function sentenceWith(text: string, cue: RegExp): string {
 }
 
 export function startTurn(s: AtlasSnapshot, text: string, now: number): AtlasSnapshot {
-  const body = text.trim()
+  const body = stripPromptMarkers(text)
   let next: AtlasSnapshot = { ...s, turn: s.turn + 1 }
   if (!body) return next
   next = event(next, 'prompt', body, now, promptBullets(body))
@@ -413,12 +468,46 @@ export function endActivity(s: AtlasSnapshot, aid: string, state: 'done' | 'fail
   return { ...s, activity: s.activity.map(a => (a.id === aid ? { ...a, state, endedAt: now, label: label ?? a.label } : a)) }
 }
 
-export function touchFile(s: AtlasSnapshot, path: string, op: 'read' | 'write', now: number): AtlasSnapshot {
+export function startHandoff(s: AtlasSnapshot, label: string, agent: string, brief: string | null, reportPath: string | null, now: number): AtlasSnapshot {
+  const body = clip(label, 120) || agent || 'external agent'
+  const [hid, next] = id(s, 'h')
+  const handoff: AtlasHandoff = { id: hid, label: body, agent: clip(agent, 40) || 'agent', brief: brief ? clip(brief, 240) : null, reportPath: reportPath ? clip(reportPath, 400) : null, at: now, turn: s.turn, status: 'open', summary: null, tests: null, files: [] }
+  const path = brief ? ` · ${brief}` : ''
+  return flash(event({ ...next, handoffs: keep([...next.handoffs, handoff], LIMITS.handoffs) }, 'handoff', `→ ${body}${path}`, now), hid)
+}
+
+function handoffFor(s: AtlasSnapshot, agent?: string, idHint?: string): AtlasHandoff | null {
+  const open = s.handoffs.filter(h => h.status === 'open')
+  if (idHint) return open.find(h => h.id === idHint) ?? null
+  if (agent) return [...open].reverse().find(h => h.agent.toLowerCase() === agent.toLowerCase()) ?? null
+  return open.at(-1) ?? null
+}
+
+export function reportHandoff(s: AtlasSnapshot, summaryText: string, now: number, agent?: string, idHint?: string, tests: string | null = null, files: string[] = []): AtlasSnapshot {
+  const hit = handoffFor(s, agent, idHint)
+  const summary = clip(summaryText, 140) || 'Report received'
+  const uniqueFiles = [...new Set(files.filter(Boolean))].slice(0, 20)
+  const marked = hit
+    ? s.handoffs.map(h => h.id === hit.id ? { ...h, status: 'reported' as const, summary, tests: tests ? clip(tests, 140) : h.tests, files: uniqueFiles.length ? uniqueFiles : h.files } : h)
+    : s.handoffs
+  const suffix = `${uniqueFiles.length ? ` · ${uniqueFiles.length} files` : ''}${tests ? ` · ${clip(tests, 100)}` : ''}`
+  return event({ ...s, handoffs: marked }, 'report-back', `← ${summary}${suffix}`, now)
+}
+
+export function closeUnverifiedHandoffs(s: AtlasSnapshot, now: number): AtlasSnapshot {
+  const open = s.handoffs.filter(h => h.status === 'open')
+  if (!open.length) return s
+  let next: AtlasSnapshot = { ...s, handoffs: s.handoffs.map(h => h.status === 'open' ? { ...h, status: 'closed' as const, summary: 'back · unverified' } : h) }
+  for (const h of open) next = event(next, 'report-back', `← back · unverified${h.label ? ` · ${h.label}` : ''}`, now)
+  return next
+}
+
+export function touchFile(s: AtlasSnapshot, path: string, op: 'read' | 'write', now: number, source?: string): AtlasSnapshot {
   if (!path) return s
   const hit = s.files.find(f => f.path === path)
   const file: AtlasFile = hit
-    ? { ...hit, reads: hit.reads + (op === 'read' ? 1 : 0), writes: hit.writes + (op === 'write' ? 1 : 0), lastOp: op, at: now, turn: s.turn }
-    : { path, reads: op === 'read' ? 1 : 0, writes: op === 'write' ? 1 : 0, lastOp: op, at: now, turn: s.turn }
+    ? { ...hit, reads: hit.reads + (op === 'read' ? 1 : 0), writes: hit.writes + (op === 'write' ? 1 : 0), lastOp: op, at: now, turn: s.turn, ...(source ? { source } : {}) }
+    : { path, reads: op === 'read' ? 1 : 0, writes: op === 'write' ? 1 : 0, lastOp: op, at: now, turn: s.turn, ...(source ? { source } : {}) }
   const rest = s.files.filter(f => f.path !== path)
   return { ...s, files: keep([...rest, file], LIMITS.files) }
 }
@@ -436,7 +525,8 @@ export function addCheckpoint(s: AtlasSnapshot, name: string, kind: AtlasCheckpo
   const [cid, next] = id(s, 'c')
   const label = clip(name, 60) || `checkpoint-${s.checkpoints.length + 1}`
   const cp: AtlasCheckpoint = { id: cid, name: label, at: now, turn: s.turn, kind, goal: s.goal?.text ?? null, topic: currentTopic(s)?.title ?? null, files, detail: detail ? clip(detail, 120) : null }
-  return flash(event({ ...next, checkpoints: keep([...next.checkpoints, cp], LIMITS.checkpoints) }, 'checkpoint', `${kindLabel(kind)}: ${label}`, now), cid)
+  const text = kind === 'tests' ? `${kindLabel(kind)} · ${detail ? clip(detail, 120) : 'command not recorded'}` : `${kindLabel(kind)}: ${label}`
+  return flash(event({ ...next, checkpoints: keep([...next.checkpoints, cp], LIMITS.checkpoints) }, 'checkpoint', text, now), cid)
 }
 
 function kindLabel(kind: AtlasCheckpoint['kind']): string {
