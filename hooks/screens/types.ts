@@ -7,6 +7,7 @@ export type Action =
   | { type: 'legend' }
   | { type: 'popup'; popup: AtlasPopup }
   | { type: 'popup-scroll'; by: number }
+  | { type: 'expanded-scroll'; by: number }
   | { type: 'scroll'; by: number }
   | { type: 'scroll-to'; at: number }
   | { type: 'trail-sort' }
@@ -96,6 +97,7 @@ export type ScreenSection = {
   key: string
   heading: string
   explain: string
+  help: string[]
   count?: string
   right?: string
   tone?: ToneKey
@@ -107,7 +109,7 @@ export type ScreenSection = {
 }
 
 export type ScreenPopup = {
-  kind: 'event' | 'legend' | 'item'
+  kind: 'event' | 'item'
   id?: string
   title: string
   titleCount?: string

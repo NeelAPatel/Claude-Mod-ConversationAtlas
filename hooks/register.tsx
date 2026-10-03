@@ -81,6 +81,7 @@ const DEFAULT_VIEW: AtlasView = {
   popupScroll: 0,
   legendScroll: 0,
   scroll: 0,
+  expandedScroll: 0,
   trailNewest: true,
   expanded: null,
 }
@@ -120,6 +121,7 @@ let maxScroll = 0
 // How far the currently open popup can scroll at the last draw.
 let maxPopupScroll = 0
 let maxLegendScroll = 0
+let maxExpandedScroll = 0
 let scanOnLaunch: 'off' | 'engine' | 'claude' = 'engine'
 let configuredMode: AtlasMode = 'claude'
 let observerToolRegistered = false
@@ -420,6 +422,8 @@ async function act($: EngineInterface, a: Action): Promise<void> {
       return setView($, v => ({ ...v, legend: false, popup: v.popup?.kind === a.popup.kind && v.popup.id === a.popup.id ? null : a.popup, popupScroll: 0 }))
     case 'popup-scroll':
       return setView($, v => ({ ...v, popupScroll: Math.max(0, Math.min(maxPopupScroll, v.popupScroll + a.by)) }))
+    case 'expanded-scroll':
+      return setView($, v => ({ ...v, expandedScroll: Math.max(0, Math.min(maxExpandedScroll, v.expandedScroll + a.by)) }))
     case 'scroll':
       if (await isLegendOpen($)) return setView($, v => ({ ...v, legendScroll: Math.max(0, Math.min(maxLegendScroll, v.legendScroll + a.by)) }))
       return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, v.scroll + a.by)), popup: null, popupScroll: 0 }))
@@ -428,7 +432,7 @@ async function act($: EngineInterface, a: Action): Promise<void> {
     case 'trail-sort':
       return setView($, v => ({ ...v, trailNewest: !v.trailNewest, popup: null, popupScroll: 0 }))
     case 'expand':
-      return setView($, v => ({ ...v, expanded: v.expanded === a.id ? null : a.id, popup: null, popupScroll: 0 }))
+      return setView($, v => ({ ...v, expanded: v.expanded === a.id ? null : a.id, expandedScroll: 0, popup: null, popupScroll: 0 }))
     case 'exclude':
       await edit($, (s, now) => setItemStatus(s, a.id, 'excluded', now))
       await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
@@ -910,6 +914,7 @@ export const register: Register = (on, options) => {
     maxScroll = drawn.maxScroll
     maxPopupScroll = drawn.maxPopupScroll
     maxLegendScroll = drawn.maxLegendScroll
+    maxExpandedScroll = drawn.maxExpandedScroll
     return drawn.tree
   })
 
@@ -922,6 +927,10 @@ export const register: Register = (on, options) => {
     }
     if (view?.legend) {
       await setView($, v => ({ ...v, legendScroll: Math.max(0, Math.min(maxLegendScroll, v.legendScroll + e.by)) }))
+      return {}
+    }
+    if (view?.expanded?.startsWith('section:')) {
+      await setView($, v => ({ ...v, expandedScroll: Math.max(0, Math.min(maxExpandedScroll, v.expandedScroll + e.by)) }))
       return {}
     }
     await setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, v.scroll + e.by)) }))

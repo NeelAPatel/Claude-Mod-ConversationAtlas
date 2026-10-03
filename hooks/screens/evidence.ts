@@ -13,9 +13,47 @@ const explain: Record<string, string> = {
   'EARLIER SESSIONS': 'Earlier sessions in this project. Resume brings back their goal, next step and decisions.',
   FILES: 'Every file touched this session, most edited first.',
 }
+const help: Record<string, string[]> = {
+  CHECKPOINTS: [
+    'Return points and evidence recorded during the work.',
+    '⚑ marks commits, passing tests, milestones and your marks.',
+    'Press one to inspect its source, time, goal, topic and files.',
+    'A checkpoint is evidence, not a decision by itself.',
+  ],
+  'SETTLED (LEDGER)': [
+    'Decisions you explicitly settled.',
+    '◆ means Atlas will treat the decision as true until you reopen it.',
+    'Expand a decision for source, topic, time and the attach action.',
+    'Reopen it if the working truth changes.',
+  ],
+  RESOLVED: [
+    'Questions you marked answered.',
+    '✓ means resolved; Reopen puts it back in Open Questions.',
+    'Expand one for its source, timing and topic.',
+    'Resolution is your action, not a new observation.',
+  ],
+  DETOURS: [
+    'Past detours that returned or became the goal.',
+    '↩ means returned; ◎ means the detour was promoted.',
+    'Counts show findings kept and excluded.',
+    'This history explains where the path changed.',
+  ],
+  'EARLIER SESSIONS': [
+    'Sessions Atlas or Trailhead recovered from this project.',
+    '◎ marks an available session; ✓ marks one already adopted.',
+    'Press Resume this to restore its goal, next step and decisions.',
+    'Recovery is always explicit; reading a session does not adopt it.',
+  ],
+  FILES: [
+    'Files touched during this session, sorted by edits.',
+    '✎ means edited; · means read; e/r counts show activity.',
+    'Press a file for path, operation and timing.',
+    'Files are evidence and never become intent automatically.',
+  ],
+}
 
 function section(key: string, heading: string, rows: ScreenRow[], extra: Partial<ScreenSection> = {}): ScreenSection {
-  return { key, heading, explain: explain[heading] ?? heading, rows, ...extra }
+  return { key, heading, explain: explain[heading] ?? heading, help: help[heading] ?? [explain[heading] ?? heading], rows, ...extra }
 }
 
 function checkpointRow(snapshot: AtlasSnapshot, checkpoint: AtlasSnapshot['checkpoints'][number], now: number): ScreenRow {

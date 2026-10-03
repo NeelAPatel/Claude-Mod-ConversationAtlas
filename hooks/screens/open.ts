@@ -11,9 +11,40 @@ const explain: Record<string, string> = {
   'DETOUR FINDINGS': 'Keep is an outcome you take back; Exclude is explored, do not rely on it.',
   'OPEN QUESTIONS': 'Unanswered questions from Claude or you. Mark them resolved when answered.',
 }
+const help: Record<string, string[]> = {
+  'NEEDS YOUR CALL': [
+    'Suggestions from Claude or your wording that need your choice.',
+    '○ marks goal, next and other suggestions; ↳/↩ mark detour and return.',
+    'Press the primary action to confirm; secondary actions dismiss or stay.',
+    'Nothing changes until you press.',
+  ],
+  'OBSERVED DECISIONS': [
+    'Conclusions Atlas heard but you have not settled.',
+    '◇ means observed, not yet true from now on.',
+    'Settle keeps it as knowledge; Drop removes it from the active list.',
+    'Expand a row for source, time, topic and attach-to-message.',
+  ],
+  'DETOUR FINDINGS': [
+    'Observed decisions found while a detour is active.',
+    'Keep takes an outcome back to the main path.',
+    'Exclude records that the detour explored but should not guide work.',
+    'The detour still needs Return or Make it the goal.',
+  ],
+  'OPEN QUESTIONS': [
+    'Questions waiting for an answer.',
+    '? marks open; ✓ marks resolved.',
+    'Press Resolved when the answer is known, or expand for its source.',
+    'Reopen a resolved question if it becomes active again.',
+  ],
+  OPEN: [
+    'Nothing is waiting for your decision right now.',
+    'New suggestions, decisions and questions land in this tab.',
+    'Use the heading notes and Legend to learn the glyphs.',
+  ],
+}
 
 function section(key: string, heading: string, rows: ScreenRow[], extra: Partial<ScreenSection> = {}): ScreenSection {
-  return { key, heading, explain: explain[heading] ?? heading, rows, ...extra }
+  return { key, heading, explain: explain[heading] ?? heading, help: help[heading] ?? [explain[heading] ?? heading], rows, ...extra }
 }
 
 export const buildOpen: ScreenBuilder = (snapshot, view, now): ScreenModel => {

@@ -444,7 +444,7 @@ describe('readability: app bar, legend, resizing', () => {
     await ui.unmount()
   })
 
-  test('active tabs are coloured Text and their headings use the tab accent', { timeoutMs: 20_000 }, async ($, on) => {
+  test('active tabs stay coloured and section headings are Buttons', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await clock.settle()
@@ -456,8 +456,8 @@ describe('readability: app bar, legend, resizing', () => {
     expect(await ui.find({ key: 'tab-trail', type: 'Button' })).toBeUndefined()
     const t = await drawn(ui)
     expect(t).toContain('"children":["▸Trail"]')
-    expect(t).toContain(`"color":"${C.trail}"`)
-    expect(t).toContain('"children":["TRAIL"]')
+    expect(t).toContain('"key":"events-heading"')
+    expect(await ui.find({ key: 'events-heading', type: 'Button' })).toBeDefined()
     await ui.unmount()
     const desktop = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
     if (await desktop.find({ key: 'tab-map', type: 'Button' })) await desktop.press({ key: 'tab-map' })
@@ -745,6 +745,7 @@ describe('milestone 2: screens and surface parity', () => {
     popupScroll: 0,
     legendScroll: 0,
     scroll: 0,
+    expandedScroll: 0,
     trailNewest: true,
     expanded: null,
     mode: 'claude' as const,
@@ -821,9 +822,10 @@ describe('milestone 2: screens and surface parity', () => {
     }
   })
 
-  test('Legend stays compact and its long explanation is a popup', { timeoutMs: 20_000 }, async ($, on) => {
+  test('Legend stays compact and section headings open fuller inline help', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.tool.call({ tool: OBSERVE, topic: 'Heading help' } as any)
     await clock.settle()
     const ui = await $.ui.mount({
       plugin: 'conversation-atlas',
@@ -836,14 +838,48 @@ describe('milestone 2: screens and surface parity', () => {
     const inline = await drawn(ui)
     expect(inline).toContain('HOW TO USE')
     expect(inline).toContain('LEGEND')
-    expect(inline).toContain('legend-more')
-    expect(inline).not.toContain('EXPLAIN NOTES')
-    await ui.press({ key: 'legend-more' })
-    expect(await drawn(ui)).toContain('LEGEND · MORE')
-    expect(await ui.find({ key: 'popup-down' })).toBeDefined()
-    await ui.press({ key: 'popup-close' })
-    expect(await drawn(ui)).not.toContain('LEGEND · MORE')
+    expect(inline).not.toContain('legend-more')
+    expect(inline).not.toContain('LEGEND · MORE')
+    await ui.press({ key: 'tab-trail' })
+    const topicHeading = await ui.find({ key: 'topics-heading', type: 'Button' })
+    expect(topicHeading).toBeDefined()
+    const topicRow = (await ui.findAll({ type: 'Button' })).find((button: any) => String(button.props.key ?? '').startsWith('tsel-'))
+    expect(topicRow).toBeDefined()
+    await ui.press({ key: String(topicRow?.props.key ?? '') })
+    expect(await drawn(ui)).toContain('kind: main')
+    await ui.press({ key: 'topics-heading' })
+    let help = await drawn(ui)
+    expect(help).toContain('The observed topic tree for this session.')
+    expect(help).not.toContain('help-down-topics')
+    expect(help).not.toContain('kind: main')
+    await ui.press({ key: 'topics-heading' })
+    await ui.press({ key: 'events-heading' })
+    help = await drawn(ui)
+    expect(help).toContain('A chronological record of prompts, topics, decisions and checkpoints.')
+    expect(help).toContain('help-down-events')
+    await ui.press({ key: 'help-down-events' })
+    help = await drawn(ui)
+    expect(help).toContain('2/6')
+    await ui.press({ key: 'topics-heading' })
+    const switched = await drawn(ui)
+    expect(switched).toContain('The observed topic tree for this session.')
+    expect(switched).not.toContain('A chronological record of prompts, topics, decisions and checkpoints.')
+    await ui.press({ key: 'topics-heading' })
+    expect(await drawn(ui)).not.toContain('The observed topic tree for this session.')
     await ui.unmount()
+
+    const compact = await $.ui.mount({
+      plugin: 'conversation-atlas',
+      surface: 'terminal',
+      component: 'Pane',
+      requestId: 'atlas',
+      props: { ...PANE_PROPS, scroll: { offset: 0, bodyRows: 14 } },
+    })
+    await compact.press({ key: 'events-heading' })
+    const compactHelp = await drawn(compact)
+    expect(compactHelp).toContain('Press an event to open its full text and points.')
+    expect(compactHelp).not.toContain('Use ↑ for newest first or ↓ for oldest first.')
+    await compact.unmount()
   })
 
   test('terminal standard rows and working-set rows stay one line at 46 and 80 columns', { timeoutMs: 20_000 }, async ($, on) => {

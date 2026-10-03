@@ -363,6 +363,52 @@ function Detail({ ctx, row }: { ctx: Ctx; row: ScreenRow }): RenderElement {
   )
 }
 
+function sectionExpansionId(section: ScreenSection): string {
+  return `section:${section.key}`
+}
+
+function visibleHelpRows(ctx: Ctx, helpLength: number): number {
+  const room = ctx.bodyViewport ?? ctx.rows
+  const target = room >= 12 ? 5 : 3
+  return Math.min(helpLength, target)
+}
+
+function sectionHelp(ctx: Ctx, section: ScreenSection): RenderElement | null {
+  if (ctx.view.expanded !== sectionExpansionId(section)) return null
+  const { Box, Button, Text } = ctx.el
+  const visible = visibleHelpRows(ctx, section.help.length)
+  const max = Math.max(0, section.help.length - visible)
+  const at = Math.min(Math.max(0, ctx.view.expandedScroll), max)
+  const lines = section.help.slice(at, at + visible)
+  return (
+    <Box key={`help-${section.key}`} flexDirection="column" marginLeft={2}>
+      {lines.map((line, index) => (
+        <Text key={`help-line-${section.key}-${index}`} dimColor wrap="truncate-end">{`│ ${line}`}</Text>
+      ))}
+      {max > 0 ? (
+        <Box flexDirection="row">
+          <Text dimColor>│ </Text>
+          <Button
+            key={`help-up-${section.key}`}
+            plain
+            dimColor={at === 0}
+            label="▲"
+            onPress={() => ctx.act({ type: 'expanded-scroll', by: -1 })}
+          />
+          <Text dimColor>{` ${at + 1}/${section.help.length} `}</Text>
+          <Button
+            key={`help-down-${section.key}`}
+            plain
+            dimColor={at >= max}
+            label="▼"
+            onPress={() => ctx.act({ type: 'expanded-scroll', by: 1 })}
+          />
+        </Box>
+      ) : null}
+    </Box>
+  )
+}
+
 function renderSection(ctx: Ctx, section: ScreenSection): RenderElement {
   const { Box, Text, Input } = ctx.el
   const rows = section.rows.length
@@ -389,6 +435,8 @@ function renderSection(ctx: Ctx, section: ScreenSection): RenderElement {
       key: section.key,
       heading: section.heading,
       explain: note,
+      headingPress: () => ctx.act({ type: 'expand', id: sectionExpansionId(section) }),
+      expansion: sectionHelp(ctx, section) ?? undefined,
       count: section.count,
       right: right ?? undefined,
       color: toneColor(section.tone),
@@ -419,40 +467,6 @@ function screenFor(snapshot: AtlasSnapshot, view: ScreenView, now: number): Scre
   return builders[view.tab](snapshot, view, now)
 }
 
-function legendPopup(): ScreenPopup {
-  const rows = [
-    'HOW TO USE',
-    'Plain rows expand structured details inline. Secondary controls are cyan bracketed actions on the terminal and native buttons on desktop.',
-    '◇ decisions and ? open questions use boxed popups. Close or any other action dismisses a popup.',
-    'EXPLAIN NOTES',
-    'GOAL: only you confirm intent.',
-    'CURRENT PATH: Claude reports the observed topic path.',
-    'DETOUR: return sends a one-shot recap to Claude.',
-    'ACTIVITY: engine activity is not settled intent.',
-    'WORKING SET: files are evidence, not decisions.',
-    'LATEST: observations wait for your confirmation.',
-    'MAP OF TOPICS: topic structure is observed.',
-    'TRAIL: events are a chronological record.',
-    'NEEDS YOUR CALL: suggestions need a press.',
-    'CHECKPOINTS: return points and evidence.',
-    'SETTLED (LEDGER): only confirmed decisions.',
-    'RESOLVED: questions you marked answered.',
-    'EARLIER SESSIONS: recovery is explicit.',
-    'FILES: recent working-set files.',
-  ]
-  return {
-    kind: 'legend',
-    title: 'LEGEND · MORE',
-    rows: rows.map((text, index) => ({
-      id: `legend-more-${index}`,
-      key: `legend-more-${index}`,
-      kind: 'text' as const,
-      text,
-      bold: index === 0 || index === 3,
-      dim: index > 3,
-    })),
-  }
-}
 const LEGEND: [GlyphKey, string][] = [
   ['goal', 'your goal (confirmed)'],
   ['suggestion', 'suggestion, needs you'],
@@ -472,7 +486,7 @@ const LEGEND: [GlyphKey, string][] = [
   ['reportBack', 'report back'],
 ]
 function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
-  const { Box, Text, Button } = ctx.el
+  const { Box, Text } = ctx.el
   const columns = ctx.width >= 64 ? 2 : 1
   const width = Math.max(8, Math.floor(ctx.width / columns) - 1)
   const legendRows: [GlyphKey, string][][] = []
@@ -500,10 +514,7 @@ function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
           { marginLeft: 0, gap: 0 },
         )}
       </Box>
-      <Box flexDirection="row" justifyContent="space-between">
-        <Text bold>LEGEND</Text>
-        <Button key="legend-more" label="More" variant="secondary" onPress={() => ctx.act({ type: 'popup', popup: { kind: 'legend' } })} />
-      </Box>
+      <Text bold>LEGEND</Text>
       {legendRows.map((line, index) => (
         <Box key={`lg-${index}`} flexDirection="row">
           {line.map(([name, meaning]) => {
@@ -689,7 +700,6 @@ function itemPopup(row: ScreenRow): ScreenPopup {
   }
 }
 function activePopup(ctx: Ctx, model: ScreenModel): ScreenPopup | undefined {
-  if (ctx.view.popup?.kind === 'legend') return legendPopup()
   if (ctx.view.popup?.kind === 'item') {
     const row = model.sections.flatMap(section => section.rows).find(candidate => candidate.id === ctx.view.popup?.id)
     return row ? itemPopup(row) : undefined
@@ -876,7 +886,13 @@ function scanBanner(ctx: Ctx): RenderElement | null {
   })
 }
 
-export function pane(ctx: Ctx, snapshot: AtlasSnapshot): { tree: RenderElement; maxScroll: number; maxPopupScroll: number; maxLegendScroll: number } {
+export function pane(ctx: Ctx, snapshot: AtlasSnapshot): {
+  tree: RenderElement
+  maxScroll: number
+  maxPopupScroll: number
+  maxLegendScroll: number
+  maxExpandedScroll: number
+} {
   const { Box } = ctx.el
   if (ctx.view.setup)
     return {
@@ -889,6 +905,7 @@ export function pane(ctx: Ctx, snapshot: AtlasSnapshot): { tree: RenderElement; 
       maxScroll: 0,
       maxPopupScroll: 0,
       maxLegendScroll: 0,
+      maxExpandedScroll: 0,
     }
   const model = screenFor(snapshot, { ...ctx.view, mode: ctx.mode }, ctx.now)
   const appRows = appBarRows(ctx, snapshot)
@@ -904,6 +921,10 @@ export function pane(ctx: Ctx, snapshot: AtlasSnapshot): { tree: RenderElement; 
   const viewport = ctx.rows - fixed
   const pinned = viewport >= 4
   const bodyCtx: Ctx = { ...ctx, bodyViewport: viewport }
+  const expandedSection = model.sections.find(section => sectionExpansionId(section) === ctx.view.expanded)
+  const maxExpandedScroll = expandedSection
+    ? Math.max(0, expandedSection.help.length - visibleHelpRows(bodyCtx, expandedSection.help.length))
+    : 0
   let body = renderBody(bodyCtx, model)
   let content = rowsOf(body, ctx.width)
   const bar = pinned && content > viewport
@@ -926,12 +947,10 @@ export function pane(ctx: Ctx, snapshot: AtlasSnapshot): { tree: RenderElement; 
         </Box>
       </Box>
       {scrollbar}
-      {ctx.view.popup?.kind === 'legend' ? popupShell(bodyCtx, legendPopup(), { top: 0, left: 2 }) : null}
     </Box>
   ) : (
     <Box flexDirection="column" position="relative">
       {body}
-      {ctx.view.popup?.kind === 'legend' ? popupShell(bodyCtx, legendPopup(), { top: 0, left: 2 }) : null}
     </Box>
   )
   const tree = (
@@ -949,7 +968,7 @@ export function pane(ctx: Ctx, snapshot: AtlasSnapshot): { tree: RenderElement; 
       {appBar(ctx, snapshot)}
     </Box>
   )
-  return { tree, maxScroll, maxPopupScroll, maxLegendScroll }
+  return { tree, maxScroll, maxPopupScroll, maxLegendScroll, maxExpandedScroll }
 }
 
 export function oneLine(snapshot: AtlasSnapshot): string {

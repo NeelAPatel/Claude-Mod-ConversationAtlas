@@ -10,9 +10,25 @@ const explain: Record<string, string> = {
     'Every topic so far, nested where it branched. Click one for its kind, status, turns, children, decisions, questions and actions.',
   TRAIL: 'What happened: prompts, topics, decisions, checkpoints, hand-offs and reports. Click an event for its full text. ↑ = newest first; ↓ = oldest first.',
 }
+const help: Record<string, string[]> = {
+  'MAP OF TOPICS': [
+    'The observed topic tree for this session.',
+    '● marks the current topic; ○ is a normal topic; ↳/↩ show detour movement.',
+    'Indentation shows parent and child topics; counts show topic coverage.',
+    'Press a topic for status, turns, children and related items.',
+  ],
+  TRAIL: [
+    'A chronological record of prompts, topics, decisions and checkpoints.',
+    '› prompts; ⚑ checkpoints; → hand-offs; ← reports; ✦ marks fresh rows.',
+    'Press an event to open its full text and points.',
+    'Use ↑ for newest first or ↓ for oldest first.',
+    'The heading button opens this fuller explanation.',
+    'Press the heading again to close it; row detail shares this one-open slot.',
+  ],
+}
 
 function section(key: string, heading: string, rows: ScreenRow[], extra: Partial<ScreenSection> = {}): ScreenSection {
-  return { key, heading, explain: explain[heading] ?? heading, rows, ...extra }
+  return { key, heading, explain: explain[heading] ?? heading, help: help[heading] ?? [explain[heading] ?? heading], rows, ...extra }
 }
 
 function eventText(text: string): string {

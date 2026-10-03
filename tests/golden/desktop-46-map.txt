@@ -1,28 +1,28 @@
  Conversation Atlas   {0:color:#7dcfff,bold}
 ▸Map Trail Open 4 Evid  {0:color:yellowBright,bold}
-GOAL change  {0:color:#7dcfff,bold}
+[ GOAL ] change
 ◎ Build a dependable Conversation Atlas pane for long sessions.  {0:color:#7dcfff}
-CURRENT PATH3 earlier  {0:color:#bb9af7,bold|12:dim}
+[ CURRENT PATH ]3 earlier  {16:dim}
 Atlas foundations
   Map rendering  {0:dim}
     ↳ Desktop paritypossible-detour  {0:dim|4:color:#e0af68|20:dim}
       ● Color tokenspossible-detour  {0:dim|6:color:#bb9af7,bold|8:bold|20:dim}
-POSSIBLE DETOUR  {0:color:#e0af68,bold}
+[ POSSIBLE DETOUR ]
 ↳ Desktop paritydetour suggestion · from Claude · Compare native labels before returning.  {0:color:#e0af68|16:dim}
 Take detour Not a detour
-ACTIVITY  {0:bold}
+[ ACTIVITY ]
 × Codex · Reviewing the golden diffnow  {0:color:#f7768e|35:dim}
 ✓ claude plugin test .1m  {0:color:#9ece6a,dim|2:dim|22:dim}
 × Scratch glyph check1m  {0:color:#f7768e|21:dim}
-WORKING SET3 files  {0:bold|11:dim}
+[ WORKING SET ]3 files  {15:dim}
 ✎ golden.test.tsx1 0 1m  {0:color:#ff9e64|17:color:#bb9af7|19:color:#ff9e64|21:dim}
 · atlas.test.tsx0 1 1m  {0:color:#bb9af7|16:color:#bb9af7|18:color:#ff9e64|20:dim}
 ✎ view.tsx1 1 1m  {0:color:#ff9e64|10:color:#bb9af7|12:color:#ff9e64|14:dim}
-LATEST confirm in Open  {0:bold|7:dim}
+[ LATEST ] confirm in Open  {11:dim}
 ◆ Keep renderers pure  {0:color:#9ece6a}
 ◇ Use text goldens for visual review  {0:color:#9ece6a}
 ? Which surface gets the first manual check?  {0:color:#f7768e}
-RESUME NEXTpinned  {0:color:#7dcfff,bold|11:dim}
+[ RESUME NEXT ]pinned  {15:dim}
 ▸ Review the fixed pane sample and approve the visual boundary.  {0:color:#7dcfff}
 Pin as next step Dismiss
 Legend + Mark  {0:dim|7:dim}

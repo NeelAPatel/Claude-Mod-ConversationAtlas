@@ -29,6 +29,8 @@ export type UiSection = {
   key: string
   heading: string
   explain?: string
+  headingPress?: () => void
+  expansion?: RenderElement
   count?: string
   right?: string | RenderElement
   color?: string
@@ -393,13 +395,23 @@ export function Row(ctx: UiContext, row: UiRow): RenderElement {
 }
 
 export function Section(ctx: UiContext, section: UiSection, children: RenderElement): RenderElement {
-  const { Box, Text } = ctx.el
+  const { Box, Text, Button } = ctx.el
   return (
     <Box key={section.key} flexDirection="column" marginTop={1}>
       <Box flexDirection="row" flexShrink={0}>
-        <Text bold color={section.color} dimColor={section.dim} wrap="truncate-end">
-          {section.heading}
-        </Text>
+        {section.headingPress ? (
+          <Button
+            key={`${section.key}-heading`}
+            {...(isGui(ctx.surface) ? { variant: 'secondary' as const } : { plain: true as const })}
+            dimColor={section.dim}
+            label={`[ ${section.heading} ]`}
+            onPress={section.headingPress}
+          />
+        ) : (
+          <Text bold color={section.color} dimColor={section.dim} wrap="truncate-end">
+            {section.heading}
+          </Text>
+        )}
         <Box flexGrow={1} />
         {section.count ? (
           <Text dimColor wrap="truncate-end">
@@ -418,6 +430,7 @@ export function Section(ctx: UiContext, section: UiSection, children: RenderElem
           {section.explain}
         </Text>
       ) : null}
+      {section.expansion}
       {children}
     </Box>
   )

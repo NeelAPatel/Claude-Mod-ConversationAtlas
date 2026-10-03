@@ -16,9 +16,59 @@ const explain: Record<string, string> = {
   LATEST: 'Newest decisions and questions. Confirm decisions in the Open tab.',
   'RESUME NEXT': 'Where to pick up. Pinned is yours; suggested is Claude’s guess.',
 }
+const help: Record<string, string[]> = {
+  GOAL: [
+    'Your confirmed destination for this session.',
+    'Only you set it: confirm a suggestion, type one, or adopt a detected aim.',
+    '◎ is confirmed; ○ is a suggestion waiting for your press.',
+    'Expand the goal row for its source and the action to use a detected aim.',
+  ],
+  'CURRENT PATH': [
+    'Observed topics from the start of this work to now.',
+    '● marks the current topic; ↳ marks a detour; ↩ marks a returned branch.',
+    'The path is read-only; Claude keeps it current when observer mode is on.',
+    'Claude-sourced rows dim in engine-only mode.',
+  ],
+  DETOUR: [
+    'A side trip you explicitly chose from the main path.',
+    '↳ marks the detour; Return sends one recap to Claude with your next message.',
+    'Findings can be kept or excluded before you return.',
+    'Make it the goal to promote this work and keep its history.',
+  ],
+  'POSSIBLE DETOUR': [
+    'Atlas thinks the current topic may be a side trip.',
+    '↳ marks the suggestion; Take detour records a return point.',
+    'Choose Not a detour to leave the main path unchanged.',
+    'No observation becomes intent until you press an action.',
+  ],
+  ACTIVITY: [
+    'Engine and agent work observed during this session.',
+    '✓ means done; ✗ means failed; a live row is still running.',
+    'Edited files use ✎; reads use ·; times at right are recent.',
+    'This evidence never changes your goal or decisions.',
+  ],
+  'WORKING SET': [
+    'Files touched lately, with edited and read counts.',
+    '✎ means edited; · means read; the counts show e/r activity.',
+    'Press a file to inspect its path, operation and timing.',
+    'Add to message points Claude at a file only when you keep its chip.',
+  ],
+  LATEST: [
+    'The newest observed decisions and questions.',
+    '◇ is heard but unsettled; ? is an open question.',
+    'Use the Open tab to confirm or resolve them.',
+    'These rows are observations until you take an action.',
+  ],
+  'RESUME NEXT': [
+    'Where Atlas thinks work should pick up.',
+    '▸ is a suggested next step; pinned means you chose it.',
+    'Press Pin as next step to make it yours.',
+    'Dismiss removes the suggestion without changing the goal.',
+  ],
+}
 
 function section(key: string, heading: string, rows: ScreenRow[], extra: Partial<ScreenSection> = {}): ScreenSection {
-  return { key, heading, explain: explain[heading] ?? heading, rows, ...extra }
+  return { key, heading, explain: explain[heading] ?? heading, help: help[heading] ?? [explain[heading] ?? heading], rows, ...extra }
 }
 
 function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSection {

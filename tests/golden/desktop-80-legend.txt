@@ -1,34 +1,34 @@
  Conversation Atlas   {0:color:#7dcfff,bold}
 ▸Map Trail Open 4 Evid ▲ ▼  {0:color:yellowBright,bold|23:dim}
-GOAL change┃  {0:color:#7dcfff,bold}
+[ GOAL ] change┃
 What you are trying to do. Only you set it: confirm a suggestion, type one, or explicitly adopt Atlas’s detected aim.  {0:italic,dim}
 ◎ Build a dependable Conversation Atlas pane for long sessions.  {0:color:#7dcfff}
-CURRENT PATH3 earlier  {0:color:#bb9af7,bold|12:dim}
+[ CURRENT PATH ]3 earlier  {16:dim}
 Topics from the start of the work to now; the current topic is highlighted. Claude keeps it current.  {0:italic,dim}
 Atlas foundations
   Map rendering  {0:dim}
     ↳ Desktop paritypossible-detour  {0:dim|4:color:#e0af68|20:dim}
       ● Color tokenspossible-detour  {0:dim|6:color:#bb9af7,bold|8:bold|20:dim}
-POSSIBLE DETOUR  {0:color:#e0af68,bold}
+[ POSSIBLE DETOUR ]
 Looks like a side trip. Take it to get a return point, or say it is not one.  {0:italic,dim}
 ↳ Desktop paritydetour suggestion · from Claude · Compare native labels before returning.  {0:color:#e0af68|16:dim}
 Take detour Not a detour
-ACTIVITY  {0:bold}
+[ ACTIVITY ]
 What Claude is doing: spinner = running, done, or failed.  {0:italic,dim}
 × Codex · Reviewing the golden diffnow  {0:color:#f7768e|35:dim}
 ✓ claude plugin test .1m  {0:color:#9ece6a,dim|2:dim|22:dim}
 × Scratch glyph check1m  {0:color:#f7768e|21:dim}
-WORKING SET3 files  {0:bold|11:dim}
+[ WORKING SET ]3 files  {15:dim}
 Files touched lately: edited and read counts. Click one to point Claude at it.  {0:italic,dim}
 ✎ golden.test.tsx1e 0r 1m  {0:color:#ff9e64|17:color:#bb9af7|20:color:#ff9e64|23:dim}
 · atlas.test.tsx0e 1r 1m  {0:color:#bb9af7|16:color:#bb9af7|19:color:#ff9e64|22:dim}
 ✎ view.tsx1e 1r 1m  {0:color:#ff9e64|10:color:#bb9af7|13:color:#ff9e64|16:dim}
-LATEST confirm in Open  {0:bold|7:dim}
+[ LATEST ] confirm in Open  {11:dim}
 Newest decisions and questions. Confirm decisions in the Open tab.  {0:italic,dim}
 ◆ Keep renderers pure  {0:color:#9ece6a}
 ◇ Use text goldens for visual review  {0:color:#9ece6a}
 ? Which surface gets the first manual check?  {0:color:#f7768e}
-RESUME NEXTpinned  {0:color:#7dcfff,bold|11:dim}
+[ RESUME NEXT ]pinned  {15:dim}
 Where to pick up. Pinned is yours; suggested is Claude’s guess.  {0:italic,dim}
 ▸ Review the fixed pane sample and approve the visual boundary.  {0:color:#7dcfff}
 Pin as next step Dismiss
@@ -55,7 +55,7 @@ HOW TO USE  {0:bold}
 Plain rows expand structured details inline. Secondary controls are bracketed on terminal and native on desktop.  {0:dim}
 Topics from the start of the work to now stay observed; press an action to confirm intent.  {0:dim}
 Observer mode: Observer: Claude  {0:dim}
-LEGENDMore  {0:bold}
+LEGEND  {0:bold}
 ◎ your goal (confirmed)○ suggestion, needs you  {0:color:#7dcfff,bold|23:bold}
 ● current topic↳ detour / possible detour  {0:color:#bb9af7,bold|15:color:#e0af68,bold}
 ↩ returned◇ decision, not settled  {0:color:#e0af68,bold|10:color:#9ece6a,bold}
