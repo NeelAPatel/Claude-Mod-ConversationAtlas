@@ -304,8 +304,8 @@ function fileRow(snapshot: AtlasSnapshot, file: AtlasSnapshot['files'][number], 
     glyph: file.lastOp === 'write' ? 'editedFile' : 'readFile',
     text: name,
     metaParts: [
-      { text: `${file.writes}e`, compact: `${file.writes}`, tone: 'read' },
-      { text: `${file.reads}r`, compact: `${file.reads}`, tone: 'write' },
+      { text: `${file.writes}e`, compact: `${file.writes}`, tone: 'write' },
+      { text: `${file.reads}r`, compact: `${file.reads}`, tone: 'read' },
     ],
     right: ago(now - file.at),
     tone: file.lastOp === 'write' ? 'write' : 'read',
@@ -324,7 +324,9 @@ function fileRow(snapshot: AtlasSnapshot, file: AtlasSnapshot['files'][number], 
 function next(snapshot: AtlasSnapshot, view: ScreenView): ScreenSection | null {
   const hint = resumeHint(snapshot)
   if (!hint) return null
-  const suggestion = [...snapshot.suggestions].reverse().find(item => item.kind === 'next')
+  const suggestion = hint.suggestionId
+    ? snapshot.suggestions.find(item => item.id === hint.suggestionId)
+    : undefined
   const needsObserver = Boolean(suggestion && suggestion.source === 'claude' && view.mode === 'engine')
   return section(
     'next',

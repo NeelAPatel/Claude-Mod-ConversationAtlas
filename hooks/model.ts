@@ -958,11 +958,11 @@ export function takeContext(s: AtlasSnapshot): [string[], AtlasSnapshot] {
 }
 
 // What to pick up next, most specific first. Every line says where it came from.
-export function resumeHint(s: AtlasSnapshot): { text: string; source: string } | null {
+export function resumeHint(s: AtlasSnapshot): { text: string; source: string; suggestionId?: string } | null {
   if (s.detour) return { text: `Finish "${s.detour.reason}", then return to ${s.detour.departure.topic ?? s.detour.departure.goal ?? 'the main path'}`, source: 'detour' }
   if (s.nextStep) return { text: s.nextStep, source: 'pinned' }
   const next = [...s.suggestions].reverse().find(x => x.kind === 'next')
-  if (next) return { text: next.text, source: 'suggested' }
+  if (next) return { text: next.text, source: 'suggested', suggestionId: next.id }
   const open = openQuestions(s)
   const lastQ = open[open.length - 1]
   if (lastQ) return { text: `Answer: ${lastQ.text}`, source: 'open question' }

@@ -64,6 +64,7 @@ import {
   atlasFullFileError,
   fromTrailheadFile,
   mergeRecall,
+  pickRecallEntries,
   safeName,
   saveFile,
   sessionsToDelete,
@@ -372,7 +373,16 @@ async function loadRecall($: EngineInterface): Promise<number> {
     } catch {
       continue
     }
-    for (const entry of entries.filter(x => x.kind === 'file' && x.name.endsWith('.json')).slice(0, 80)) {
+    const candidates = entries.filter(x => x.kind === 'file' && x.name.endsWith('.json'))
+    const dated = await Promise.all(candidates.map(async entry => {
+      try {
+        const stat = await $.fs.stat(`${path}/${entry.name}`)
+        return { name: entry.name, mtimeMs: stat.mtimeMs }
+      } catch {
+        return { name: entry.name }
+      }
+    }))
+    for (const entry of pickRecallEntries(dated, 80)) {
       try {
         const text = await $.fs.read(`${path}/${entry.name}`)
         const hit = typeof text === 'string' ? parse(text, root) : null

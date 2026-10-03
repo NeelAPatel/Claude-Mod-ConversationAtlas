@@ -27,7 +27,7 @@ import {
   upgrade,
 } from '../hooks/model'
 import { expectedReportPath, handoffStart, parseHandoffReport, reportChanged, reportFingerprint } from '../hooks/delegation'
-import { atlasFullFileError, fromAtlasFullFile, saveFile, sessionsToDelete } from '../hooks/recall'
+import { atlasFullFileError, fromAtlasFullFile, pickRecallEntries, saveFile, sessionsToDelete } from '../hooks/recall'
 import { replay } from '../hooks/scan'
 import { cellWidth, collapseBarLabels, layoutRow, measuredBarItemWidth, truncateMiddleCells } from '../hooks/ui'
 import { C, rowsOf } from '../hooks/view'
@@ -374,6 +374,17 @@ describe('model: observation never writes intent', () => {
     ]
     expect(sessionsToDelete(entries, 'session:current', 12)).toEqual(['session:old-1', 'session:old-2'])
     expect(sessionsToDelete(entries, 'session:current', 12)).not.toContain('session:current')
+  })
+
+  test('recall entries select the newest 80 deterministically and sort unknown times by name', () => {
+    const entries = Array.from({ length: 100 }, (_, index) => ({ name: `save-${String(index).padStart(3, '0')}.json`, mtimeMs: index }))
+    const shuffledA = [...entries.filter((_entry, index) => index % 2 === 0), ...entries.filter((_entry, index) => index % 2 === 1)]
+    const shuffledB = [...entries].reverse()
+    const expected = entries.slice(20).sort((a, b) => b.mtimeMs - a.mtimeMs || a.name.localeCompare(b.name))
+    expect(pickRecallEntries(shuffledA, 80)).toEqual(expected)
+    expect(pickRecallEntries(shuffledB, 80)).toEqual(expected)
+    expect(pickRecallEntries([{ name: 'z.json' }, { name: 'a.json' }, { name: 'm.json' }], 3).map(entry => entry.name))
+      .toEqual(['a.json', 'm.json', 'z.json'])
   })
 })
 
@@ -1250,6 +1261,48 @@ describe('milestone 2: screens and surface parity', () => {
       expect(first.sections.flatMap(section => section.rows).every(row => row.id && row.key && row.text !== undefined)).toBe(true)
       expect(JSON.stringify(first)).not.toContain('position')
       expect(JSON.stringify(first)).not.toContain('Button')
+    }
+  })
+
+  test('Resume next actions belong only to the suggestion supplying the hint', () => {
+    const suggested = observe(emptySnapshot('resume', ROOT, 0), { next: 'Suggested step' }, 1)
+    const suggestionId = suggested.suggestions.at(-1)?.id
+    expect(suggestionId).toBeTruthy()
+    const resumeRow = (snapshot: ReturnType<typeof emptySnapshot>, mode: 'claude' | 'engine' = 'claude') =>
+      buildMap(snapshot, { ...screenView('map'), mode }, 2).sections.find(section => section.key === 'next')?.rows[0]
+
+    const pinned = resumeRow({ ...suggested, nextStep: 'Pinned step' })
+    expect(pinned?.text).toBe('Pinned step')
+    expect(pinned?.actions).toEqual([])
+    expect(pinned?.dim).toBe(false)
+
+    const detour = resumeRow(startDetour(suggested, 'Detour step', null, 2))
+    expect(detour?.text).toContain('Finish "Detour step"')
+    expect(detour?.actions).toEqual([])
+    expect(detour?.dim).toBe(false)
+
+    const suggestion = resumeRow(suggested)
+    expect(suggestion?.text).toBe('Suggested step')
+    expect(suggestion?.actions?.map(action => action.action)).toEqual([
+      { type: 'confirm', id: suggestionId },
+      { type: 'dismiss', id: suggestionId },
+    ])
+
+    const needsObserver = resumeRow(suggested, 'engine')
+    expect(needsObserver?.actions?.map(action => action.label)).toEqual(['Turn on'])
+  })
+
+  test('file read and write counts keep their semantic tones on Map and Evidence', () => {
+    let snapshot = emptySnapshot('file-counts', ROOT, 0)
+    snapshot = touchFile(snapshot, `${ROOT}/hooks/model.ts`, 'read', 1)
+    snapshot = touchFile(snapshot, `${ROOT}/hooks/model.ts`, 'write', 2)
+    const map = buildMap(snapshot, screenView('map'), 3).sections.find(section => section.key === 'files')?.rows[0]
+    const evidence = buildEvidence(snapshot, screenView('evidence'), 3).sections.find(section => section.key === 'files')?.rows[0]
+    for (const row of [map, evidence]) {
+      expect(row?.metaParts?.map(part => [part.text, part.tone])).toEqual([
+        ['1e', 'write'],
+        ['1r', 'read'],
+      ])
     }
   })
 

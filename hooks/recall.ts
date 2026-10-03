@@ -19,6 +19,18 @@ export type AtlasFullRecall = {
 
 export type StoredSession = { key: string; savedAt: number }
 
+export type RecallEntry = { name: string; mtimeMs?: number }
+
+export function pickRecallEntries<T extends RecallEntry>(entries: T[], limit: number): T[] {
+  return entries.slice().sort((a, b) => {
+    const aKnown = typeof a.mtimeMs === 'number' && Number.isFinite(a.mtimeMs)
+    const bKnown = typeof b.mtimeMs === 'number' && Number.isFinite(b.mtimeMs)
+    if (aKnown && bKnown && a.mtimeMs !== b.mtimeMs) return b.mtimeMs! - a.mtimeMs!
+    if (aKnown !== bKnown) return aKnown ? -1 : 1
+    return a.name < b.name ? -1 : a.name > b.name ? 1 : 0
+  }).slice(0, Math.max(0, limit))
+}
+
 type Raw = Record<string, unknown>
 
 const isRecord = (v: unknown): v is Raw => Boolean(v) && typeof v === 'object' && !Array.isArray(v)
