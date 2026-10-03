@@ -38,15 +38,22 @@ export function action(key: string, label: string, value: Action, primary = fals
 
 export function itemDetails(snapshot: AtlasSnapshot, item: AtlasItem, now: number, kind: string): string[] {
   return [
+    `text: ${item.text}`,
     `kind: ${kind}`,
     `source: ${sourceName(item.source)}`,
     whenLine(now, item.at, item.turn),
     `status: ${item.status}`,
-    ...(topicName(snapshot, item.topicId) ? [`topic: ${topicName(snapshot, item.topicId)}`] : []),
+    `topic: ${topicName(snapshot, item.topicId) ?? 'not recorded'}`,
   ]
 }
 
-export function suggestionRow(snapshot: AtlasSnapshot, suggestion: AtlasSuggestion, view: ScreenView): ScreenRow {
+export function suggestionRow(
+  snapshot: AtlasSnapshot,
+  suggestion: AtlasSuggestion,
+  view: ScreenView,
+  now?: number,
+  allowExpansion = false,
+): ScreenRow {
   const confirm: Record<AtlasSuggestion['kind'], string> = {
     goal: 'Set as goal',
     detour: 'Take detour',
@@ -69,6 +76,7 @@ export function suggestionRow(snapshot: AtlasSnapshot, suggestion: AtlasSuggesti
         ? 'goal'
         : undefined
   const who = suggestion.source === 'claude' ? 'Claude' : suggestion.source === 'cue' ? 'your words' : 'Atlas'
+  const topic = topicName(snapshot, suggestion.topicId)
   return {
     id: suggestion.id,
     key: `sg-${suggestion.id}`,
@@ -82,7 +90,16 @@ export function suggestionRow(snapshot: AtlasSnapshot, suggestion: AtlasSuggesti
       action(`ok-${suggestion.id}`, confirm[suggestion.kind], { type: 'confirm', id: suggestion.id }, true),
       action(`no-${suggestion.id}`, dismiss[suggestion.kind], { type: 'dismiss', id: suggestion.id }),
     ],
-    interactive: false,
+    expandable: allowExpansion,
+    detail: [
+      `text: ${suggestion.text}`,
+      `kind: ${suggestion.kind} suggestion`,
+      `source: ${sourceName(suggestion.source)}`,
+      whenLine(now ?? suggestion.at, suggestion.at, suggestion.turn),
+      `topic: ${topic ?? 'not recorded'}`,
+      ...(suggestion.why ? [`why: ${suggestion.why}`] : []),
+    ],
+    interactive: allowExpansion,
   }
 }
 
@@ -148,11 +165,11 @@ export function itemRow(snapshot: AtlasSnapshot, item: AtlasItem, now: number, v
     tone,
     fresh: snapshot.fresh.includes(item.id),
     italic: withActions && item.status === 'observed',
-    expandable: !(withActions && item.status === 'observed'),
+    expandable: true,
     detail: itemDetails(snapshot, item, now, kind),
     actions: extra,
-    interactive: !(withActions && item.status === 'observed'),
-    overflowPopup: item.text.length > 120 || item.text.split(/\r?\n/).length > 4,
+    interactive: true,
+    overflowPopup: !(withActions && item.status === 'observed') && (item.text.length > 120 || item.text.split(/\r?\n/).length > 4),
   }
 }
 

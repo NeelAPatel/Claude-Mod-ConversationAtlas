@@ -288,15 +288,28 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
         {row.text}
       </Text>
     )
-  if (row.kind === 'suggestion')
+  if (row.kind === 'suggestion' && !row.expandable)
     return (
       <Box key={row.key} flexDirection="column">
         {head}
         {actions(ctx, row.actions ?? [])}
       </Box>
     )
+  if (row.kind === 'suggestion' || row.kind === 'recall') {
+    const extra = [
+      ...(row.actions ?? []),
+      { key: `close-${row.key}`, label: 'Close', action: { type: 'expand', id: row.id } as const },
+    ]
+    return (
+      <Box key={row.key} flexDirection="column">
+        {head}
+        {open ? <Detail ctx={ctx} row={row} /> : null}
+        {open ? actions(ctx, extra) : null}
+      </Box>
+    )
+  }
   if (row.kind === 'activity') return <Box key={row.key}>{head}</Box>
-  if (row.kind === 'next' || row.kind === 'recall' || row.kind === 'detour')
+  if (row.kind === 'next' || row.kind === 'detour')
     return (
       <Box key={row.key} flexDirection="column">
         {head}

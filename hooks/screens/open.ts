@@ -28,7 +28,7 @@ export const buildOpen: ScreenBuilder = (snapshot, view, now): ScreenModel => {
         snapshot.suggestions
           .slice()
           .reverse()
-          .map(item => suggestionRow(snapshot, item, view)),
+          .map(item => suggestionRow(snapshot, item, view, now, true)),
         { tone: 'goal', count: `${snapshot.suggestions.length}` },
       ),
     )

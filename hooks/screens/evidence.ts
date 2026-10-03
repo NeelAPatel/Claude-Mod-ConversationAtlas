@@ -156,7 +156,16 @@ export const buildEvidence: ScreenBuilder = (snapshot, view, now): ScreenModel =
             actions: snapshot.adopted.includes(recall.id)
               ? []
               : [action(`adopt-${recall.id}`, 'Resume this', { type: 'adopt', id: recall.id }, true)],
-            interactive: false,
+            expandable: true,
+            detail: [
+              `goal: ${recall.goal ?? 'no goal recorded'}`,
+              'kind: earlier session',
+              `source: ${recall.source === 'trailhead' ? 'Trailhead' : 'Atlas'}`,
+              `when: ${ago(now - recall.at)}`,
+              `topic: ${recall.topic ?? 'not recorded'}`,
+              ...(recall.nextStep ? [`next step: ${recall.nextStep}`] : []),
+            ],
+            interactive: true,
           })),
         { tone: 'goal', count: `${snapshot.recall.length}` },
       ),
