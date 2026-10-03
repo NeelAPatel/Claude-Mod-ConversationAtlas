@@ -226,6 +226,8 @@ export type AtlasView = {
   expanded: string | null
   // First line shown inside the open section or row expansion.
   expandedScroll: number
+  // Earlier-session full recovery waits here for a second explicit press.
+  fullConfirm: string | null
 }
 
 // A scan is transient render state, not part of the durable conversation map.

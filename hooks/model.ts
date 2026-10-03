@@ -774,6 +774,46 @@ export function setRecall(s: AtlasSnapshot, recall: AtlasRecall[]): AtlasSnapsho
   return { ...s, recall: recall.filter(r => r.sessionId !== s.sessionId).slice(0, 12) }
 }
 
+export function hasConfirmedMap(s: AtlasSnapshot): boolean {
+  return Boolean(s.goal || s.topics.length || s.decisions.length)
+}
+
+function highestIdSequence(value: unknown): number {
+  if (Array.isArray(value)) return value.reduce((max, item) => Math.max(max, highestIdSequence(item)), 0)
+  if (!value || typeof value !== 'object') return 0
+  let max = 0
+  for (const [key, child] of Object.entries(value)) {
+    if (key === 'id' && typeof child === 'string') {
+      const match = /(\d+)$/.exec(child)
+      if (match) max = Math.max(max, Number(match[1]))
+    } else {
+      max = Math.max(max, highestIdSequence(child))
+    }
+  }
+  return max
+}
+
+export function recoverFull(
+  current: AtlasSnapshot,
+  source: { id: string; sessionId: string; snapshot: unknown },
+  now: number,
+): AtlasSnapshot {
+  const loaded = upgrade(hydrate(source.snapshot, current.sessionId, current.root, now))
+  const seq = Math.max(current.seq, loaded.seq, highestIdSequence(loaded))
+  const adopted = [...new Set([...loaded.adopted, source.id])]
+  const next: AtlasSnapshot = {
+    ...loaded,
+    sessionId: current.sessionId,
+    root: current.root,
+    fresh: current.fresh,
+    recall: current.recall,
+    adopted,
+    pendingContext: [],
+    seq,
+  }
+  return event(next, 'resume', `Loaded full map from session ${source.sessionId.slice(0, 8)}`, now)
+}
+
 // Resume an earlier session (Atlas or Trailhead): its goal, next step and settled
 // decisions become yours because you pressed Resume; a detour it was on comes back
 // as a suggestion, so you choose whether to re-enter it.

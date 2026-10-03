@@ -29,6 +29,7 @@ export type Action =
   | { type: 'pin'; text: string }
   | { type: 'edit-goal' }
   | { type: 'adopt'; id: string }
+  | { type: 'adopt-full'; id: string }
   | { type: 'scan' }
   | { type: 'open-setup' }
   | { type: 'set-observer'; mode: AtlasMode }

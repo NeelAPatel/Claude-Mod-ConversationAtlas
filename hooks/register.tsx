@@ -51,11 +51,24 @@ import {
   addDecision,
   addDetourFinding,
   adoptRecall,
+  hasConfirmedMap,
+  recoverFull,
   recordDecision,
   setRecall,
 } from './model'
 import { applyMap, MAP_PROMPT, parseMap, replay, type ScanRow } from './scan'
-import { ATLAS_DIR, fromAtlasFile, fromTrailheadFile, mergeRecall, safeName, saveFile, TRAILHEAD_DIR } from './recall'
+import {
+  ATLAS_DIR,
+  fromAtlasFile,
+  fromAtlasFullFile,
+  fromTrailheadFile,
+  mergeRecall,
+  safeName,
+  saveFile,
+  sessionsToDelete,
+  TRAILHEAD_DIR,
+  type AtlasFullRecall,
+} from './recall'
 import { type Action, oneLine, pane, TONES } from './view'
 import type { Surface } from './ui'
 
@@ -86,6 +99,7 @@ const DEFAULT_VIEW: AtlasView = {
   trailView: 'story',
   expanded: null,
   expandedScroll: 0,
+  fullConfirm: null,
 }
 
 const RULES = `# Conversation Atlas
@@ -372,6 +386,16 @@ async function loadRecall($: EngineInterface): Promise<number> {
   return recall.filter(r => r.sessionId !== sid).length
 }
 
+async function readFullRecall($: EngineInterface, recall: { source: string; sessionId: string }): Promise<AtlasFullRecall | null> {
+  if (recall.source !== 'atlas') return null
+  try {
+    const text = await $.fs.read(`${root}/${ATLAS_DIR}/${safeName(recall.sessionId)}.json`)
+    return typeof text === 'string' ? fromAtlasFullFile(text, root) : null
+  } catch {
+    return null
+  }
+}
+
 // External agents cannot send a turn notification back through the engine. A
 // report file is the deliberately visible bridge; malformed or still-written
 // files are ignored until a later turn/timer check.
@@ -406,12 +430,21 @@ async function save($: EngineInterface): Promise<void> {
   const s = await snap($)
   if (!s || s === lastSaved || s.sessionId !== sid) return
   lastSaved = s
-  await $.store.set(`session:${s.sessionId}`, { ...s, fresh: [], pendingContext: [] })
+  const savedAt = await $.clock.now()
+  await $.store.set(`session:${s.sessionId}`, { ...s, fresh: [], pendingContext: [], savedAt })
   await $.store.set(`project:${s.root}`, { ...summary(s), sessionId: s.sessionId })
   // The project-local copy, so a later session (or another tool) finds this trail on disk.
-  if (s.goal || s.topics.length || s.decisions.length) await $.fs.write(`${s.root}/${ATLAS_DIR}/${safeName(s.sessionId)}.json`, saveFile(s, await $.clock.now()))
-  const sessions = (await $.store.keys()).filter(k => k.startsWith('session:'))
-  for (const old of sessions.slice(0, Math.max(0, sessions.length - KEEP_SESSIONS))) await $.store.delete(old)
+  if (s.goal || s.topics.length || s.decisions.length) await $.fs.write(`${s.root}/${ATLAS_DIR}/${safeName(s.sessionId)}.json`, saveFile(s, savedAt))
+  const keys = (await $.store.keys()).filter(k => k.startsWith('session:'))
+  const entries = await Promise.all(keys.map(async key => ({ key, value: await $.store.get(key) })))
+  const stored = entries.map(entry => {
+    const value = entry.value
+    const savedAt = value && typeof value === 'object' && typeof (value as { savedAt?: unknown }).savedAt === 'number'
+      ? (value as { savedAt: number }).savedAt
+      : 0
+    return { key: entry.key, savedAt }
+  })
+  for (const old of sessionsToDelete(stored, `session:${s.sessionId}`, KEEP_SESSIONS)) await $.store.delete(old)
 }
 
 async function openPane($: EngineInterface, focus: boolean): Promise<boolean> {
@@ -477,9 +510,28 @@ async function act($: EngineInterface, a: Action): Promise<void> {
     }
     case 'adopt':
       await edit($, (s, now) => adoptRecall(s, a.id, now))
-      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0, fullConfirm: null }))
       $.ui.toast('Resumed: the earlier goal, next step and decisions are back')
       return
+    case 'adopt-full': {
+      const current = await snap($)
+      const recall = current?.recall.find(candidate => candidate.id === a.id)
+      if (!current || !recall || recall.source !== 'atlas') return
+      const view = (await $.state.get(VIEW)).value as AtlasView | undefined
+      if (hasConfirmedMap(current) && view?.fullConfirm !== a.id) {
+        await setView($, v => ({ ...v, fullConfirm: a.id, popup: null, popupScroll: 0 }))
+        return
+      }
+      const source = await readFullRecall($, recall)
+      if (!source) {
+        $.ui.toast('Atlas could not load the full saved map')
+        return
+      }
+      await edit($, (s, now) => recoverFull(s, source, now))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0, fullConfirm: null }))
+      $.ui.toast('Loaded the full saved map; the earlier session is now this map')
+      return
+    }
     case 'attach': {
       // A chip in the draft is the only way Atlas text reaches Claude from the pane.
       let n = 1
@@ -571,6 +623,7 @@ const HELP = [
   '  /atlas setup                    show the first-run setup screen again',
   '  /atlas scan                     map the conversation so far with Claude (one cached request)',
   '  /atlas recover [n]              list earlier sessions (Atlas + Trailhead), or resume number n',
+  '  /atlas recover <n> full [confirm] replace this map with an Atlas save',
   "  /atlas reset                    clear this session's map",
 ].join('\n')
 
@@ -641,10 +694,22 @@ async function command($: EngineInterface, args: string): Promise<string> {
       await loadRecall($)
       const list = (await snap($))?.recall ?? []
       if (!list.length) return 'No earlier Atlas or Trailhead sessions found in this project.'
-      const n = Number(text)
+      const [numberText = '', mode = '', confirmation = ''] = rest
+      const n = Number(numberText)
       if (text && Number.isInteger(n) && n >= 1 && n <= list.length) {
         const pick = list[n - 1]
         if (!pick) return 'No such session.'
+        if (mode.toLowerCase() === 'full') {
+          if (pick.source !== 'atlas') return 'Full recovery is available only for Atlas save files.'
+          const current = await snap($)
+          if (current && hasConfirmedMap(current) && confirmation.toLowerCase() !== 'confirm') {
+            return 'this replaces your current map; run /atlas recover <n> full confirm to proceed'
+          }
+          const source = await readFullRecall($, pick)
+          if (!source) return `Could not load the full map for session ${pick.sessionId.slice(0, 8)}.`
+          await edit($, (cur, now) => recoverFull(cur, source, now))
+          return `Loaded full map from session ${pick.sessionId.slice(0, 8)}`
+        }
         await edit($, (cur, now) => adoptRecall(cur, pick.id, now))
         return `Resumed ${pick.source} session ${pick.sessionId.slice(0, 8)}: ${pick.goal ?? 'no goal recorded'}`
       }

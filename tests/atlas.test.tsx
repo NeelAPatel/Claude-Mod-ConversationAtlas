@@ -1,7 +1,29 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { addCheckpoint, closeUnverifiedHandoffs, collapseEvents, confirmSuggestion, emptySnapshot, goalSuggestions, observe, promptBullets, reportHandoff, reportMarker, resolveRepoPath, returnFromDetour, setGoal, setItemStatus, startHandoff, startTurn, stripPromptMarkers, touchFile, upgrade } from '../hooks/model'
+import {
+  addCheckpoint,
+  closeUnverifiedHandoffs,
+  collapseEvents,
+  confirmSuggestion,
+  emptySnapshot,
+  goalSuggestions,
+  observe,
+  promptBullets,
+  recoverFull,
+  reportHandoff,
+  reportMarker,
+  resolveRepoPath,
+  returnFromDetour,
+  setGoal,
+  setItemStatus,
+  startHandoff,
+  startTurn,
+  stripPromptMarkers,
+  touchFile,
+  upgrade,
+} from '../hooks/model'
 import { expectedReportPath, handoffStart, parseHandoffReport, reportChanged, reportFingerprint } from '../hooks/delegation'
+import { fromAtlasFullFile, saveFile, sessionsToDelete } from '../hooks/recall'
 import { cellWidth, collapseBarLabels, layoutRow, measuredBarItemWidth, truncateMiddleCells } from '../hooks/ui'
 import { C, rowsOf } from '../hooks/view'
 import { buildEvidence } from '../hooks/screens/evidence'
@@ -149,6 +171,57 @@ describe('model: observation never writes intent', () => {
     await ui.press({ key: 'update-goal-0' })
     expect(await drawn(ui)).toContain('Polish the desktop surface')
     await ui.unmount()
+  })
+
+  test('full recovery copies the saved map, preserves current identity and advances ids', () => {
+    let source = setGoal(emptySnapshot('source-session', ROOT, 0), 'Recovered full goal', 'person', 1)
+    source = observe(
+      source,
+      {
+        topic: 'Recovered full topic',
+        decisions: ['Recovered decision'],
+        questions: ['Recovered question'],
+        checkpoint: 'Recovered milestone',
+      },
+      2,
+    )
+    source = touchFile(source, `${ROOT}/hooks/model.ts`, 'write', 3)
+    source = {
+      ...source,
+      seq: 99,
+      activity: [{ id: 'a98', kind: 'edit', label: 'Saved edit', state: 'done', at: 3, endedAt: 3, agent: null }],
+    }
+    const current = { ...emptySnapshot('current-session', ROOT, 10), fresh: ['current-fresh'] }
+    const savedText = saveFile(source, 20)
+    const full = fromAtlasFullFile(savedText, ROOT)
+    expect(full?.sessionId).toBe('source-session')
+    expect((full?.snapshot as { activity?: unknown[] }).activity).toHaveLength(1)
+
+    const restored = recoverFull(current, full ?? { id: '', sessionId: '', snapshot: {} }, 30)
+    expect(restored.sessionId).toBe('current-session')
+    expect(restored.root).toBe(ROOT)
+    expect(restored.fresh).toEqual(['current-fresh'])
+    expect(restored.topics).toHaveLength(source.topics.length)
+    expect(restored.decisions).toHaveLength(source.decisions.length)
+    expect(restored.questions).toHaveLength(source.questions.length)
+    expect(restored.checkpoints).toHaveLength(source.checkpoints.length)
+    expect(restored.events).toHaveLength(source.events.length + 1)
+    expect(restored.activity).toHaveLength(source.activity.length)
+    expect(restored.goal?.text).toBe('Recovered full goal')
+    expect(restored.adopted).toContain('atlas:source-session')
+    expect(restored.events.at(-1)?.text).toBe('Loaded full map from session source-s')
+    expect(restored.seq).toBe(100)
+    const withNewId = addCheckpoint(restored, 'After recovery', 'marked', null, 31)
+    expect(withNewId.checkpoints.at(-1)?.id).toBe('c101')
+  })
+
+  test('session pruning keeps the current key and removes the least recently saved old keys', () => {
+    const entries = [
+      { key: 'session:current', savedAt: 0 },
+      ...Array.from({ length: 13 }, (_, index) => ({ key: `session:old-${index + 1}`, savedAt: index + 1 })),
+    ]
+    expect(sessionsToDelete(entries, 'session:current', 12)).toEqual(['session:old-1', 'session:old-2'])
+    expect(sessionsToDelete(entries, 'session:current', 12)).not.toContain('session:current')
   })
 })
 
@@ -388,6 +461,39 @@ describe('merge: Trailhead features inside Atlas', () => {
     expect(text).toContain('Ship the release checklist')
     expect(text).toContain('Wire the checklist pane')
     expect(text).toContain('Investigate flaky tests')
+    await ui.unmount()
+  })
+
+  test('/atlas recover full gates replacement and then loads the saved Atlas map', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    let source = setGoal(emptySnapshot('old-atlas-session', ROOT, 0), 'Recovered saved goal', 'person', 1)
+    source = observe(source, { topic: 'Recovered saved topic', decisions: ['Recovered saved decision'] }, 2)
+    const saved = saveFile(source, 20)
+    on('fs.list', (_$: any, e: any) => {
+      const path = String(e.path)
+      if (/[\\/]\.claude[\\/]atlas$/.test(path)) {
+        return { value: [{ name: 'old-atlas-session.json', kind: 'file', size: saved.length, mtimeMs: 20, isLink: false }] }
+      }
+      return { value: [] }
+    })
+    on('fs.read', (_$: any, e: any) => (String(e.path).endsWith('old-atlas-session.json') ? { value: saved } : { value: undefined }))
+    on('fs.write', () => ({ value: undefined }))
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await clock.settle()
+    await $.command.run({ command: 'atlas', args: 'goal Current map goal', origin: { kind: 'composer' } } as any)
+
+    const refused = await $.command.run({ command: 'atlas', args: 'recover 1 full', origin: { kind: 'composer' } } as any)
+    expect(refused.text).toBe('this replaces your current map; run /atlas recover <n> full confirm to proceed')
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    expect(await drawn(ui)).toContain('Current map goal')
+
+    const loaded = await $.command.run({ command: 'atlas', args: 'recover 1 full confirm', origin: { kind: 'composer' } } as any)
+    expect(loaded.text).toBe('Loaded full map from session old-atla')
+    const map = await drawn(ui)
+    expect(map).toContain('Recovered saved goal')
+    expect(map).toContain('Recovered saved topic')
+    await ui.press({ key: 'tab-open' })
+    expect(await drawn(ui)).toContain('Recovered saved decision')
     await ui.unmount()
   })
 })
@@ -935,6 +1041,7 @@ describe('milestone 2: screens and surface parity', () => {
     legendScroll: 0,
     scroll: 0,
     expandedScroll: 0,
+    fullConfirm: null,
     trailNewest: true,
     trailView: 'story' as const,
     expanded: null,
@@ -966,6 +1073,31 @@ describe('milestone 2: screens and surface parity', () => {
       expect(JSON.stringify(first)).not.toContain('position')
       expect(JSON.stringify(first)).not.toContain('Button')
     }
+  })
+
+  test('Atlas earlier-session expansion offers a confirmed full-resume action', () => {
+    const snapshot = {
+      ...emptySnapshot('current', ROOT, 0),
+      recall: [{
+        id: 'atlas:source-session',
+        source: 'atlas' as const,
+        sessionId: 'source-session',
+        at: 0,
+        goal: 'Saved goal',
+        nextStep: 'Saved next step',
+        detour: null,
+        topic: 'Saved topic',
+        decisions: [],
+      }],
+    }
+    const view = screenView('evidence')
+    const row = buildEvidence(snapshot, view, 1).sections.flatMap(section => section.rows).find(candidate => candidate.id === 'atlas:source-session')
+    expect(row?.actions?.map(item => item.label)).toEqual(['Resume this', 'Resume full'])
+    const pending = buildEvidence(snapshot, { ...view, fullConfirm: 'atlas:source-session' }, 1).sections
+      .flatMap(section => section.rows)
+      .find(candidate => candidate.id === 'atlas:source-session')
+    expect(pending?.actions?.map(item => item.label)).toEqual(['Resume this', 'Confirm full resume'])
+    expect(pending?.detail).toContain('this replaces your current map; press Confirm full resume to proceed')
   })
 
   test('Trail Story groups a turn, keeps the full prompt in its expansion, and marks sources', () => {

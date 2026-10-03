@@ -10,7 +10,7 @@ const explain: Record<string, string> = {
   'SETTLED (LEDGER)': 'Decisions you settled. Treated as true until you reopen them.',
   RESOLVED: 'Questions already answered.',
   DETOURS: 'Past detours: returned or made into the goal.',
-  'EARLIER SESSIONS': 'Earlier sessions in this project. Resume brings back their goal, next step and decisions.',
+  'EARLIER SESSIONS': 'Earlier sessions in this project. Resume brings back intent; Resume full replaces this map with the saved one.',
   FILES: 'Every file touched this session, most edited first.',
 }
 const help: Record<string, string[]> = {
@@ -42,6 +42,7 @@ const help: Record<string, string[]> = {
     'Sessions Atlas or Trailhead recovered from this project.',
     '◎ marks an available session; ✓ marks one already adopted.',
     'Press Resume this to restore its goal, next step and decisions.',
+    'Resume full is available for Atlas saves and replaces this map after confirmation.',
     'Recovery is always explicit; reading a session does not adopt it.',
   ],
   FILES: [
@@ -193,7 +194,18 @@ export const buildEvidence: ScreenBuilder = (snapshot, view, now): ScreenModel =
             dim: snapshot.adopted.includes(recall.id),
             actions: snapshot.adopted.includes(recall.id)
               ? []
-              : [action(`adopt-${recall.id}`, 'Resume this', { type: 'adopt', id: recall.id }, true)],
+              : [
+                  action(`adopt-${recall.id}`, 'Resume this', { type: 'adopt', id: recall.id }, true),
+                  ...(recall.source === 'atlas'
+                    ? [
+                        action(
+                          `adopt-full-${recall.id}`,
+                          view.fullConfirm === recall.id ? 'Confirm full resume' : 'Resume full',
+                          { type: 'adopt-full', id: recall.id },
+                        ),
+                      ]
+                    : []),
+                ],
             expandable: true,
             detail: [
               `goal: ${recall.goal ?? 'no goal recorded'}`,
@@ -202,6 +214,7 @@ export const buildEvidence: ScreenBuilder = (snapshot, view, now): ScreenModel =
               `when: ${ago(now - recall.at)}`,
               `topic: ${recall.topic ?? 'not recorded'}`,
               ...(recall.nextStep ? [`next step: ${recall.nextStep}`] : []),
+              ...(view.fullConfirm === recall.id ? ['this replaces your current map; press Confirm full resume to proceed'] : []),
             ],
             interactive: true,
           })),

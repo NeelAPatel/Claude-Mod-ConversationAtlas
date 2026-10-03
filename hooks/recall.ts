@@ -11,6 +11,14 @@ export const ATLAS_DIR = '.claude/atlas'
 export const TRAILHEAD_DIR = '.claude/trailhead'
 export const SAVE_FORMAT = 'conversation-atlas'
 
+export type AtlasFullRecall = {
+  id: string
+  sessionId: string
+  snapshot: unknown
+}
+
+export type StoredSession = { key: string; savedAt: number }
+
 type Raw = Record<string, unknown>
 
 const isRecord = (v: unknown): v is Raw => Boolean(v) && typeof v === 'object' && !Array.isArray(v)
@@ -21,7 +29,7 @@ export function safeName(sessionId: string): string {
 }
 
 export function saveFile(s: AtlasSnapshot, savedAt: number): string {
-  const { activity: _activity, fresh: _fresh, pendingContext: _pending, recall: _recall, ...kept } = s
+  const { fresh: _fresh, pendingContext: _pending, recall: _recall, ...kept } = s
   return JSON.stringify({ format: SAVE_FORMAT, v: 1, savedAt, sessionId: s.sessionId, root: s.root, summary: summary(s), snapshot: kept })
 }
 
@@ -35,16 +43,16 @@ function parse(text: string): Raw | null {
 }
 
 export function fromAtlasFile(text: string, root: string): AtlasRecall | null {
+  const full = fromAtlasFullFile(text, root)
+  if (!full || !isRecord(full.snapshot)) return null
   const v = parse(text)
-  if (!v || v.format !== SAVE_FORMAT || !isRecord(v.snapshot)) return null
-  const sessionId = str(v.sessionId)
-  if (!sessionId || (str(v.root) && str(v.root)?.toLowerCase() !== root.toLowerCase())) return null
-  const snap = v.snapshot as Partial<AtlasSnapshot>
+  if (!v) return null
+  const snap = full.snapshot as Partial<AtlasSnapshot>
   const settled = (snap.decisions ?? []).filter(d => d.status === 'settled').map(d => d.text)
   return {
-    id: `atlas:${sessionId}`,
+    id: full.id,
     source: 'atlas',
-    sessionId,
+    sessionId: full.sessionId,
     at: typeof v.savedAt === 'number' ? v.savedAt : 0,
     goal: snap.goal?.text ?? null,
     nextStep: snap.nextStep ?? null,
@@ -52,6 +60,14 @@ export function fromAtlasFile(text: string, root: string): AtlasRecall | null {
     topic: isRecord(v.summary) ? str(v.summary.topic) : null,
     decisions: settled.slice(-8),
   }
+}
+
+export function fromAtlasFullFile(text: string, root: string): AtlasFullRecall | null {
+  const v = parse(text)
+  if (!v || v.format !== SAVE_FORMAT || !isRecord(v.snapshot)) return null
+  const sessionId = str(v.sessionId)
+  if (!sessionId || (str(v.root) && str(v.root)?.toLowerCase() !== root.toLowerCase())) return null
+  return { id: `atlas:${sessionId}`, sessionId, snapshot: v.snapshot }
 }
 
 // One Trailhead checkpoint envelope: { format, checkpointSequence, savedAt, projectRoot, sessionId, snapshot }.
@@ -94,4 +110,17 @@ export function mergeRecall(list: (AtlasRecall & { seq?: number })[]): AtlasReca
   return [...best.values()]
     .sort((a, b) => b.at - a.at)
     .map(({ seq: _seq, ...r }) => r)
+}
+
+export function sessionsToDelete(entries: StoredSession[], currentKey: string, keep: number): string[] {
+  const ordered = entries.slice().sort((a, b) => a.savedAt - b.savedAt || a.key.localeCompare(b.key))
+  const deleted: string[] = []
+  let remaining = ordered.length
+  for (const entry of ordered) {
+    if (remaining <= keep) break
+    if (entry.key === currentKey) continue
+    deleted.push(entry.key)
+    remaining -= 1
+  }
+  return deleted
 }
