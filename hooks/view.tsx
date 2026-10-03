@@ -23,7 +23,7 @@ import {
 import { buildEvidence } from './screens/evidence'
 import { buildMap } from './screens/map'
 import { buildOpen } from './screens/open'
-import { buildTrail } from './screens/trail'
+import { buildTrail, trailViewPopup } from './screens/trail'
 import { ago } from './screens/shared'
 import type {
   Action,
@@ -260,7 +260,13 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
               : { type: 'expand', id: row.id },
         )
     : undefined
-  const prefix = `${indent}${row.fresh ? `${GLYPH.fresh.char} ` : ''}${g ? `${g.char} ` : ''}${open ? `${GLYPH.expanded.char} ` : ''}`
+  const prefix = [
+    indent,
+    row.fresh ? `${GLYPH.fresh.char} ` : '',
+    row.sourceMark ? `${row.sourceMark} ` : '',
+    g ? `${g.char} ` : '',
+    open ? `${GLYPH.expanded.char} ` : '',
+  ].join('')
   const layout = layoutRow({
     width: ctx.width,
     prefix,
@@ -275,6 +281,9 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
       {indent ? <Text dimColor>{indent}</Text> : null}
       {row.fresh ? (
         <Text color={GLYPH.fresh.color} bold>{`${GLYPH.fresh.char} `}</Text>
+      ) : null}
+      {row.sourceMark ? (
+        <Text color={row.sourceMarkColor} dimColor={row.dim} italic={row.italic}>{`${row.sourceMark} `}</Text>
       ) : null}
       {g ? (
         <Text color={g.color} dimColor={row.dim} bold={row.bold || open}>{`${g.char} `}</Text>
@@ -564,6 +573,7 @@ function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
       <Text dimColor wrap="wrap">
         Topics from the start of the work to now stay observed; press an action to confirm intent.
       </Text>
+      <Text dimColor>Trail source marks: › you · C Claude · ⚙ engine</Text>
       <Box flexDirection="row" gap={1}>
         <Text dimColor>Observer mode:</Text>
         {actions(
@@ -764,6 +774,7 @@ function itemPopup(row: ScreenRow): ScreenPopup {
   }
 }
 function activePopup(ctx: Ctx, model: ScreenModel): ScreenPopup | undefined {
+  if (ctx.view.popup?.kind === 'trail-view') return trailViewPopup(ctx.view.trailView)
   if (ctx.view.popup?.kind === 'item') {
     const row = model.sections.flatMap(section => section.rows).find(candidate => candidate.id === ctx.view.popup?.id)
     return row ? itemPopup(row) : undefined
@@ -781,8 +792,9 @@ function renderBody(ctx: Ctx, model: ScreenModel): RenderElement {
         const prefix = selectedIndex >= 0
           ? renderSection(ctx, { ...section, rows: section.rows.slice(0, selectedIndex), empty: undefined, input: undefined })
           : null
-        const popup = selectedIndex >= 0 ? activePopup(ctx, model) : undefined
-        const rowTop = sectionTop + (prefix ? rowsOf(prefix, ctx.width) : 0)
+        const sectionPopup = section.key === 'events' && ctx.view.popup?.kind === 'trail-view'
+        const popup = selectedIndex >= 0 || sectionPopup ? activePopup(ctx, model) : undefined
+        const rowTop = sectionPopup ? sectionTop : sectionTop + (prefix ? rowsOf(prefix, ctx.width) : 0)
         sectionTop += rowsOf(sectionTree, ctx.width)
         const placement = popup ? popupPlacement(ctx, popup, rowTop) : undefined
         return (

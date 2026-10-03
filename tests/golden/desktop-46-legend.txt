@@ -40,10 +40,10 @@ Pin as next step Dismiss
 │  {0:dim}
 │  {0:dim}
 │  {0:dim}
-│  {0:dim}
 HOW TO USE  {0:bold}
 Plain rows expand structured details inline. Secondary controls are bracketed on terminal and native on desktop.  {0:dim}
 Topics from the start of the work to now stay observed; press an action to confirm intent.  {0:dim}
+Trail source marks: › you · C Claude · ⚙ engine  {0:dim}
 Observer mode: Observer: Claude  {0:dim}
 LEGEND  {0:bold}
 ◎ your goal (confirmed)  {0:color:#7dcfff,bold}

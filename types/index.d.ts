@@ -195,9 +195,11 @@ export type AtlasSnapshot = {
 
 export type AtlasTab = 'map' | 'trail' | 'open' | 'evidence'
 
+export type AtlasTrailView = 'story' | 'log'
+
 export type AtlasSelection = { kind: string; id: string; text: string }
 
-export type AtlasPopup = { kind: 'legend' | 'item'; id?: string }
+export type AtlasPopup = { kind: 'legend' | 'item' | 'trail-view'; id?: string }
 
 export type AtlasView = {
   // The first-run consent screen is explicit UI state; render hooks only read it.
@@ -218,6 +220,8 @@ export type AtlasView = {
   scroll: number
   // Trail events: true = newest at the top.
   trailNewest: boolean
+  // Trail layout: Story groups today's events by turn; Log lists them flat.
+  trailView: AtlasTrailView
   // Id of the item drawn open in full (click a truncated row), or null.
   expanded: string | null
   // First line shown inside the open section or row expansion.

@@ -1,6 +1,6 @@
 // Defines the pure screen models and typed actions shared by every Atlas screen. No `$`.
 
-import type { AtlasMode, AtlasPopup, AtlasSelection, AtlasSnapshot, AtlasTab, AtlasView } from '../../types'
+import type { AtlasMode, AtlasPopup, AtlasSelection, AtlasSnapshot, AtlasTab, AtlasTrailView, AtlasView } from '../../types'
 
 export type Action =
   | { type: 'tab'; tab: AtlasTab }
@@ -11,6 +11,7 @@ export type Action =
   | { type: 'scroll'; by: number }
   | { type: 'scroll-to'; at: number }
   | { type: 'trail-sort' }
+  | { type: 'trail-view'; view: AtlasTrailView }
   | { type: 'expand'; id: string }
   | { type: 'confirm'; id: string }
   | { type: 'dismiss'; id: string }
@@ -71,6 +72,8 @@ export type ScreenRow = {
   key: string
   kind: 'text' | 'goal' | 'suggestion' | 'topic' | 'item' | 'file' | 'activity' | 'detour' | 'next' | 'event' | 'checkpoint' | 'recall'
   glyph?: GlyphKey
+  sourceMark?: string
+  sourceMarkColor?: string
   text: string
   meta?: string
   metaParts?: { text: string; compact?: string; tone?: ToneKey; dim?: boolean }[]
@@ -111,7 +114,7 @@ export type ScreenSection = {
 }
 
 export type ScreenPopup = {
-  kind: 'legend' | 'item'
+  kind: 'legend' | 'item' | 'trail-view'
   id?: string
   title: string
   titleCount?: string

@@ -40,7 +40,6 @@ Pin as next step [Dismiss]  {17:color:#7dcfff|25:color:#7dcfff}
 ┃
 ┃
 ┃
-┃
 │  {0:dim}
 │  {0:dim}
 │  {0:dim}
@@ -55,6 +54,7 @@ Pin as next step [Dismiss]  {17:color:#7dcfff|25:color:#7dcfff}
 HOW TO USE  {0:bold}
 Plain rows expand structured details inline. Secondary controls are bracketed on terminal and native on desktop.  {0:dim}
 Topics from the start of the work to now stay observed; press an action to confirm intent.  {0:dim}
+Trail source marks: › you · C Claude · ⚙ engine  {0:dim}
 Observer mode: [Observer: Claude]  {0:dim|15:color:#7dcfff|32:color:#7dcfff}
 LEGEND  {0:bold}
 ◎ your goal (confirmed)○ suggestion, needs you  {0:color:#7dcfff,bold|23:bold}

@@ -562,7 +562,7 @@ describe('readability: app bar, legend, resizing', () => {
     const terminal = await mountPane($)
     if (await terminal.find({ key: 'tab-trail', type: 'Button' })) await terminal.press({ key: 'tab-trail' })
     const terminalHeading = await terminal.find({ key: 'events-heading', type: 'Button' })
-    expect(terminalHeading?.props.label).toBe('TRAIL')
+    expect(terminalHeading?.props.label).toBe('TRAIL · Story')
     expect(terminalHeading?.props.plain).toBe(true)
     expect(terminalHeading?.props.variant).toBeUndefined()
     await terminal.press({ key: 'events-heading' })
@@ -573,7 +573,7 @@ describe('readability: app bar, legend, resizing', () => {
     const desktop = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
     if (await desktop.find({ key: 'tab-trail', type: 'Button' })) await desktop.press({ key: 'tab-trail' })
     const desktopHeading = await desktop.find({ key: 'events-heading', type: 'Button' })
-    expect(desktopHeading?.props.label).toBe('TRAIL')
+    expect(desktopHeading?.props.label).toBe('TRAIL · Story')
     expect(desktopHeading?.props.plain).toBeUndefined()
     expect(desktopHeading?.props.variant).toBe('secondary')
     await desktop.press({ key: 'events-heading' })
@@ -647,6 +647,8 @@ describe('readability: app bar, legend, resizing', () => {
     await clock.settle()
     const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
     await ui.press({ key: 'tab-trail' })
+    await ui.press({ key: 'trail-view-menu' })
+    await ui.press({ key: 'trail-view-log' })
     let text = await drawn(ui)
     expect(text).toContain('"children":["→ "]')
     expect(text).toContain('"label":"Build the UI"')
@@ -895,6 +897,7 @@ describe('milestone 2: screens and surface parity', () => {
     scroll: 0,
     expandedScroll: 0,
     trailNewest: true,
+    trailView: 'story' as const,
     expanded: null,
     mode: 'claude' as const,
   })
@@ -924,6 +927,25 @@ describe('milestone 2: screens and surface parity', () => {
       expect(JSON.stringify(first)).not.toContain('position')
       expect(JSON.stringify(first)).not.toContain('Button')
     }
+  })
+
+  test('Trail Story groups a turn, keeps the full prompt in its expansion, and marks sources', () => {
+    let snapshot = startTurn(emptySnapshot('story', ROOT, 0), 'Build the story view. Keep the prompt intact.\n- show counts', 1)
+    snapshot = observe(snapshot, { topic: 'Story layout', decisions: ['Keep the view pure'], questions: ['Does Log stay flat?'] }, 2)
+    const story = buildTrail(snapshot, screenView('trail'), 3).sections.find(section => section.key === 'events')
+    const row = story?.rows[0]
+    expect(story?.heading).toBe('TRAIL · Story')
+    expect(story?.rows).toHaveLength(1)
+    expect(row?.text).toBe('Build the story view.')
+    expect(row?.right).toContain('topic')
+    expect(row?.detail?.join('\n')).toContain('Build the story view. Keep the prompt intact.')
+    expect(row?.detail?.join('\n')).toContain('C Topic: Story layout')
+    expect(row?.sourceMark).toBe('›')
+
+    const log = buildTrail(snapshot, { ...screenView('trail'), trailView: 'log' }, 3).sections.find(section => section.key === 'events')
+    expect(log?.heading).toBe('TRAIL · Log')
+    expect(log?.rows.length).toBeGreaterThan(1)
+    expect(log?.rows.some(candidate => candidate.sourceMark === 'C')).toBe(true)
   })
 
   test('terminal and desktop render every screen at narrow and wide widths', { timeoutMs: 20_000 }, async ($, on) => {
@@ -973,7 +995,7 @@ describe('milestone 2: screens and surface parity', () => {
   test('Trail renders legacy task ids and doubled handoff arrows cleanly', () => {
     const legacy: AtlasEvent = { id: 'legacy', at: 10, turn: 2, kind: 'report-back', text: '← ← <task-id>old-task</task-id> back · unverified · Codex' }
     const snapshot = { ...emptySnapshot('legacy', ROOT, 0), events: [legacy] }
-    const rows = buildTrail(snapshot, screenView('trail'), 20).sections.flatMap(section => section.rows)
+    const rows = buildTrail(snapshot, { ...screenView('trail'), trailView: 'log' }, 20).sections.flatMap(section => section.rows)
     const row = rows.find(candidate => candidate.id === legacy.id)
     expect(eventText(legacy.text)).toBe('back · unverified · Codex')
     expect(row?.text).toBe('back · unverified · Codex')
@@ -1018,7 +1040,7 @@ describe('milestone 2: screens and surface parity', () => {
     expect(help).toContain('help-down-events')
     await ui.press({ key: 'help-down-events' })
     help = await drawn(ui)
-    expect(help).toContain('2/6')
+    expect(help).toContain('2/7')
     await ui.press({ key: 'topics-heading' })
     const switched = await drawn(ui)
     expect(switched).toContain('The observed topic tree for this session.')
@@ -1262,7 +1284,7 @@ describe('upgrades', () => {
 describe('pane interactions: sort, scrollbar, expand, footer', () => {
   const mountPane = ($: any, props: any = PANE_PROPS) => $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props })
 
-  test('the trail sort button flips the order of events', { timeoutMs: 20_000 }, async ($, on) => {
+  test('the Trail View menu switches layouts and its sort control flips event order', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await $.tool.call({ tool: OBSERVE, topic: 'Alpha topic' } as any)
@@ -1270,19 +1292,29 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     await clock.settle()
     const ui = await mountPane($)
     await ui.press({ key: 'tab-trail' })
+    await ui.press({ key: 'trail-view-menu' })
+    expect(await drawn(ui)).toContain('TRAIL VIEW')
+    expect(await ui.find({ key: 'trail-view-log', type: 'Button' })).toBeDefined()
+    expect(await ui.find({ key: 'trail-sort', type: 'Button' })).toBeDefined()
+    await ui.press({ key: 'trail-view-log' })
     const events = async () => {
       const t = await drawn(ui)
-      return t.slice(t.indexOf('"trail-sort"'))
+      return t.slice(t.indexOf('"events-heading"'))
     }
     let t = await events()
-    expect(String((await ui.find({ key: 'trail-sort', type: 'Button' }))?.props.label).trim()).toBe('↑')
-    expect(t).not.toContain('newest first')
-    expect(t.indexOf('Omega topic')).toBeLessThan(t.indexOf('Alpha topic'))
+    expect(t).toContain('TRAIL · Log')
+    await ui.press({ key: 'trail-view-menu' })
+    expect(String((await ui.find({ key: 'trail-sort', type: 'Button' }))?.props.label).trim()).toBe('Sort')
     await ui.press({ key: 'trail-sort' })
     t = await events()
-    expect(String((await ui.find({ key: 'trail-sort', type: 'Button' }))?.props.label).trim()).toBe('↓')
-    expect(t).not.toContain('oldest first')
+    expect(t).not.toContain('newest first')
     expect(t.indexOf('Alpha topic')).toBeLessThan(t.indexOf('Omega topic'))
+    await ui.press({ key: 'trail-view-menu' })
+    await ui.press({ key: 'trail-sort' })
+    t = await events()
+    expect(t).toContain('TRAIL · Log')
+    expect(t).not.toContain('oldest first')
+    expect(t.indexOf('Omega topic')).toBeLessThan(t.indexOf('Alpha topic'))
     await ui.press({ key: 'bar-legend' })
     expect(await drawn(ui)).toContain('↑ = newest first; ↓ = oldest first.')
     await ui.unmount()
@@ -1365,7 +1397,7 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     const expanded = await ui.find({ key: `expanded-detail-${btn?.slice(4)}` })
     expect(expanded?.props.position).toBeUndefined()
     expect(Number(expanded?.props.marginLeft)).toBe(2)
-    expect(t).toContain('kind: prompt')
+    expect(t).toContain('│ › Refactor the loader.')
     expect(t).toContain('turn: 1')
     expect(t).toContain('when: now')
     expect(t).toContain('Refactor the loader.')
@@ -1374,7 +1406,7 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     const close = t.match(/"key":"(close-evb-[^"]+)"/)?.[1]
     expect(close).toBeDefined()
     await ui.press({ key: close ?? '' })
-    expect(await drawn(ui)).not.toContain('kind: prompt')
+    expect(await drawn(ui)).not.toContain('expanded-detail-story-1')
     await ui.unmount()
   })
 
@@ -1392,7 +1424,7 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     const before = await drawn(ui)
     expect(before).toContain('"key":"expanded-down"')
     expect(before).toContain('"key":"expanded-up"')
-    expect(before).toContain('│ kind: prompt')
+    expect(before).toContain('│ › Refactor the loader.')
     await ui.press({ key: 'expanded-down' })
     const after = await drawn(ui)
     expect(after).not.toContain('│ kind: prompt')

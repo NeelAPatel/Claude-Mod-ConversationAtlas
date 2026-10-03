@@ -1,75 +1,20 @@
 ───────────────────────────── Conversation Atlas ─────────────────────────────  {0:dim|29:color:#7dcfff,bold|49:dim}
-Map ▸Trail Open 4 Evidence ▲ ▼  {4:color:#b9f27c,bold|27:dim}
-MAP OF TOPICS4┃  {13:dim}
+Map ▸Trail Open 4 Evidence  {4:color:#b9f27c,bold}
+MAP OF TOPICS4  {13:dim}
 ○ Atlas foundationst1  {19:dim}
   ○ Map renderingt1  {0:dim|17:dim}
     ↳ Desktop parityt1  {0:dim|4:color:#e0af68|20:dim}
       ● Color tokenst1  {0:dim|6:color:#bb9af7,bold|20:dim}
-TRAIL [↑]  {6:color:#7dcfff|8:color:#7dcfff}
-⚑ Milestone: Post-prompt milestoneturn 2 · now  {0:color:#7aa2f7|34:dim|41:dim|43:dim}
-⚑ Commit: Post-prompt committurn 2 · now  {0:color:#7aa2f7|28:dim|35:dim|37:dim}
-› ▾ Review the visual regression boundary for the Atlas pane carefully. …now  {0:bold,dim|2:color:#7dcfff|4:dim|73:dim}
-│ kind: prompt  {0:dim}
+TRAIL · Story [View]  {14:color:#7dcfff|19:color:#7dcfff}
+› ▾ Review the visual regression boundary for the Atlas pane carefully.commit  {0:color:#7dcfff|2:color:#7dcfff|71:dim}
 │ turn: 2  {0:dim}
 │ when: now  {0:dim}
-│ Review the visual regression boundary for the Atlas pane carefully. Preserve the existing action semantics while checking the fixed sample state.
+│ C Milestone: Post-prompt milestone  {0:dim}
+│ ⚙ Commit: Post-prompt commit
+│ › Review the visual regression boundary for the Atlas pane carefully. Preserve the existing action semantics while checking the fixed sample state.
 │ - compare terminal layout
-│ - compare desktop labels
-▲1/11▼  {0:dim|1:dim}
+▲1/12▼  {0:dim|1:dim}
 [Add to message] [Close]  {0:color:#7dcfff|15:color:#7dcfff|17:color:#7dcfff|23:color:#7dcfff}
-→ Manual import checkturn 1 · 1m  {0:color:#7aa2f7|21:dim|28:dim|30:dim}
-← Initial snapshot review is ready · 1 files · 18 tests passturn 1 · 1m  {0:color:#9ece6a|60:dim|67:dim|69:dim}
-→ Golden review · atlas-goldens.mdturn 1 · 1m  {0:color:#7aa2f7|34:dim|41:dim|43:dim}
-⚑ Milestone: Pane snapshot milestoneturn 1 · 1m  {0:color:#7aa2f7|36:dim|43:dim|45:dim}
-⚑ Commit: Review commit abc1234turn 1 · 1m  {0:color:#7aa2f7|31:dim|38:dim|40:dim}
-⚑ Marked: Baseline capturedturn 1 · 1m  {0:color:#7aa2f7|27:dim|34:dim|36:dim}
-✓ Should the popup keep its compact width?turn 1 · 2m  {0:color:#9ece6a|42:dim|49:dim|51:dim}
-◇ Settled: Keep renderers pureturn 1 · 2m  {0:color:#9ece6a|30:dim|37:dim|39:dim}
-? Which surface gets the first manual check?turn 1 · 2m  {0:color:#f7768e|44:dim|51:dim|53:dim}
-? Should the popup keep its compact width?turn 1 · 2m  {0:color:#f7768e|42:dim|49:dim|51:dim}
-◇ Use text goldens for visual reviewturn 1 · 2m  {0:color:#9ece6a|36:dim|43:dim|45:dim}
-◇ Keep renderers pureturn 1 · 2m  {0:color:#9ece6a|21:dim|28:dim|30:dim}
-● Possible detour: Color tokensturn 1 · 2m  {0:color:#bb9af7|31:dim|38:dim|40:dim}
-● Possible detour: Desktop parityturn 1 · 2m  {0:color:#bb9af7|33:dim|40:dim|42:dim}
-● Topic: Map renderingturn 1 · 2m  {0:color:#bb9af7|22:dim|29:dim|31:dim}
-● Topic: Atlas foundationsturn 1 · 2m  {0:color:#bb9af7|26:dim|33:dim|35:dim}
-· Review the fixed pane sample and approve the visual boundary.turn 1 · 2m  {0:color:#bb9af7|63:dim|70:dim|72:dim}
-◎ Build a dependable Conversation Atlas pane for long sessions.turn 1 · 2m  {0:color:#7dcfff|63:dim|70:dim|72:dim}
-› Build a dependable Conversation Atlas pane for long sessions. Keep the …2m  {0:dim|2:dim|74:dim}
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-┃
-│  {0:dim}
-│  {0:dim}
-│  {0:dim}
+› …2 edits · 2 reads · commit · 4 topics · 3 decisions · 2 questions · 2 hand…  {0:color:#7dcfff|3:dim}
 ──────────────────────────────────────────────────────────────────────────────  {0:dim}
 Legend + Mark  {0:dim|7:dim}

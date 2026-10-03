@@ -9,7 +9,7 @@
 
 import { type EngineInterface, type Register, type Timer, update } from 'claude-code'
 
-import type { AtlasMode, AtlasScanState, AtlasSnapshot, AtlasView } from '../types'
+import type { AtlasMode, AtlasScanState, AtlasSnapshot, AtlasTrailView, AtlasView } from '../types'
 import { askedQuestions, classify, planTitle, posix } from './activity'
 import type { LiveRow } from './live'
 import { expectedReportPath, handoffStart, parseHandoffReport, reportChanged, reportFingerprint } from './delegation'
@@ -65,6 +65,7 @@ const VIEW = { plugin: 'conversation-atlas', key: 'view' } as const
 const SCAN = { plugin: 'conversation-atlas', key: 'scanning' } as const
 const PANE = 'atlas'
 const TOOL = 'mcp__conversation-atlas__observe'
+const TRAIL_VIEW_STORE = 'trail-view'
 const FLASH_MS = 4_000
 const SAVE_MS = 2_000
 const KEEP_SESSIONS = 12
@@ -82,6 +83,7 @@ const DEFAULT_VIEW: AtlasView = {
   legendScroll: 0,
   scroll: 0,
   trailNewest: true,
+  trailView: 'story',
   expanded: null,
   expandedScroll: 0,
 }
@@ -174,6 +176,13 @@ async function setView($: EngineInterface, fn: (v: AtlasView) => AtlasView): Pro
   await update($, VIEW, cur => fn({ ...DEFAULT_VIEW, ...(cur ?? {}) }))
 }
 
+async function trailViewChoice($: EngineInterface): Promise<AtlasTrailView> {
+  const value = await $.store.get(TRAIL_VIEW_STORE)
+  if (!value || typeof value !== 'object') return 'story'
+  const view = (value as { view?: unknown }).view
+  return view === 'log' || view === 'story' ? view : 'story'
+}
+
 async function isLegendOpen($: EngineInterface): Promise<boolean> {
   const value = (await $.state.get(VIEW)).value
   return Boolean(value && typeof value === 'object' && (value as Partial<AtlasView>).legend)
@@ -198,7 +207,8 @@ async function syncMode($: EngineInterface): Promise<AtlasMode> {
   const choice = await setupChoice($)
   const mode: AtlasMode = choice?.observer ?? 'engine'
   await $.state.set(MODE, mode)
-  await setView($, v => ({ ...v, setup: !choice }))
+  const trailView = await trailViewChoice($)
+  await setView($, v => ({ ...v, setup: !choice, trailView }))
   return mode
 }
 
@@ -438,6 +448,11 @@ async function act($: EngineInterface, a: Action): Promise<void> {
       return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, a.at)), popup: null, popupScroll: 0 }))
     case 'trail-sort':
       return setView($, v => ({ ...v, trailNewest: !v.trailNewest, popup: null, popupScroll: 0, expanded: null, expandedScroll: 0 }))
+    case 'trail-view': {
+      const at = await $.clock.now()
+      await $.store.set(TRAIL_VIEW_STORE, { view: a.view, at })
+      return setView($, v => ({ ...v, trailView: a.view, popup: null, popupScroll: 0, expanded: null, expandedScroll: 0 }))
+    }
     case 'expand':
       return setView($, v => ({ ...v, expanded: v.expanded === a.id ? null : a.id, expandedScroll: 0, popup: null, popupScroll: 0 }))
     case 'exclude':
