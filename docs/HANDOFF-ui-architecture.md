@@ -56,6 +56,24 @@ The library starts inside this repo. Sharing it with EnvVault is a later, delibe
 - **Both:** the Legend is too crowded (rule 3).
 - **Both:** `/atlas scan` (map earlier conversation) seems to produce little or no data on real earlier threads. Find out why (fork size or limits, the reply not parsing as JSON, or the replay missing user text) and fix it.
 
+## Discussion point: making the Trail "correct"
+
+The user feels the Trail is not right yet. Today it is a flat, mixed log: engine noise, repeated `Tests passed` rows, and prompts cut mid-sentence, with almost no topics or decisions while the observer is silent. **Discuss these options with the user before briefing Codex.**
+
+1. **A story, not a log: group by turn.** Each turn is one row: the person's typed prompt (first sentence). Under it, collapsed, sits what happened in that turn: "4 edits · 2 reads · tests ✓ · commit abc123", plus any topic shift, decision or question. Expanding a turn shows the details; the popup shows the full prompt and its bullets.
+2. **Only real things.** Typed text only (strip `<task-notification>`, `<agent-message>`, `<pasted_content>` and `[Image #n]`; for pasted content say "pasted N lines"). Collapse repeats ("Tests passed ×3"). No echo of the checkpoint name.
+3. **Structure from intent.** Indent detour segments under their departure and close them with a ↩ return row. Pin the confirmed goal at the top. Use time-bucket headers (Now · Last hour · Earlier · Yesterday).
+4. **Engine-only semantics, so the Trail is useful without Claude.**
+   - Commit messages become milestones.
+   - Plan approvals and AskUserQuestion answers become decisions.
+   - A cluster of the working set (a run of edits in one folder) becomes a candidate topic ("hooks/: view.tsx, register.tsx").
+5. **Say where each row came from:** a small source mark (you / Claude / engine). A row that is a guess should look like one.
+6. **Filters:** toggles for Prompts · Topics · Decisions · Checkpoints · Detours. Default: all except raw prompts once topics exist.
+7. **Observer health,** shown on the Trail: "Claude observer on · last report 2h ago" with a warning when silent. Without it the Trail looks broken when the cause is a missing tool.
+8. **Optional, costs usage:** a per-turn one-line summary from Claude (folded into `observe` or a cheap fork), shown instead of the raw first sentence. Off by default; part of the observer consent.
+
+Suggested order: 2 and 7 (fixes) → 1 (turn grouping) → 4 (engine semantics) → 3, 5, 6 → 8 (only if the user wants it).
+
 ## Milestones
 
 1. **Library + both renderers for the broken parts:** Tabs, Bar, ActionGroup, Popup (opaque), ScrollBox, Glyph sets. Also fix the GUI `live.tsx` load and the Trail prompt noise. Tests on terminal and desktop at many widths.
