@@ -1,3 +1,5 @@
+// Builds shared rows, actions and popups for the Atlas screens. Pure; no `$`.
+
 import type { AtlasItem, AtlasSnapshot, AtlasSuggestion, AtlasTopic } from '../../types'
 import type { Action, GlyphKey, ScreenAction, ScreenRow, ScreenView, ToneKey } from './types'
 
@@ -11,11 +13,19 @@ export function ago(ms: number): string {
 }
 
 export function sourceName(source: string): string {
-  return source === 'claude' ? 'Claude' : source === 'cue' ? 'your wording' : source === 'engine' ? 'engine' : source === 'person' ? 'you' : source
+  return source === 'claude'
+    ? 'Claude'
+    : source === 'cue'
+      ? 'your wording'
+      : source === 'engine'
+        ? 'engine'
+        : source === 'person'
+          ? 'you'
+          : source
 }
 
 export function topicName(snapshot: AtlasSnapshot, id: string | null): string | null {
-  return id ? snapshot.topics.find(topic => topic.id === id)?.title ?? null : null
+  return id ? (snapshot.topics.find(topic => topic.id === id)?.title ?? null) : null
 }
 
 export function whenLine(now: number, at: number, turn: number): string {
@@ -37,10 +47,27 @@ export function itemDetails(snapshot: AtlasSnapshot, item: AtlasItem, now: numbe
 }
 
 export function suggestionRow(snapshot: AtlasSnapshot, suggestion: AtlasSuggestion, view: ScreenView): ScreenRow {
-  const confirm: Record<AtlasSuggestion['kind'], string> = { goal: 'Set as goal', detour: 'Take detour', return: 'Return', next: 'Pin next', resume: 'Resume' }
-  const dismiss: Record<AtlasSuggestion['kind'], string> = { goal: 'Not my goal', detour: 'Not a detour', return: 'Stay', next: 'Dismiss', resume: 'Dismiss' }
+  const confirm: Record<AtlasSuggestion['kind'], string> = {
+    goal: 'Set as goal',
+    detour: 'Take detour',
+    return: 'Return',
+    next: 'Pin next',
+    resume: 'Resume',
+  }
+  const dismiss: Record<AtlasSuggestion['kind'], string> = {
+    goal: 'Not my goal',
+    detour: 'Not a detour',
+    return: 'Stay',
+    next: 'Dismiss',
+    resume: 'Dismiss',
+  }
   const glyph: GlyphKey = suggestion.kind === 'detour' ? 'detour' : suggestion.kind === 'return' ? 'returned' : 'suggestion'
-  const tone: ToneKey | undefined = suggestion.kind === 'detour' || suggestion.kind === 'return' ? 'detour' : suggestion.kind === 'goal' || suggestion.kind === 'resume' ? 'goal' : undefined
+  const tone: ToneKey | undefined =
+    suggestion.kind === 'detour' || suggestion.kind === 'return'
+      ? 'detour'
+      : suggestion.kind === 'goal' || suggestion.kind === 'resume'
+        ? 'goal'
+        : undefined
   const who = suggestion.source === 'claude' ? 'Claude' : suggestion.source === 'cue' ? 'your words' : 'Atlas'
   return {
     id: suggestion.id,
@@ -64,18 +91,52 @@ export function itemRow(snapshot: AtlasSnapshot, item: AtlasItem, now: number, v
   const excluded = item.status === 'excluded'
   const inDetour = Boolean(snapshot.detour) && item.at >= (snapshot.detour?.at ?? 0)
   const isQuestion = item.status === 'open' || item.status === 'resolved'
-  const kind = isQuestion ? (item.status === 'open' ? 'open question' : 'resolved question') : settled ? 'settled decision' : excluded ? 'excluded decision' : 'observed decision'
-  const glyph: GlyphKey = isQuestion ? (item.status === 'open' ? 'openQuestion' : 'resolved') : settled ? 'settledDecision' : 'observedDecision'
-  const tone: ToneKey | undefined = isQuestion ? (item.status === 'open' ? 'question' : 'ok') : settled ? 'checkpoint' : !excluded ? 'decision' : undefined
+  const kind = isQuestion
+    ? item.status === 'open'
+      ? 'open question'
+      : 'resolved question'
+    : settled
+      ? 'settled decision'
+      : excluded
+        ? 'excluded decision'
+        : 'observed decision'
+  const glyph: GlyphKey = isQuestion
+    ? item.status === 'open'
+      ? 'openQuestion'
+      : 'resolved'
+    : settled
+      ? 'settledDecision'
+      : 'observedDecision'
+  const tone: ToneKey | undefined = isQuestion
+    ? item.status === 'open'
+      ? 'question'
+      : 'ok'
+    : settled
+      ? 'checkpoint'
+      : !excluded
+        ? 'decision'
+        : undefined
   let extra: ScreenAction[] = []
   if (withActions && !isQuestion) {
-    extra = settled || excluded
-      ? [action(`restore-${item.id}`, excluded ? 'Restore' : 'Reopen', { type: 'restore', id: item.id })]
-      : inDetour
-        ? [action(`set-${item.id}`, 'Keep', { type: 'settle', id: item.id }, true), action(`exc-${item.id}`, 'Exclude', { type: 'exclude', id: item.id })]
-        : [action(`set-${item.id}`, 'Settle', { type: 'settle', id: item.id }, true), action(`drp-${item.id}`, 'Drop', { type: 'drop', id: item.id })]
+    extra =
+      settled || excluded
+        ? [action(`restore-${item.id}`, excluded ? 'Restore' : 'Reopen', { type: 'restore', id: item.id })]
+        : inDetour
+          ? [
+              action(`set-${item.id}`, 'Keep', { type: 'settle', id: item.id }, true),
+              action(`exc-${item.id}`, 'Exclude', { type: 'exclude', id: item.id }),
+            ]
+          : [
+              action(`set-${item.id}`, 'Settle', { type: 'settle', id: item.id }, true),
+              action(`drp-${item.id}`, 'Drop', { type: 'drop', id: item.id }),
+            ]
   } else if (withActions && isQuestion) {
-    extra = [action(`${item.status === 'open' ? 'res' : 'reo'}-${item.id}`, item.status === 'open' ? 'Resolved' : 'Reopen', { type: item.status === 'open' ? 'resolve' : 'reopen', id: item.id })]
+    extra = [
+      action(`${item.status === 'open' ? 'res' : 'reo'}-${item.id}`, item.status === 'open' ? 'Resolved' : 'Reopen', {
+        type: item.status === 'open' ? 'resolve' : 'reopen',
+        id: item.id,
+      }),
+    ]
   }
   return {
     id: item.id,
@@ -105,7 +166,13 @@ export function topicRows(snapshot: AtlasSnapshot, view: ScreenView, now: number
   const walk = (parent: string | null, depth: number) => {
     for (const topic of children.get(parent) ?? []) {
       const current = topic.id === snapshot.currentTopicId
-      const glyph: GlyphKey = current ? 'currentTopic' : topic.kind !== 'main' ? 'detour' : topic.status === 'returned' ? 'returned' : 'suggestion'
+      const glyph: GlyphKey = current
+        ? 'currentTopic'
+        : topic.kind !== 'main'
+          ? 'detour'
+          : topic.status === 'returned'
+            ? 'returned'
+            : 'suggestion'
       const dim = view.mode === 'engine' && topic.source === 'claude'
       const childCount = snapshot.topics.filter(candidate => candidate.parentId === topic.id).length
       const decisionCount = snapshot.decisions.filter(item => item.topicId === topic.id).length
@@ -144,24 +211,93 @@ export function topicRows(snapshot: AtlasSnapshot, view: ScreenView, now: number
 export function popupModels(snapshot: AtlasSnapshot, view: ScreenView, now: number) {
   const decisions = [...snapshot.decisions]
     .filter(item => item.status === 'settled' || item.status === 'observed' || item.status === 'excluded')
-    .sort((a, b) => (a.status === 'settled' ? 0 : a.status === 'observed' ? 1 : 2) - (b.status === 'settled' ? 0 : b.status === 'observed' ? 1 : 2) || b.at - a.at)
+    .sort(
+      (a, b) =>
+        (a.status === 'settled' ? 0 : a.status === 'observed' ? 1 : 2) - (b.status === 'settled' ? 0 : b.status === 'observed' ? 1 : 2) ||
+        b.at - a.at,
+    )
   const questions = [...snapshot.questions].filter(item => item.status === 'open').reverse()
   const selectedEvent = view.popup?.kind === 'event' ? snapshot.events.find(event => event.id === view.popup?.id) : undefined
   const eventRows = selectedEvent
     ? [
-        { id: `${selectedEvent.id}-meta`, key: `${selectedEvent.id}-meta`, kind: 'text' as const, text: `${selectedEvent.kind} · turn ${selectedEvent.turn} · ${ago(now - selectedEvent.at)}` },
-        ...(selectedEvent.detail?.length ? [
-          { id: `${selectedEvent.id}-summary`, key: `${selectedEvent.id}-summary`, kind: 'text' as const, text: selectedEvent.text.split(/[.!?](?:\s|$)/)[0] ?? selectedEvent.text, bold: true },
-          { id: `${selectedEvent.id}-points`, key: `${selectedEvent.id}-points`, kind: 'text' as const, text: 'Points', bold: true },
-          { id: `${selectedEvent.id}-detail`, key: `${selectedEvent.id}-detail`, kind: 'text' as const, text: selectedEvent.detail.map(point => `• ${point}`).join('\n'), dim: true },
-          { id: `${selectedEvent.id}-full-label`, key: `${selectedEvent.id}-full-label`, kind: 'text' as const, text: 'Full text', bold: true },
-        ] : []),
+        {
+          id: `${selectedEvent.id}-meta`,
+          key: `${selectedEvent.id}-meta`,
+          kind: 'text' as const,
+          text: `${selectedEvent.kind} · turn ${selectedEvent.turn} · ${ago(now - selectedEvent.at)}`,
+        },
+        ...(selectedEvent.detail?.length
+          ? [
+              {
+                id: `${selectedEvent.id}-summary`,
+                key: `${selectedEvent.id}-summary`,
+                kind: 'text' as const,
+                text: selectedEvent.text.split(/[.!?](?:\s|$)/)[0] ?? selectedEvent.text,
+                bold: true,
+              },
+              { id: `${selectedEvent.id}-points`, key: `${selectedEvent.id}-points`, kind: 'text' as const, text: 'Points', bold: true },
+              {
+                id: `${selectedEvent.id}-detail`,
+                key: `${selectedEvent.id}-detail`,
+                kind: 'text' as const,
+                text: selectedEvent.detail.map(point => `• ${point}`).join('\n'),
+                dim: true,
+              },
+              {
+                id: `${selectedEvent.id}-full-label`,
+                key: `${selectedEvent.id}-full-label`,
+                kind: 'text' as const,
+                text: 'Full text',
+                bold: true,
+              },
+            ]
+          : []),
         { id: `${selectedEvent.id}-full`, key: `${selectedEvent.id}-full`, kind: 'text' as const, text: selectedEvent.text },
       ]
     : []
   return [
-    { kind: 'decisions' as const, title: 'DECISIONS MADE', titleCount: `${decisions.filter(item => item.status === 'settled').length} settled · ${decisions.filter(item => item.status === 'observed').length} heard`, rows: decisions.map(item => itemRow(snapshot, item, now, view, true)), footer: decisions.length ? '◆ settled first · ◇ heard · excluded dim' : undefined },
-    { kind: 'questions' as const, title: 'OPEN QUESTIONS', titleCount: `${questions.length} open`, rows: questions.map(item => itemRow(snapshot, item, now, view, true)) },
-    ...(selectedEvent ? [{ kind: 'event' as const, id: selectedEvent.id, title: 'EVENT', rows: eventRows, footerActions: selectedEvent.kind === 'prompt' ? [action(`add-ev-${selectedEvent.id}`, 'Add to message', { type: 'attach', ref: { kind: 'Prompt', id: selectedEvent.id, text: [selectedEvent.text, ...(selectedEvent.detail ?? [])].join('\n') } }, true)] : undefined }] : []),
+    {
+      kind: 'decisions' as const,
+      title: 'DECISIONS MADE',
+      titleCount: `${decisions.filter(item => item.status === 'settled').length} settled · ${
+        decisions.filter(item => item.status === 'observed').length
+      } heard`,
+      rows: decisions.map(item => itemRow(snapshot, item, now, view, true)),
+      footer: decisions.length ? '◆ settled first · ◇ heard · excluded dim' : undefined,
+    },
+    {
+      kind: 'questions' as const,
+      title: 'OPEN QUESTIONS',
+      titleCount: `${questions.length} open`,
+      rows: questions.map(item => itemRow(snapshot, item, now, view, true)),
+    },
+    ...(selectedEvent
+      ? [
+          {
+            kind: 'event' as const,
+            id: selectedEvent.id,
+            title: 'EVENT',
+            rows: eventRows,
+            footerActions:
+              selectedEvent.kind === 'prompt'
+                ? [
+                    action(
+                      `add-ev-${selectedEvent.id}`,
+                      'Add to message',
+                      {
+                        type: 'attach',
+                        ref: {
+                          kind: 'Prompt',
+                          id: selectedEvent.id,
+                          text: [selectedEvent.text, ...(selectedEvent.detail ?? [])].join('\n'),
+                        },
+                      },
+                      true,
+                    ),
+                  ]
+                : undefined,
+          },
+        ]
+      : []),
   ]
 }

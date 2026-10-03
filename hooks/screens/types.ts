@@ -1,11 +1,6 @@
-import type {
-  AtlasMode,
-  AtlasPopup,
-  AtlasSelection,
-  AtlasSnapshot,
-  AtlasTab,
-  AtlasView,
-} from '../../types'
+// Defines the pure screen models and typed actions shared by every Atlas screen. No `$`.
+
+import type { AtlasMode, AtlasPopup, AtlasSelection, AtlasSnapshot, AtlasTab, AtlasView } from '../../types'
 
 export type Action =
   | { type: 'tab'; tab: AtlasTab }

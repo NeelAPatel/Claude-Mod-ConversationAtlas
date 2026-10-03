@@ -649,17 +649,35 @@ A: The prose body must not become a file.`)
 })
 
 describe('milestone 2: screens and surface parity', () => {
-  const screenView = (tab: 'map' | 'trail' | 'open' | 'evidence') => ({ setup: false, tab, refs: {}, nextRef: 1, editingGoal: false, legend: false, popup: null, popupScroll: 0, scroll: 0, trailNewest: true, expanded: null, mode: 'claude' as const })
+  const screenView = (tab: 'map' | 'trail' | 'open' | 'evidence') => ({
+    setup: false,
+    tab,
+    refs: {},
+    nextRef: 1,
+    editingGoal: false,
+    legend: false,
+    popup: null,
+    popupScroll: 0,
+    scroll: 0,
+    trailNewest: true,
+    expanded: null,
+    mode: 'claude' as const,
+  })
 
   test('each tab is a pure ScreenModel and the same snapshot feeds both surfaces', () => {
-    let snapshot = observe(emptySnapshot('screen', ROOT, 0), { topic: 'Screen layers', decisions: ['Keep one model'], questions: ['Does parity hold?'], next: 'Add renderers', checkpoint: 'Model ready' }, 10)
+    let snapshot = observe(
+      emptySnapshot('screen', ROOT, 0),
+      {
+        topic: 'Screen layers',
+        decisions: ['Keep one model'],
+        questions: ['Does parity hold?'],
+        next: 'Add renderers',
+        checkpoint: 'Model ready',
+      },
+      10,
+    )
     snapshot = touchFile(snapshot, `${ROOT}/hooks/screens/map.ts`, 'write', 11)
-    const builders = [
-      ['map', buildMap],
-      ['trail', buildTrail],
-      ['open', buildOpen],
-      ['evidence', buildEvidence],
-    ] as const
+    const builders = [['map', buildMap], ['trail', buildTrail], ['open', buildOpen], ['evidence', buildEvidence]] as const
     for (const [tab, build] of builders) {
       const view = screenView(tab)
       const first = build(snapshot, view, 20)
@@ -676,12 +694,29 @@ describe('milestone 2: screens and surface parity', () => {
   test('terminal and desktop render every screen at narrow and wide widths', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
-    await $.tool.call({ tool: OBSERVE, topic: 'Cross-surface screens', decisions: ['Keep the data shared'], questions: ['Is the GUI native?'], next: 'Check both surfaces' } as any)
+    await $.tool.call({
+      tool: OBSERVE,
+      topic: 'Cross-surface screens',
+      decisions: ['Keep the data shared'],
+      questions: ['Is the GUI native?'],
+      next: 'Check both surfaces',
+    } as any)
     await clock.settle()
     for (const surface of ['terminal', 'desktop'] as const) {
       for (const bodyColumns of [40, 80]) {
-        const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'atlas', props: { ...PANE_PROPS, bodyColumns } })
-        const tabHeadings: Record<string, string[]> = { map: ['GOAL', 'CURRENT PATH', 'ACTIVITY'], trail: ['MAP OF TOPICS', 'TRAIL'], open: ['NEEDS YOUR CALL', 'OPEN QUESTIONS'], evidence: ['CHECKPOINTS', 'FILES'] }
+        const ui = await $.ui.mount({
+          plugin: 'conversation-atlas',
+          surface,
+          component: 'Pane',
+          requestId: 'atlas',
+          props: { ...PANE_PROPS, bodyColumns },
+        })
+        const tabHeadings: Record<string, string[]> = {
+          map: ['GOAL', 'CURRENT PATH', 'ACTIVITY'],
+          trail: ['MAP OF TOPICS', 'TRAIL'],
+          open: ['NEEDS YOUR CALL', 'OPEN QUESTIONS'],
+          evidence: ['CHECKPOINTS', 'FILES'],
+        }
         if (await ui.find({ key: 'tab-map', type: 'Button' })) await ui.press({ key: 'tab-map' })
         for (const tab of ['map', 'trail', 'open', 'evidence'] as const) {
           if (tab !== 'map') await ui.press({ key: `tab-${tab}` })
@@ -704,7 +739,13 @@ describe('milestone 2: screens and surface parity', () => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await clock.settle()
-    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    const ui = await $.ui.mount({
+      plugin: 'conversation-atlas',
+      surface: 'terminal',
+      component: 'Pane',
+      requestId: 'atlas',
+      props: PANE_PROPS,
+    })
     await ui.press({ key: 'bar-legend' })
     const inline = await drawn(ui)
     expect(inline).toContain('HOW TO USE')

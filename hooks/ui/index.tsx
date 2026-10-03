@@ -368,12 +368,26 @@ export function Row(ctx: UiContext, row: UiRow): RenderElement {
   const { Box, Text, Button } = ctx.el
   return (
     <Box key={row.key} flexDirection="row" gap={1} flexShrink={0}>
-      {row.glyph ? <Text color={row.glyphColor} dimColor={row.dim}>{row.glyph}</Text> : null}
+      {row.glyph ? (
+        <Text color={row.glyphColor} dimColor={row.dim}>
+          {row.glyph}
+        </Text>
+      ) : null}
       <Box flexShrink={1} minWidth={0} overflow="hidden">
-        {row.onPress ? <Button key={row.key} plain dimColor={row.dim} label={row.text} onPress={() => row.onPress?.()} /> : <Text bold={row.bold} dimColor={row.dim} wrap="truncate-end">{row.text}</Text>}
+        {row.onPress ? (
+          <Button key={row.key} plain dimColor={row.dim} label={row.text} onPress={() => row.onPress?.()} />
+        ) : (
+          <Text bold={row.bold} dimColor={row.dim} wrap="truncate-end">
+            {row.text}
+          </Text>
+        )}
       </Box>
       <Box flexGrow={1} />
-      {row.right ? <Text dimColor wrap="truncate-end">{row.right}</Text> : null}
+      {row.right ? (
+        <Text dimColor wrap="truncate-end">
+          {row.right}
+        </Text>
+      ) : null}
     </Box>
   )
 }
@@ -383,12 +397,26 @@ export function Section(ctx: UiContext, section: UiSection, children: RenderElem
   return (
     <Box key={section.key} flexDirection="column" marginTop={1}>
       <Box flexDirection="row" flexShrink={0}>
-        <Text bold color={section.color} dimColor={section.dim} wrap="truncate-end">{section.heading}</Text>
+        <Text bold color={section.color} dimColor={section.dim} wrap="truncate-end">
+          {section.heading}
+        </Text>
         <Box flexGrow={1} />
-        {section.count ? <Text dimColor wrap="truncate-end">{section.count}</Text> : null}
-        {section.right ? <Text dimColor wrap="truncate-end">{section.right}</Text> : null}
+        {section.count ? (
+          <Text dimColor wrap="truncate-end">
+            {section.count}
+          </Text>
+        ) : null}
+        {section.right ? (
+          <Text dimColor wrap="truncate-end">
+            {section.right}
+          </Text>
+        ) : null}
       </Box>
-      {section.explain ? <Text dimColor italic wrap="wrap">{section.explain}</Text> : null}
+      {section.explain ? (
+        <Text dimColor italic wrap="wrap">
+          {section.explain}
+        </Text>
+      ) : null}
       {children}
     </Box>
   )
