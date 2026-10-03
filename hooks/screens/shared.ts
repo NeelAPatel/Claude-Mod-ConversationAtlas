@@ -147,10 +147,11 @@ export function itemRow(snapshot: AtlasSnapshot, item: AtlasItem, now: number, v
     source: sourceName(item.source),
     tone,
     fresh: snapshot.fresh.includes(item.id),
-    expandable: true,
+    italic: withActions && item.status === 'observed',
+    expandable: !(withActions && item.status === 'observed'),
     detail: itemDetails(snapshot, item, now, kind),
     actions: extra,
-    interactive: true,
+    interactive: !(withActions && item.status === 'observed'),
     overflowPopup: item.text.length > 120 || item.text.split(/\r?\n/).length > 4,
   }
 }
@@ -209,14 +210,6 @@ export function topicRows(snapshot: AtlasSnapshot, view: ScreenView, now: number
 }
 
 export function popupModels(snapshot: AtlasSnapshot, view: ScreenView, now: number) {
-  const decisions = [...snapshot.decisions]
-    .filter(item => item.status === 'settled' || item.status === 'observed' || item.status === 'excluded')
-    .sort(
-      (a, b) =>
-        (a.status === 'settled' ? 0 : a.status === 'observed' ? 1 : 2) - (b.status === 'settled' ? 0 : b.status === 'observed' ? 1 : 2) ||
-        b.at - a.at,
-    )
-  const questions = [...snapshot.questions].filter(item => item.status === 'open').reverse()
   const selectedEvent = view.popup?.kind === 'event' ? snapshot.events.find(event => event.id === view.popup?.id) : undefined
   const eventRows = selectedEvent
     ? [
@@ -255,49 +248,31 @@ export function popupModels(snapshot: AtlasSnapshot, view: ScreenView, now: numb
         { id: `${selectedEvent.id}-full`, key: `${selectedEvent.id}-full`, kind: 'text' as const, text: selectedEvent.text },
       ]
     : []
+  if (!selectedEvent) return []
   return [
     {
-      kind: 'decisions' as const,
-      title: 'DECISIONS MADE',
-      titleCount: `${decisions.filter(item => item.status === 'settled').length} settled · ${
-        decisions.filter(item => item.status === 'observed').length
-      } heard`,
-      rows: decisions.map(item => itemRow(snapshot, item, now, view, true)),
-      footer: decisions.length ? '◆ settled first · ◇ heard · excluded dim' : undefined,
+      kind: 'event' as const,
+      id: selectedEvent.id,
+      title: 'EVENT',
+      rows: eventRows,
+      footerActions:
+        selectedEvent.kind === 'prompt'
+          ? [
+              action(
+                `add-ev-${selectedEvent.id}`,
+                'Add to message',
+                {
+                  type: 'attach',
+                  ref: {
+                    kind: 'Prompt',
+                    id: selectedEvent.id,
+                    text: [selectedEvent.text, ...(selectedEvent.detail ?? [])].join('\n'),
+                  },
+                },
+                true,
+              ),
+            ]
+          : undefined,
     },
-    {
-      kind: 'questions' as const,
-      title: 'OPEN QUESTIONS',
-      titleCount: `${questions.length} open`,
-      rows: questions.map(item => itemRow(snapshot, item, now, view, true)),
-    },
-    ...(selectedEvent
-      ? [
-          {
-            kind: 'event' as const,
-            id: selectedEvent.id,
-            title: 'EVENT',
-            rows: eventRows,
-            footerActions:
-              selectedEvent.kind === 'prompt'
-                ? [
-                    action(
-                      `add-ev-${selectedEvent.id}`,
-                      'Add to message',
-                      {
-                        type: 'attach',
-                        ref: {
-                          kind: 'Prompt',
-                          id: selectedEvent.id,
-                          text: [selectedEvent.text, ...(selectedEvent.detail ?? [])].join('\n'),
-                        },
-                      },
-                      true,
-                    ),
-                  ]
-                : undefined,
-          },
-        ]
-      : []),
   ]
 }

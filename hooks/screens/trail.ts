@@ -15,6 +15,10 @@ function section(key: string, heading: string, rows: ScreenRow[], extra: Partial
   return { key, heading, explain: explain[heading] ?? heading, rows, ...extra }
 }
 
+function eventText(text: string): string {
+  return text.replace(/^\s*[→←]\s*/, '')
+}
+
 export const buildTrail: ScreenBuilder = (snapshot: AtlasSnapshot, view, now): ScreenModel => {
   const topics = topicRows(snapshot, view, now)
   const events = view.trailNewest ? collapseEvents(snapshot.events.slice(-40)).reverse() : collapseEvents(snapshot.events.slice(-40))
@@ -46,7 +50,7 @@ export const buildTrail: ScreenBuilder = (snapshot: AtlasSnapshot, view, now): S
                           : event.kind === 'goal' || event.kind === 'promote'
                             ? 'goal'
                             : 'readFile',
-    text: event.kind === 'prompt' ? (event.text.split(/\r?\n/)[0] ?? event.text) : event.text,
+    text: event.kind === 'prompt' ? (eventText(event.text).split(/\r?\n/)[0] ?? eventText(event.text)) : eventText(event.text),
     meta: `turn ${event.turn}`,
     right: ago(now - event.at),
     detail: event.detail,

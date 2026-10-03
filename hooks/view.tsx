@@ -4,7 +4,7 @@
 import type { Elements, RenderElement } from 'claude-code'
 import type { AtlasMode, AtlasScanState, AtlasSnapshot, AtlasTab, AtlasView } from '../types'
 import type { LiveRow } from './live'
-import { activeDecisions, openQuestions } from './model'
+import { openQuestions } from './model'
 import {
   ActionGroup,
   Bar,
@@ -62,7 +62,7 @@ export const GLYPH: Record<GlyphKey, Glyph> = {
   detour: { char: '↳', color: C.detour },
   returned: { char: '↩', color: C.detour },
   observedDecision: { char: '◇', color: C.decision },
-  settledDecision: { char: '◆', color: C.checkpoint },
+  settledDecision: { char: '◆', color: C.decision },
   checkpoint: { char: '⚑', color: C.checkpoint },
   openQuestion: { char: '?', color: C.question },
   resolved: { char: '✓', color: C.ok },
@@ -213,6 +213,31 @@ function actions(
   )
 }
 
+function inlineMeta(ctx: Ctx, row: ScreenRow): RenderElement | null {
+  const { Box, Text } = ctx.el
+  const compact = ctx.width < 60
+  if (row.metaParts?.length) {
+    return (
+      <Box flexDirection="row" gap={1} flexShrink={0}>
+        {row.metaParts.map((part, index) => (
+          <Text key={`meta-${row.key}-${index}`} color={part.tone ? toneColor(part.tone) : undefined} dimColor={part.dim}>
+            {compact ? part.compact ?? part.text : part.text}
+          </Text>
+        ))}
+        {row.right ? <Text dimColor>{row.right}</Text> : null}
+      </Box>
+    )
+  }
+  if (!row.meta && !row.right) return null
+  return (
+    <Box flexDirection="row" gap={1} flexShrink={0}>
+      {row.meta ? <Text dimColor wrap="truncate-end">{row.meta}</Text> : null}
+      {row.meta && row.right ? <Text dimColor>·</Text> : null}
+      {row.right ? <Text dimColor wrap="truncate-end">{row.right}</Text> : null}
+    </Box>
+  )
+}
+
 function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
   const { Box, Text, Button } = ctx.el
   const g = row.glyph ? glyph(ctx, row.glyph) : undefined
@@ -229,34 +254,32 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
         )
     : undefined
   const head = (
-    <Box key={`head-${row.key}`} flexDirection="row" gap={1} flexShrink={0}>
+    <Box key={`head-${row.key}`} flexDirection="row" flexShrink={0}>
       {indent ? <Text dimColor>{indent}</Text> : null}
       {row.fresh ? (
-        <Text color={GLYPH.fresh.color} bold>
-          {GLYPH.fresh.char}
-        </Text>
+        <Text color={GLYPH.fresh.color} bold>{`${GLYPH.fresh.char} `}</Text>
       ) : null}
       {g ? (
-        <Text color={g.color} dimColor={row.dim} bold={row.bold || open}>
-          {g.char}
-        </Text>
+        <Text color={g.color} dimColor={row.dim} bold={row.bold || open}>{`${g.char} `}</Text>
       ) : null}
-      {open ? <Text color={GLYPH.expanded.color}>{GLYPH.expanded.char}</Text> : null}
+      {open ? <Text color={GLYPH.expanded.color}>{`${GLYPH.expanded.char} `}</Text> : null}
       <Box flexShrink={1} minWidth={0} overflow="hidden">
         {headPress ? (
-          <Button key={row.key} plain dimColor={row.dim} label={row.text} onPress={headPress} />
+          <Button
+            key={row.key}
+            plain
+            dimColor={row.dim}
+            label={row.text}
+            onPress={headPress}
+          />
         ) : (
-          <Text bold={row.bold} dimColor={row.dim} wrap="truncate-end">
+          <Text bold={row.bold} dimColor={row.dim} italic={row.italic} wrap="truncate-end">
             {row.text}
           </Text>
         )}
       </Box>
       <Box flexGrow={1} />
-      {row.right ? (
-        <Text dimColor wrap="truncate-end">
-          {row.right}
-        </Text>
-      ) : null}
+      {inlineMeta(ctx, row)}
     </Box>
   )
   if (row.kind === 'text')
@@ -269,9 +292,6 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
     return (
       <Box key={row.key} flexDirection="column">
         {head}
-        <Text dimColor wrap="truncate-end">
-          {row.meta ?? ''}
-        </Text>
         {actions(ctx, row.actions ?? [])}
       </Box>
     )
@@ -280,11 +300,6 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
     return (
       <Box key={row.key} flexDirection="column">
         {head}
-        {row.meta ? (
-          <Text dimColor wrap="truncate-end">
-            {row.meta}
-          </Text>
-        ) : null}
         {actions(ctx, row.actions ?? [])}
         {open ? <Detail ctx={ctx} row={row} /> : null}
       </Box>
@@ -293,11 +308,6 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
     return (
       <Box key={row.key} flexDirection="column">
         {head}
-        {row.meta ? (
-          <Text dimColor wrap="truncate-end">
-            {row.meta}
-          </Text>
-        ) : null}
         {actions(ctx, row.kind === 'event' ? [] : (row.actions ?? []))}
       </Box>
     )
@@ -305,11 +315,6 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
     return (
       <Box key={row.key} flexDirection="column">
         {head}
-        {row.kind === 'event' ? null : row.meta ? (
-          <Text dimColor wrap="truncate-end">
-            {row.meta}
-          </Text>
-        ) : null}
       </Box>
     )
   const extra: ScreenAction[] =
@@ -367,17 +372,20 @@ function renderSection(ctx: Ctx, section: ScreenSection): RenderElement {
   const showInput = Boolean(section.input && Input && (ctx.view.editingGoal || section.rows.length === 0))
   return Section(
     { el: ctx.el, surface: ctx.surface, width: ctx.width },
-    { key: section.key, heading: section.heading, explain: note, count: section.count, color: toneColor(section.tone), dim: section.dim },
+    {
+      key: section.key,
+      heading: section.heading,
+      explain: note,
+      count: section.count,
+      right: right ?? undefined,
+      color: toneColor(section.tone),
+      dim: section.dim,
+    },
     <Box flexDirection="column">
       {section.dim ? (
         <Text dimColor wrap="truncate-end">
           {OBSERVER_NOTE}
         </Text>
-      ) : null}
-      {right ? (
-        <Box position="absolute" right={0} top={0}>
-          {right}
-        </Box>
       ) : null}
       {rows}
       {showInput && section.input && Input ? (
@@ -450,14 +458,14 @@ const LEGEND: [GlyphKey, string][] = [
   ['handoff', 'hand-off running'],
   ['reportBack', 'report back'],
 ]
-function legendPanel(ctx: Ctx): RenderElement {
+function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
   const { Box, Text, Button } = ctx.el
   const columns = ctx.width >= 64 ? 2 : 1
   const width = Math.max(8, Math.floor(ctx.width / columns) - 1)
-  const rows: [GlyphKey, string][][] = []
-  for (let index = 0; index < LEGEND.length; index += columns) rows.push(LEGEND.slice(index, index + columns))
-  return (
-    <Box key="legend-panel" flexDirection="column" borderStyle="round" borderColor={C.path} paddingX={1} flexShrink={0}>
+  const legendRows: [GlyphKey, string][][] = []
+  for (let index = 0; index < LEGEND.length; index += columns) legendRows.push(LEGEND.slice(index, index + columns))
+  const content = (
+    <Box flexDirection="column">
       <Text bold>HOW TO USE</Text>
       <Text dimColor wrap="wrap">
         Plain rows expand structured details inline. Secondary controls are bracketed on terminal and native on desktop.
@@ -483,15 +491,13 @@ function legendPanel(ctx: Ctx): RenderElement {
         <Text bold>LEGEND</Text>
         <Button key="legend-more" label="More" variant="secondary" onPress={() => ctx.act({ type: 'popup', popup: { kind: 'legend' } })} />
       </Box>
-      {rows.map((line, index) => (
+      {legendRows.map((line, index) => (
         <Box key={`lg-${index}`} flexDirection="row">
           {line.map(([name, meaning]) => {
             const g = glyph(ctx, name)
             return (
-              <Box key={`lg-${name}`} width={width} flexDirection="row" gap={1}>
-                <Text color={g.color} bold>
-                  {g.char}
-                </Text>
+              <Box key={`lg-${name}`} width={width} flexDirection="row">
+                <Text color={g.color} bold>{`${g.char} `}</Text>
                 <Text wrap="truncate-end">{meaning}</Text>
               </Box>
             )
@@ -500,6 +506,20 @@ function legendPanel(ctx: Ctx): RenderElement {
       ))}
     </Box>
   )
+  const frame = (
+    <Box
+      key="legend-panel"
+      flexDirection="column"
+      borderStyle="round"
+      borderColor={C.path}
+      paddingX={1}
+      flexShrink={0}
+      {...(height === undefined ? {} : { height, overflow: 'hidden' as const })}
+    >
+      {height === undefined ? content : <Box flexDirection="column" marginTop={-at}>{content}</Box>}
+    </Box>
+  )
+  return frame
 }
 function setupScreen(ctx: Ctx): RenderElement {
   const { Box, Text } = ctx.el
@@ -540,7 +560,8 @@ function popupWidth(ctx: Ctx): number {
   return Math.max(8, Math.min(52, ctx.width - 4))
 }
 function popupMaxHeight(ctx: Ctx): number {
-  return Math.max(5, Math.min(10, Math.floor(Math.max(1, ctx.bodyViewport ?? ctx.rows) * 0.4)))
+  const available = Math.max(1, ctx.bodyViewport ?? ctx.rows)
+  return Math.max(1, Math.min(10, available, Math.floor(available * 0.4)))
 }
 function popupContext(ctx: Ctx): Ctx {
   return { ...ctx, width: Math.max(8, popupWidth(ctx) - 4) }
@@ -619,6 +640,15 @@ function popupShell(ctx: Ctx, popup: ScreenPopup, placement: { top?: number; bot
     { width: popupWidth(ctx), height: geometry.height, backgroundColor: POPUP_BG, borderColor: C.path, left, ...placementProps },
   )
 }
+
+function popupPlacement(ctx: Ctx, popup: ScreenPopup, rowTop: number): { top: number; left: number } {
+  const items = popup.rows.map(row => renderRow(popupContext(ctx), row))
+  const height = popupGeometry(ctx, items).height
+  const bodyRows = Math.max(1, ctx.bodyViewport ?? ctx.rows)
+  const below = rowTop + 1
+  const top = below + height <= bodyRows ? below : Math.max(0, rowTop - height - 1)
+  return { top: Math.max(0, Math.min(top, Math.max(0, bodyRows - height))), left: 2 }
+}
 function itemPopup(row: ScreenRow): ScreenPopup {
   return {
     kind: 'item',
@@ -655,24 +685,31 @@ function activePopup(ctx: Ctx, model: ScreenModel): ScreenPopup | undefined {
 }
 function renderBody(ctx: Ctx, model: ScreenModel): RenderElement {
   const { Box } = ctx.el
+  let sectionTop = 0
   return (
-    <Box flexDirection="column">
-      {model.sections.map(section => (
-        <Box key={`screen-${section.key}`} flexDirection="column">
-          {renderSection(ctx, section)}
-          {section.rows
-            .filter(
-              row =>
-                (row.kind === 'event' || row.overflowPopup) &&
-                ctx.view.popup?.id === row.id &&
-                (ctx.view.popup.kind === 'event' || ctx.view.popup.kind === 'item'),
-            )
-            .map(row => {
-              const popup = activePopup(ctx, model)
-              return popup ? popupShell(ctx, popup, { top: 1, left: 2 }) : null
-            })}
-        </Box>
-      ))}
+    <Box flexDirection="column" position="relative">
+      {model.sections.map(section => {
+        const selectedIndex = section.rows.findIndex(
+          row =>
+            (row.kind === 'event' || row.overflowPopup) &&
+            ctx.view.popup?.id === row.id &&
+            (ctx.view.popup.kind === 'event' || ctx.view.popup.kind === 'item'),
+        )
+        const sectionTree = renderSection(ctx, section)
+        const prefix = selectedIndex >= 0
+          ? renderSection(ctx, { ...section, rows: section.rows.slice(0, selectedIndex), empty: undefined, input: undefined })
+          : null
+        const popup = selectedIndex >= 0 ? activePopup(ctx, model) : undefined
+        const rowTop = sectionTop + (prefix ? rowsOf(prefix, ctx.width) : 0)
+        sectionTop += rowsOf(sectionTree, ctx.width)
+        const placement = popup ? popupPlacement(ctx, popup, rowTop) : undefined
+        return (
+          <Box key={`screen-${section.key}`} flexDirection="column">
+            {sectionTree}
+            {popup && placement ? popupShell(ctx, popup, placement) : null}
+          </Box>
+        )
+      })}
     </Box>
   )
 }
@@ -781,59 +818,17 @@ function tabBarRows(ctx: Ctx, snapshot: AtlasSnapshot, max: number): number {
   )
 }
 function appBarItems(ctx: Ctx, snapshot: AtlasSnapshot): BarItem[] {
-  const decisions = activeDecisions(snapshot).length
-  const questions = openQuestions(snapshot).length
   return [
     { key: 'legend', label: 'Legend', short: 'Legend', compact: '≡', hotkey: 'l', onPress: () => ctx.act({ type: 'legend' }) },
-    {
-      key: 'decisions',
-      label: `${decisions} decisions →`,
-      short: `${decisions} dec →`,
-      compact: `${decisions}→`,
-      icon: GLYPH.observedDecision.char,
-      hotkey: 'd',
-      onPress: () => ctx.act({ type: 'popup', popup: { kind: 'decisions' } }),
-    },
-    {
-      key: 'questions',
-      label: `${questions} open →`,
-      short: `${questions} open →`,
-      compact: `${questions}→`,
-      icon: GLYPH.openQuestion.char,
-      hotkey: 'q',
-      onPress: () => ctx.act({ type: 'popup', popup: { kind: 'questions' } }),
-    },
     { key: 'mark', label: '+ Mark', short: '+ Mark', compact: '+', hotkey: 'k', onPress: () => ctx.act({ type: 'mark' }) },
   ]
 }
-function appBar(ctx: Ctx, snapshot: AtlasSnapshot, model: ScreenModel): RenderElement {
+function appBar(ctx: Ctx, snapshot: AtlasSnapshot): RenderElement {
   const { Box } = ctx.el
   const items = appBarItems(ctx, snapshot)
-  const choice = collapseBarLabels(items, ctx.width, ctx.surface, 1, 'bar')
-  const current = activePopup(ctx, model)
-  const kind = ctx.view.popup?.kind
-  const index = kind === 'decisions' ? 1 : kind === 'questions' ? 2 : 0
-  const column = choice.grid.columns ? index % choice.grid.columns : 0
-  const left = choice.grid.columnWidths.slice(0, column).reduce((sum, width) => sum + width, 0) + column
   return (
     <Box key="app-bar" position="relative" flexDirection="column" flexShrink={0}>
-      {Bar(
-        { el: ctx.el, surface: ctx.surface, width: ctx.width },
-        items.map(item => ({
-          ...item,
-          active:
-            item.key === 'legend'
-              ? ctx.view.legend
-              : item.key === 'decisions'
-                ? kind === 'decisions'
-                : item.key === 'questions'
-                  ? kind === 'questions'
-                  : false,
-        })),
-      )}
-      {current && (kind === 'decisions' || kind === 'questions' || kind === 'legend')
-        ? popupShell(ctx, current, { bottom: 1, left })
-        : null}
+      {Bar({ el: ctx.el, surface: ctx.surface, width: ctx.width }, items.map(item => ({ ...item, active: item.key === 'legend' ? ctx.view.legend : false })))}
     </Box>
   )
 }
@@ -868,7 +863,7 @@ function scanBanner(ctx: Ctx): RenderElement | null {
   })
 }
 
-export function pane(ctx: Ctx, snapshot: AtlasSnapshot): { tree: RenderElement; maxScroll: number; maxPopupScroll: number } {
+export function pane(ctx: Ctx, snapshot: AtlasSnapshot): { tree: RenderElement; maxScroll: number; maxPopupScroll: number; maxLegendScroll: number } {
   const { Box } = ctx.el
   if (ctx.view.setup)
     return {
@@ -880,14 +875,19 @@ export function pane(ctx: Ctx, snapshot: AtlasSnapshot): { tree: RenderElement; 
       ),
       maxScroll: 0,
       maxPopupScroll: 0,
+      maxLegendScroll: 0,
     }
   const model = screenFor(snapshot, { ...ctx.view, mode: ctx.mode }, ctx.now)
   const appRows = appBarRows(ctx, snapshot)
   const scan = scanBanner(ctx)
   const scanRows = scan ? rowsOf(scan, ctx.width) : 0
   const legend = ctx.view.legend ? legendPanel(ctx) : null
-  const legendRows = legend ? Math.min(rowsOf(legend, ctx.width), Math.max(4, Math.floor(ctx.rows * 0.5))) : 0
-  const fixed = 1 + tabBarRows(ctx, snapshot, 1) + 1 + scanRows + appRows + legendRows
+  const fixedWithoutLegend = 1 + tabBarRows(ctx, snapshot, 1) + 1 + scanRows + appRows
+  const legendContentRows = legend ? rowsOf(legend, ctx.width) : 0
+  const legendRows = legend ? Math.min(legendContentRows, Math.max(1, ctx.rows - fixedWithoutLegend)) : 0
+  const maxLegendScroll = Math.max(0, legendContentRows - legendRows)
+  const legendAt = Math.min(Math.max(0, ctx.view.legendScroll), maxLegendScroll)
+  const fixed = fixedWithoutLegend + legendRows
   const viewport = ctx.rows - fixed
   const pinned = viewport >= 4
   const bodyCtx: Ctx = { ...ctx, bodyViewport: viewport }
@@ -913,10 +913,12 @@ export function pane(ctx: Ctx, snapshot: AtlasSnapshot): { tree: RenderElement; 
         </Box>
       </Box>
       {scrollbar}
+      {ctx.view.popup?.kind === 'legend' ? popupShell(bodyCtx, legendPopup(), { top: 0, left: 2 }) : null}
     </Box>
   ) : (
     <Box flexDirection="column" position="relative">
       {body}
+      {ctx.view.popup?.kind === 'legend' ? popupShell(bodyCtx, legendPopup(), { top: 0, left: 2 }) : null}
     </Box>
   )
   const tree = (
@@ -927,14 +929,14 @@ export function pane(ctx: Ctx, snapshot: AtlasSnapshot): { tree: RenderElement; 
       {uiRule({ el: ctx.el, surface: ctx.surface, width: ctx.width }, C.path)}
       {legend ? (
         <Box flexDirection="column" flexShrink={0} height={legendRows} overflow="hidden">
-          {legend}
+          {legendPanel(ctx, legendRows, legendAt)}
         </Box>
       ) : null}
       {scan}
-      {appBar(ctx, snapshot, model)}
+      {appBar(ctx, snapshot)}
     </Box>
   )
-  return { tree, maxScroll, maxPopupScroll }
+  return { tree, maxScroll, maxPopupScroll, maxLegendScroll }
 }
 
 export function oneLine(snapshot: AtlasSnapshot): string {

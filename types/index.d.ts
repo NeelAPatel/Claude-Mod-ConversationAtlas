@@ -142,6 +142,7 @@ export type AtlasHandoff = {
   tests: string | null
   files: string[]
   reportFingerprint: string | null
+  taskId: string | null
 }
 
 // An earlier session of this project that can be resumed: an Atlas save file or a
@@ -196,7 +197,7 @@ export type AtlasTab = 'map' | 'trail' | 'open' | 'evidence'
 
 export type AtlasSelection = { kind: string; id: string; text: string }
 
-export type AtlasPopup = { kind: 'event' | 'decisions' | 'questions' | 'legend' | 'item'; id?: string }
+export type AtlasPopup = { kind: 'event' | 'legend' | 'item'; id?: string }
 
 export type AtlasView = {
   // The first-run consent screen is explicit UI state; render hooks only read it.
@@ -211,6 +212,8 @@ export type AtlasView = {
   popup: AtlasPopup | null
   // First row within the open popup's own content window.
   popupScroll: number
+  // First row shown inside the bordered inline Legend when it is taller than the pane.
+  legendScroll: number
   // First body row shown; the pane scrolls its own body so the app bar stays put.
   scroll: number
   // Trail events: true = newest at the top.

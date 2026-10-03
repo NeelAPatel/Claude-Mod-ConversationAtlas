@@ -32,8 +32,21 @@ function titleOf(command: string): string | null {
 }
 
 function agentOf(command: string): string | null {
-  if (/\bcodex\b/i.test(command)) return 'Codex'
-  if (/\bclaude\s+(?:-p|--print)\b/i.test(command)) return 'Claude'
+  const direct = /(?:^|&&|[;|])\s*(?:[A-Za-z_][\w-]*=\S+\s+)*(?:["']?)(codex|claude)(?:\.exe)?(?=\s|$)/gi
+  for (const match of command.matchAll(direct)) {
+    const name = match[1]?.toLowerCase()
+    if (name === 'codex') return 'Codex'
+    if (name === 'claude') {
+      const rest = command.slice((match.index ?? 0) + match[0].length)
+      if (/^\s+(?:-p|--print)(?:\s|$)/i.test(rest)) return 'Claude'
+    }
+  }
+  const terminal = /\bwt(?:\.exe)?\b[\s\S]*?\bnew-tab\b([\s\S]*)/i.exec(command)?.[1] ?? ''
+  if (/(?:^|\s)(?:["']?)(codex|claude)(?:\.exe)?(?=\s|$)/i.test(terminal)) {
+    const match = /(?:^|\s)(?:["']?)(codex|claude)(?:\.exe)?(?=\s|$)/i.exec(terminal)
+    if (match?.[1]?.toLowerCase() === 'codex') return 'Codex'
+    if (match?.[1] && /\s+(?:-p|--print)(?:\s|$)/i.test(terminal.slice((match.index ?? 0) + match[0].length))) return 'Claude'
+  }
   return null
 }
 
@@ -50,10 +63,9 @@ export function handoffStart(tool: string, input: Input): HandoffStart | null {
   }
   if (tool !== 'Bash' && tool !== 'PowerShell') return null
   const command = stringOf(input.command)
-  const background = input.run_in_background === true || input.run_in_background === 'true' || input.runInBackground === true
   const agent = agentOf(command)
   const terminalTab = /\bwt(?:\.exe)?\b[\s\S]*\bnew-tab\b/i.test(command) && Boolean(agent)
-  const external = Boolean(agent || terminalTab || background)
+  const external = Boolean(agent || terminalTab)
   if (!external) return null
   const description = labelOf(stringOf(input.description))
   const firstCommandLine = labelOf(command.split(/\r?\n/, 1)[0] ?? '')

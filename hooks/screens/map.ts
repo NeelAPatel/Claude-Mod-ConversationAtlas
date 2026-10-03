@@ -196,14 +196,16 @@ function activity(snapshot: AtlasSnapshot, now: number): ScreenSection {
 
 function fileRow(snapshot: AtlasSnapshot, file: AtlasSnapshot['files'][number], now: number, full: boolean): ScreenRow {
   const name = full ? rel(file.path, snapshot.root) : base(file.path)
-  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
   return {
     id: file.path,
     key: `sel-${full ? 'ef' : 'f'}-${file.path}`,
     kind: 'file',
     glyph: file.lastOp === 'write' ? 'editedFile' : 'readFile',
     text: name,
-    meta: `${plural(file.writes, 'edit')} · ${plural(file.reads, 'read')}`,
+    metaParts: [
+      { text: `${file.writes}e`, compact: `${file.writes}`, tone: 'read' },
+      { text: `${file.reads}r`, compact: `${file.reads}`, tone: 'write' },
+    ],
     right: ago(now - file.at),
     tone: file.lastOp === 'write' ? 'write' : 'read',
     expandable: true,

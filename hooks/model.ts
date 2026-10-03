@@ -115,18 +115,50 @@ export function hydrate(raw: unknown, sessionId: string, root: string, now: numb
   const s = raw as Partial<AtlasSnapshot>
   if (s.v !== 1) return base
   const detour = s.detour ? { ...s.detour, exclusions: s.detour.exclusions ?? [] } : null
-  return { ...base, ...s, detour, sessionId, root, fresh: [], activity: (s.activity ?? []).map(a => (a.state === 'running' ? { ...a, state: 'failed' as const, endedAt: a.endedAt ?? now } : a)), handoffs: (s.handoffs ?? []).map(h => ({ ...h, reportFingerprint: h.reportFingerprint ?? null, ...(h.status === 'open' ? { status: 'closed' as const, summary: h.summary ?? 'session ended', tests: h.tests ?? null } : {}) })) }
+  return {
+    ...base,
+    ...s,
+    detour,
+    sessionId,
+    root,
+    fresh: [],
+    activity: (s.activity ?? []).map(a => (a.state === 'running' ? { ...a, state: 'failed' as const, endedAt: a.endedAt ?? now } : a)),
+    handoffs: (s.handoffs ?? []).map(h => ({
+      ...h,
+      reportFingerprint: h.reportFingerprint ?? null,
+      taskId: h.taskId ?? null,
+      ...(h.status === 'open' ? { status: 'closed' as const, summary: h.summary ?? 'session ended', tests: h.tests ?? null } : {}),
+    })),
+  }
 }
 
 // A snapshot that survived a reload of an older build keeps its old shape in state:
 // fill every field added since, so no reader ever meets undefined. Cheap and idempotent.
 export function upgrade(s: AtlasSnapshot): AtlasSnapshot {
   const partial = s as Partial<AtlasSnapshot>
-  const needs = partial.detectedGoal === undefined || !Array.isArray(partial.recall) || !Array.isArray(partial.adopted) || !partial.scanned || !Array.isArray(partial.handoffs) || s.handoffs.some(h => h.reportFingerprint === undefined) || (s.detour && !Array.isArray(s.detour.exclusions)) || s.detourHistory.some(d => !Array.isArray(d.exclusions))
+  const needs =
+    partial.detectedGoal === undefined ||
+    !Array.isArray(partial.recall) ||
+    !Array.isArray(partial.adopted) ||
+    !partial.scanned ||
+    !Array.isArray(partial.handoffs) ||
+    s.handoffs.some(h => h.reportFingerprint === undefined || h.taskId === undefined) ||
+    (s.detour && !Array.isArray(s.detour.exclusions)) ||
+    s.detourHistory.some(d => !Array.isArray(d.exclusions))
   if (!needs) return s
   const base = emptySnapshot(s.sessionId, s.root, s.startedAt)
   const withEx = <T extends { exclusions?: string[] }>(d: T) => ({ ...d, exclusions: d.exclusions ?? [] })
-  return { ...base, ...s, detectedGoal: partial.detectedGoal ?? null, recall: partial.recall ?? [], adopted: partial.adopted ?? [], scanned: partial.scanned ?? 'none', handoffs: (partial.handoffs ?? []).map(h => ({ ...h, reportFingerprint: h.reportFingerprint ?? null })), detour: s.detour ? withEx(s.detour) : null, detourHistory: s.detourHistory.map(withEx) }
+  return {
+    ...base,
+    ...s,
+    detectedGoal: partial.detectedGoal ?? null,
+    recall: partial.recall ?? [],
+    adopted: partial.adopted ?? [],
+    scanned: partial.scanned ?? 'none',
+    handoffs: (partial.handoffs ?? []).map(h => ({ ...h, reportFingerprint: h.reportFingerprint ?? null, taskId: h.taskId ?? null })),
+    detour: s.detour ? withEx(s.detour) : null,
+    detourHistory: s.detourHistory.map(withEx),
+  }
 }
 
 function id(s: AtlasSnapshot, prefix: string): [string, AtlasSnapshot] {
@@ -378,10 +410,10 @@ export function sentences(text: string): string[] {
   return (text.match(/[^.!?\n]+[.!?]*/g) ?? [text]).map(p => p.trim()).filter(Boolean)
 }
 
-type ReportMarker = { agent: string | null; summary: string }
+type ReportMarker = { agent: string | null; taskId: string | null; summary: string }
 
-function markerLines(body: string): string[] {
-  return body.replace(/<\/?(?:task-notification|agent-message)\b[^>]*>/gi, '').split(/\r?\n/).map(line => line.replace(/^\s+|\s+$/g, '')).filter(Boolean)
+function cleanMarkup(value: string): string {
+  return value.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
 // Engine-originated blocks are not prompts. Pasted content and image notices
@@ -406,10 +438,14 @@ export function reportMarker(text: string): ReportMarker | null {
   const attrs = last?.[2] ?? ''
   const fromMatch = /\bfrom\s*=\s*(?:["']([^"']+)["']|([^\s>]+))/i.exec(attrs)
   const from = fromMatch?.[1] ?? fromMatch?.[2] ?? null
-  const lines = markerLines(last?.[3] ?? '')
-  const chosen = lines.find(line => /^summary\s*:/i.test(line)) ?? lines.find(line => /^status\s*:/i.test(line)) ?? lines[0]
-  const summary = chosen?.replace(/^(?:summary|status)\s*:\s*/i, '').trim() || (from ? `Report from ${from}` : 'Report received')
-  return { agent: from, summary: clip(summary, 140) }
+  const body = last?.[3] ?? ''
+  const taskId = cleanMarkup(body.match(/<task-id\b[^>]*>([\s\S]*?)<\/task-id>/i)?.[1] ?? '') || null
+  const nestedSummary = body.match(/<summary\b[^>]*>([\s\S]*?)<\/summary>/i)?.[1]
+  const nestedStatus = body.match(/<status\b[^>]*>([\s\S]*?)<\/status>/i)?.[1]
+  const lineSummary = body.match(/^\s*summary\s*:\s*(.+)$/im)?.[1]
+  const lineStatus = body.match(/^\s*status\s*:\s*(.+)$/im)?.[1]
+  const summary = cleanMarkup(nestedSummary ?? lineSummary ?? nestedStatus ?? lineStatus ?? '') || (from ? `Report from ${from}` : 'Report received')
+  return { agent: from, taskId, summary: clip(summary, 140) }
 }
 
 // The points a longer prompt makes, after its first sentence: list items as written,
@@ -468,19 +504,48 @@ export function endActivity(s: AtlasSnapshot, aid: string, state: 'done' | 'fail
   return { ...s, activity: s.activity.map(a => (a.id === aid ? { ...a, state, endedAt: now, label: label ?? a.label } : a)) }
 }
 
-export function startHandoff(s: AtlasSnapshot, label: string, agent: string, brief: string | null, reportPath: string | null, now: number, reportFingerprint: string | null = null): AtlasSnapshot {
+export function startHandoff(
+  s: AtlasSnapshot,
+  label: string,
+  agent: string,
+  brief: string | null,
+  reportPath: string | null,
+  now: number,
+  reportFingerprint: string | null = null,
+  taskId: string | null = null,
+): AtlasSnapshot {
   const body = clip(label, 120) || agent || 'external agent'
   const [hid, next] = id(s, 'h')
-  const handoff: AtlasHandoff = { id: hid, label: body, agent: clip(agent, 40) || 'agent', brief: brief ? clip(brief, 240) : null, reportPath: reportPath ? clip(reportPath, 400) : null, at: now, turn: s.turn, status: 'open', summary: null, tests: null, files: [], reportFingerprint }
+  const handoff: AtlasHandoff = {
+    id: hid,
+    label: body,
+    agent: clip(agent, 40) || 'agent',
+    brief: brief ? clip(brief, 240) : null,
+    reportPath: reportPath ? clip(reportPath, 400) : null,
+    at: now,
+    turn: s.turn,
+    status: 'open',
+    summary: null,
+    tests: null,
+    files: [],
+    reportFingerprint,
+    taskId: taskId ? clip(taskId, 120) : null,
+  }
   const path = brief ? ` · ${brief}` : ''
-  return flash(event({ ...next, handoffs: keep([...next.handoffs, handoff], LIMITS.handoffs) }, 'handoff', `→ ${body}${path}`, now), hid)
+  return flash(event({ ...next, handoffs: keep([...next.handoffs, handoff], LIMITS.handoffs) }, 'handoff', `${body}${path}`, now), hid)
 }
 
 function handoffFor(s: AtlasSnapshot, agent?: string, idHint?: string): AtlasHandoff | null {
   const open = s.handoffs.filter(h => h.status === 'open')
-  if (idHint) return open.find(h => h.id === idHint) ?? null
+  if (idHint) return open.find(h => h.id === idHint || h.taskId === idHint) ?? null
   if (agent) return [...open].reverse().find(h => h.agent.toLowerCase() === agent.toLowerCase()) ?? null
   return open.at(-1) ?? null
+}
+
+export function setHandoffTaskId(s: AtlasSnapshot, handoffId: string, taskId: string): AtlasSnapshot {
+  const clean = clip(taskId, 120)
+  if (!clean) return s
+  return { ...s, handoffs: s.handoffs.map(h => h.id === handoffId ? { ...h, taskId: clean } : h) }
 }
 
 export function reportHandoff(s: AtlasSnapshot, summaryText: string, now: number, agent?: string, idHint?: string, tests: string | null = null, files: string[] = []): AtlasSnapshot {
@@ -491,15 +556,17 @@ export function reportHandoff(s: AtlasSnapshot, summaryText: string, now: number
     ? s.handoffs.map(h => h.id === hit.id ? { ...h, status: 'reported' as const, summary, tests: tests ? clip(tests, 140) : h.tests, files: uniqueFiles.length ? uniqueFiles : h.files } : h)
     : s.handoffs
   const suffix = `${uniqueFiles.length ? ` · ${uniqueFiles.length} files` : ''}${tests ? ` · ${clip(tests, 100)}` : ''}`
-  return event({ ...s, handoffs: marked }, 'report-back', `← ${summary}${suffix}`, now)
+  return event({ ...s, handoffs: marked }, 'report-back', `${summary}${suffix}`, now)
 }
 
 export function closeUnverifiedHandoffs(s: AtlasSnapshot, now: number): AtlasSnapshot {
-  const open = s.handoffs.filter(h => h.status === 'open')
-  if (!open.length) return s
-  let next: AtlasSnapshot = { ...s, handoffs: s.handoffs.map(h => h.status === 'open' ? { ...h, status: 'closed' as const, summary: 'back · unverified' } : h) }
-  for (const h of open) next = event(next, 'report-back', `← back · unverified${h.label ? ` · ${h.label}` : ''}`, now)
-  return next
+  const hit = [...s.handoffs].reverse().find(h => h.status === 'open' && !h.reportPath && !h.taskId)
+  if (!hit) return s
+  const next: AtlasSnapshot = {
+    ...s,
+    handoffs: s.handoffs.map(h => h.id === hit.id ? { ...h, status: 'closed' as const, summary: 'back · unverified' } : h),
+  }
+  return event(next, 'report-back', `back · unverified${hit.label ? ` · ${hit.label}` : ''}`, now)
 }
 
 export function resolveRepoPath(root: string, path: string): string {

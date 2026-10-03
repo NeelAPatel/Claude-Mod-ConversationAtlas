@@ -38,6 +38,7 @@ import {
   sentences,
   setGoal,
   setItemStatus,
+  setHandoffTaskId,
   setNextStep,
   startActivity,
   startHandoff,
@@ -69,12 +70,38 @@ const SAVE_MS = 2_000
 const KEEP_SESSIONS = 12
 const SCAN_RESULT_MS = 4_000
 const MODE = { plugin: 'conversation-atlas', key: 'mode' } as const
-const DEFAULT_VIEW: AtlasView = { setup: false, tab: 'map', refs: {}, nextRef: 1, editingGoal: false, legend: false, popup: null, popupScroll: 0, scroll: 0, trailNewest: true, expanded: null }
+const DEFAULT_VIEW: AtlasView = {
+  setup: false,
+  tab: 'map',
+  refs: {},
+  nextRef: 1,
+  editingGoal: false,
+  legend: false,
+  popup: null,
+  popupScroll: 0,
+  legendScroll: 0,
+  scroll: 0,
+  trailNewest: true,
+  expanded: null,
+}
 
 const RULES = `# Conversation Atlas
  A side pane maps this session for the user. Keep it accurate with ${TOOL}: at the end of a turn where the topic moved, a decision was reached, a question opened or closed, or a milestone landed, call it once with only the fields that changed (short phrases, at most 6 words for a topic). shift: "same" (refining the current topic), "subtopic" (going deeper), "sibling" (next part of the same work), "possible-detour" (a side trip away from the user's goal), "return" (back to earlier work; name that topic). Skip it on trivial turns. Report goal whenever the user's apparent overall aim changes; Atlas shows that as an observation, never as a confirmed goal. It records observations only: never say the user's confirmed goal changed and never treat a detour as accepted; the user confirms goals, detours and returns in the pane. Do not mention the atlas to the user.`
 
 type Raw = Record<string, unknown>
+
+function taskIdOf(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null
+  const record = value as Raw
+  for (const key of ['taskId', 'task_id', 'task-id']) {
+    if (typeof record[key] === 'string' && record[key]) return record[key] as string
+  }
+  for (const key of ['result', 'task', 'metadata']) {
+    const nested = taskIdOf(record[key])
+    if (nested) return nested
+  }
+  return null
+}
 
 // A Client's props must be plain JSON: no undefined fields.
 function plain(rows: LiveRow[]): LiveRow[] {
@@ -92,6 +119,7 @@ let activitySeq = 0
 let maxScroll = 0
 // How far the currently open popup can scroll at the last draw.
 let maxPopupScroll = 0
+let maxLegendScroll = 0
 let scanOnLaunch: 'off' | 'engine' | 'claude' = 'engine'
 let configuredMode: AtlasMode = 'claude'
 let observerToolRegistered = false
@@ -142,6 +170,11 @@ function scheduleUnflash($: EngineInterface): void {
 
 async function setView($: EngineInterface, fn: (v: AtlasView) => AtlasView): Promise<void> {
   await update($, VIEW, cur => fn({ ...DEFAULT_VIEW, ...(cur ?? {}) }))
+}
+
+async function isLegendOpen($: EngineInterface): Promise<boolean> {
+  const value = (await $.state.get(VIEW)).value
+  return Boolean(value && typeof value === 'object' && (value as Partial<AtlasView>).legend)
 }
 
 type SetupChoice = { observer: AtlasMode; at: number }
@@ -370,9 +403,9 @@ async function openPane($: EngineInterface, focus: boolean): Promise<boolean> {
 async function act($: EngineInterface, a: Action): Promise<void> {
   switch (a.type) {
     case 'tab':
-      return setView($, v => ({ ...v, tab: a.tab, scroll: 0, popup: null, popupScroll: 0 }))
+      return setView($, v => ({ ...v, tab: a.tab, scroll: 0, legend: false, popup: null, popupScroll: 0 }))
     case 'legend':
-      return setView($, v => ({ ...v, legend: !v.legend, popup: null, popupScroll: 0 }))
+      return setView($, v => ({ ...v, legend: !v.legend, legendScroll: 0, popup: null, popupScroll: 0 }))
     case 'open-setup':
       return setView($, v => ({ ...v, setup: true, legend: false, popup: null, popupScroll: 0, scroll: 0 }))
     case 'set-observer':
@@ -388,13 +421,14 @@ async function act($: EngineInterface, a: Action): Promise<void> {
     case 'popup-scroll':
       return setView($, v => ({ ...v, popupScroll: Math.max(0, Math.min(maxPopupScroll, v.popupScroll + a.by)) }))
     case 'scroll':
+      if (await isLegendOpen($)) return setView($, v => ({ ...v, legendScroll: Math.max(0, Math.min(maxLegendScroll, v.legendScroll + a.by)) }))
       return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, v.scroll + a.by)), popup: null, popupScroll: 0 }))
     case 'scroll-to':
       return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, a.at)), popup: null, popupScroll: 0 }))
     case 'trail-sort':
       return setView($, v => ({ ...v, trailNewest: !v.trailNewest, popup: null, popupScroll: 0 }))
     case 'expand':
-      return setView($, v => ({ ...v, expanded: v.expanded === a.id ? null : a.id, popup: v.popup && (v.popup.kind === 'decisions' || v.popup.kind === 'questions') ? v.popup : null, popupScroll: 0 }))
+      return setView($, v => ({ ...v, expanded: v.expanded === a.id ? null : a.id, popup: null, popupScroll: 0 }))
     case 'exclude':
       await edit($, (s, now) => setItemStatus(s, a.id, 'excluded', now))
       await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
@@ -706,7 +740,9 @@ export const register: Register = (on, options) => {
     const marker = reportMarker(rawText)
     await edit($, (s, now) => {
       let nextState = startTurn(s, rawText, now)
-      if (marker) return reportHandoff(nextState, marker.summary, now, marker.agent ?? undefined)
+      if (marker) {
+        return reportHandoff(nextState, marker.summary, now, marker.taskId ? marker.agent ?? undefined : undefined, marker.taskId ?? undefined)
+      }
       // Only a genuinely typed remainder closes an unreported hand-off. A
       // marker-only engine turn therefore neither creates a prompt nor closes
       // the running delegation.
@@ -796,6 +832,7 @@ export const register: Register = (on, options) => {
     }
     const failed = ran.deny !== undefined || ran.isError === true
     const result = (ran.result && typeof ran.result === 'object' ? ran.result : {}) as Raw
+    const taskId = taskIdOf(ran) ?? taskIdOf(result)
     const commit = (result.gitOperation as { commit?: { sha?: string } } | undefined)?.commit
     await edit($, (s, now) => {
       let out = endActivity(s, aid, failed ? 'failed' : 'done', now, c.isTest ? `Tests ${failed ? 'failed' : 'passed'}: ${c.label.replace(/^Tests: /, '')}` : undefined)
@@ -814,6 +851,7 @@ export const register: Register = (on, options) => {
       const summaryText = `${delegation.agent} ${failed ? 'failed' : 'completed'}`
       await edit($, (s, now) => reportHandoff(s, summaryText, now, delegation.agent, handoffId))
     }
+    if (delegation && handoffId && taskId) await edit($, s => setHandoffTaskId(s, handoffId as string, taskId))
     return ran
   })
 
@@ -871,6 +909,7 @@ export const register: Register = (on, options) => {
     const drawn = pane({ el, surface, width, rows, now, mode, setupDefault: configuredMode, scan, view: renderView, live, act: a => void act($, a).catch(err => $.ui.toast(`atlas: ${err instanceof Error ? err.message : String(err)}`)) }, s)
     maxScroll = drawn.maxScroll
     maxPopupScroll = drawn.maxPopupScroll
+    maxLegendScroll = drawn.maxLegendScroll
     return drawn.tree
   })
 
@@ -879,6 +918,10 @@ export const register: Register = (on, options) => {
     const view = (await $.state.get(VIEW)).value as AtlasView | undefined
     if (view?.popup) {
       await setView($, v => ({ ...v, popupScroll: Math.max(0, Math.min(maxPopupScroll, v.popupScroll + e.by)) }))
+      return {}
+    }
+    if (view?.legend) {
+      await setView($, v => ({ ...v, legendScroll: Math.max(0, Math.min(maxLegendScroll, v.legendScroll + e.by)) }))
       return {}
     }
     await setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, v.scroll + e.by)) }))

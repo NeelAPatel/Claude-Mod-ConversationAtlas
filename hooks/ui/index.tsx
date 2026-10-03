@@ -30,7 +30,7 @@ export type UiSection = {
   heading: string
   explain?: string
   count?: string
-  right?: string
+  right?: string | RenderElement
   color?: string
   dim?: boolean
 }
@@ -407,9 +407,10 @@ export function Section(ctx: UiContext, section: UiSection, children: RenderElem
           </Text>
         ) : null}
         {section.right ? (
-          <Text dimColor wrap="truncate-end">
-            {section.right}
-          </Text>
+          <Box flexDirection="row">
+            <Text> </Text>
+            {typeof section.right === 'string' ? <Text dimColor wrap="truncate-end">{section.right}</Text> : section.right}
+          </Box>
         ) : null}
       </Box>
       {section.explain ? (

@@ -72,11 +72,13 @@ export type ScreenRow = {
   glyph?: GlyphKey
   text: string
   meta?: string
+  metaParts?: { text: string; compact?: string; tone?: ToneKey; dim?: boolean }[]
   right?: string
   source?: string
   tone?: ToneKey
   dim?: boolean
   bold?: boolean
+  italic?: boolean
   fresh?: boolean
   depth?: number
   expandable?: boolean
@@ -105,7 +107,7 @@ export type ScreenSection = {
 }
 
 export type ScreenPopup = {
-  kind: 'event' | 'decisions' | 'questions' | 'legend' | 'item'
+  kind: 'event' | 'legend' | 'item'
   id?: string
   title: string
   titleCount?: string
