@@ -906,13 +906,13 @@ function activityRows(ctx: Ctx, s: AtlasSnapshot, max: number): LiveRow[] {
     const tone = a.kind === 'edit' ? 'orange' : a.kind === 'test' ? 'green' : a.kind === 'agent' ? 'blue' : 'violet'
     const mark = running ? '' : a.state === 'failed' ? `${GLYPH.fail.char} ` : `${GLYPH.ok.char} `
     const markColor = running ? color : a.state === 'failed' ? GLYPH.fail.color : GLYPH.ok.color
-    const label = fit(`${a.agent ? `${a.agent} · ` : ''}${a.label}`, ctx.width - 8)
+    const when = running ? '' : ago(ctx.now - (a.endedAt ?? a.at))
+    const label = fit(`${a.agent ? `${a.agent} · ` : ''}${a.label}`, ctx.width - 4 - when.length - 2)
     const segs: LiveSeg[] = [
       running ? { t: '', spin: true, c: color } : { t: mark, c: markColor, d: a.state === 'done' },
       { t: label, c: running ? undefined : a.state === 'failed' ? C.fail : undefined, d: !running && a.state === 'done', sh: running ? tone : undefined, b: running },
-      { t: running ? '' : `  ${ago(ctx.now - (a.endedAt ?? a.at))}`, d: true },
     ]
-    return { segs }
+    return when ? { segs, right: [{ t: when, d: true }] } : { segs }
   })
 }
 
@@ -938,14 +938,24 @@ function fileLine(ctx: Ctx, s: AtlasSnapshot, f: AtlasSnapshot['files'][number],
     `counts: ${f.reads} read · ${f.writes} written`,
     whenLine(ctx, f.at, f.turn),
   ]
+  // Wide: "3 edits · 2 reads · 1m". Narrow: "✎3 ·2 1m". The time is when it was last touched.
+  const wide = ctx.width >= 48
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+  const edits = f.writes ? (wide ? plural(f.writes, 'edit') : `${GLYPH.editedFile.char}${f.writes}`) : ''
+  const reads = f.reads ? (wide ? plural(f.reads, 'read') : `${GLYPH.readFile.char}${f.reads}`) : ''
+  const when = ago(ctx.now - f.at)
+  const sep = wide ? ' · ' : ' '
+  const rightLen = [edits, reads, when].filter(Boolean).join(sep).length
   return (
     <Box key={key} flexDirection="row">
-      <Text color={f.lastOp === 'write' ? GLYPH.editedFile.color : GLYPH.readFile.color}>{f.lastOp === 'write' ? GLYPH.editedFile.char : GLYPH.readFile.char}</Text>
-      <Box flexShrink={1}>{selectable(ctx, `sel-${key}`, { kind: 'File', id: f.path, text: rel(f.path, s.root) }, fit(name, ctx.width - 14), undefined, false, details)}</Box>
+      <Text color={f.lastOp === 'write' ? GLYPH.editedFile.color : GLYPH.readFile.color}>{`${f.lastOp === 'write' ? GLYPH.editedFile.char : GLYPH.readFile.char} `}</Text>
+      <Box flexShrink={1}>{selectable(ctx, `sel-${key}`, { kind: 'File', id: f.path, text: rel(f.path, s.root) }, fit(name, Math.max(8, ctx.width - rightLen - 5)), undefined, false, details)}</Box>
       <Box flexGrow={1} />
-      <Box flexDirection="row" gap={1}>
-        {f.writes ? <><Text color={GLYPH.editedFile.color}>{GLYPH.editedFile.char}</Text><Text dimColor>{f.writes}</Text></> : null}
-        {f.reads ? <><Text color={GLYPH.readFile.color}>{GLYPH.readFile.char}</Text><Text dimColor>{f.reads}</Text></> : null}
+      <Box flexDirection="row" flexShrink={0}>
+        {edits ? <Text color={GLYPH.editedFile.color}>{edits}</Text> : null}
+        {edits && reads ? <Text dimColor>{sep}</Text> : null}
+        {reads ? <Text color={GLYPH.readFile.color}>{reads}</Text> : null}
+        <Text dimColor>{`${sep}${when}`}</Text>
       </Box>
     </Box>
   )

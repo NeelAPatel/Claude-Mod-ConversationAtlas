@@ -5,7 +5,7 @@
 import type { ClientModule } from 'claude-code'
 
 export type LiveSeg = { t: string; c?: string; b?: boolean; d?: boolean; sh?: string; spin?: boolean }
-export type LiveRow = { segs: LiveSeg[] }
+export type LiveRow = { segs: LiveSeg[]; right?: LiveSeg[] }
 export type LiveProps = { rows: LiveRow[]; tones: Record<string, string[]> }
 
 type Local = { phase: number; ref: { stop?: () => void } }
@@ -60,7 +60,15 @@ const Live: ClientModule<LiveProps, Local> = (props, surface) => {
     <Box flexDirection="column">
       {props.rows.map(r => (
         <Box flexDirection="row" height={1} overflow="hidden">
-          {r.segs.map(draw)}
+          <Box flexDirection="row" flexShrink={1} overflow="hidden">
+            {r.segs.map(draw)}
+          </Box>
+          <Box flexGrow={1} />
+          {r.right?.length ? (
+            <Box flexDirection="row" flexShrink={0}>
+              {r.right.map(draw)}
+            </Box>
+          ) : null}
         </Box>
       ))}
     </Box>

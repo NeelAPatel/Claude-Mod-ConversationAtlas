@@ -70,7 +70,8 @@ type Raw = Record<string, unknown>
 
 // A Client's props must be plain JSON: no undefined fields.
 function plain(rows: LiveRow[]): LiveRow[] {
-  return rows.map(r => ({ segs: r.segs.map(s => Object.fromEntries(Object.entries(s).filter(([, v]) => v !== undefined && v !== false)) as LiveRow['segs'][number]) }))
+  const clean = (segs: LiveRow['segs']) => segs.map(s => Object.fromEntries(Object.entries(s).filter(([, v]) => v !== undefined && v !== false)) as LiveRow['segs'][number])
+  return rows.map(r => (r.right?.length ? { segs: clean(r.segs), right: clean(r.right) } : { segs: clean(r.segs) }))
 }
 
 let sid = ''
