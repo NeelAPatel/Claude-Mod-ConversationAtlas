@@ -89,7 +89,16 @@ const DEFAULT_VIEW: AtlasView = {
 }
 
 const RULES = `# Conversation Atlas
- A side pane maps this session for the user. Keep it accurate with ${TOOL}: at the end of a turn where the topic moved, a decision was reached, a question opened or closed, or a milestone landed, call it once with only the fields that changed (short phrases, at most 6 words for a topic). shift: "same" (refining the current topic), "subtopic" (going deeper), "sibling" (next part of the same work), "possible-detour" (a side trip away from the user's goal), "return" (back to earlier work; name that topic). Skip it on trivial turns. Report goal whenever the user's apparent overall aim changes; Atlas shows that as an observation, never as a confirmed goal. It records observations only: never say the user's confirmed goal changed and never treat a detour as accepted; the user confirms goals, detours and returns in the pane. Do not mention the atlas to the user.`
+ A side pane maps this session for the user. Keep it accurate with ${TOOL}: at the end of a turn where the topic moved, a decision was reached,
+ a question opened or closed, or a milestone landed, call it once with only the fields that changed (short phrases, at most 6 words for a topic).
+ Call ${TOOL} in parallel with another tool call already needed in this response; never alone in a final round.
+ If none is needed, skip it and report it on the next tool-using turn.
+ shift: "same" (refining the current topic), "subtopic" (going deeper), "sibling" (next part of the same work),
+ "possible-detour" (a side trip away from the user's goal), "return" (back to earlier work; name that topic). Skip it on trivial turns.
+ Report goal whenever the user's apparent overall aim changes; Atlas shows that as an observation, never as a confirmed goal.
+ It records observations only: never say the user's confirmed goal changed and never treat a detour as accepted;
+ the user confirms goals, detours and returns in the pane.
+ Do not mention the atlas to the user.`
 
 type Raw = Record<string, unknown>
 

@@ -204,6 +204,32 @@ describe('hooks', () => {
     await ui.unmount()
   })
 
+  test('observer rules batch reports with tool calls and stay short', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    on('prompt.compose', () => ({ sections: [] }))
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    await clock.settle()
+
+    const engine = $ as unknown as {
+      prompt: { compose: (input: object) => Promise<{ sections: Array<{ id?: unknown; text?: unknown }> }> }
+    }
+    const compose = {
+      model: 'test',
+      promptModel: 'test',
+      surfaces: ['terminal'],
+      tools: [],
+      outputStyle: null,
+      traits: [],
+    }
+    const result = await engine.prompt.compose(compose)
+    const rules = result.sections.find(section => section.id === 'conversation-atlas:rules')
+    const text = String(rules?.text ?? '')
+    expect(text).toContain('in parallel with another tool call')
+    expect(text).toContain('never alone in a final round')
+    expect(text).toContain('next tool-using turn')
+    expect(text.length).toBeLessThan(1_140)
+  })
+
   test('registers its tool and command, opens the pane, and maps engine events', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock, seen } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
