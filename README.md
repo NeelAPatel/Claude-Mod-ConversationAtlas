@@ -12,12 +12,9 @@
 
 </div>
 
-<!--
-  DEMO VIDEO: on GitHub, edit this file in the web editor (or open any issue), drag
-  "readme media/Video Project 1.mp4" into the text box, and paste the generated
-  https://github.com/user-attachments/assets/... URL on its own line right below this comment.
-  GitHub turns a bare asset URL into an inline player. Keep the 60 MB file out of git history.
--->
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/112dd1f4-972a-4970-9733-741a9e0cf5d2" width="720" controls muted></video>
+</div>
 
 **Tame your Claude's conversation history.** Long Claude Code sessions drift: a quick tangent turns
 into an hour, a decision made early gets lost in scrollback, and after a break nobody remembers
