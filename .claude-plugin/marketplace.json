@@ -1,0 +1,12 @@
+{
+  "name": "neel-cc-mods",
+  "description": "Claude Code mods by Neel",
+  "owner": { "name": "Neel" },
+  "plugins": [
+    {
+      "name": "conversation-atlas",
+      "source": "./",
+      "description": "A live side pane that maps a long Claude Code session: goal, detours, decisions, open questions and what to resume next."
+    }
+  ]
+}
