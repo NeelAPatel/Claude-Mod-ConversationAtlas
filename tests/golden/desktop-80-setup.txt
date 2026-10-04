@@ -1,4 +1,3 @@
- Conversation Atlas   {0:color:#7dcfff,bold}
 Set up Atlas  {0:color:#7dcfff,bold}
 Claude observer adds topics and path, possible detours, Claude-reported decisions and questions, a detected goal, and a suggested next step.  {0:dim}
 When something changes, it uses a small amount of Claude usage: one extra tool step plus a cached rules section.  {0:dim}

@@ -1,27 +1,27 @@
- Conversation Atlas   {0:color:#7dcfff,bold}
-▸Map Trail Open 4 Evid  {0:color:yellowBright,bold}
-GOAL ⓘ Edit  {0:color:#7dcfff,bold}
-◎ Build a dependable Conversation Atlas pane for long session… · 3 suggestions  {0:color:#7dcfff|63:dim}
-CURRENT PATH ⓘ3 earlier  {0:color:#bb9af7,bold|14:dim}
-Atlas foundations
-  Map rendering ↳ left here  {0:dim|16:dim}
-    ↳ Desktop parity unconfirmed · return: 2 back  {0:dim|4:color:#e0af68|6:italic,dim|21:dim|33:dim|35:dim}
-      ↳ Color tokens unconfirmed  {0:dim|6:color:#e0af68|8:italic,dim|21:dim}
-POSSIBLE DETOUR ⓘ  {0:color:#e0af68,bold}
-↳ Desktop parity detour suggestion · from Claude  {0:color:#e0af68|2:italic,dim|17:dim}
+Map Trail Open 4 Evidence
+
+GOAL Info Edit  {0:color:#7dcfff,bold}
+◎ Build a dependable Conversation Atlas pane for long sessions. · 3 suggestions  {0:color:#7dcfff|64:dim}
+CURRENT PATH Info 3 earlier  {0:color:#bb9af7,bold|18:dim}
+ Atlas foundations
+ Map rendering ↳ left here  {15:dim}
+↳ Desktop parity unconfirmed · return: 2 back  {0:color:#e0af68|2:italic,dim|17:dim|29:dim|31:dim}
+↳ Color tokens unconfirmed  {0:color:#e0af68|2:italic,dim|15:dim}
+POSSIBLE DETOUR Info  {0:color:#e0af68,bold}
+↳ Desktop parity detour suggestion · from Claude · Compare native labels before returning.  {0:color:#e0af68|2:italic,dim|17:dim}
 Take detour Not a detour
-ACTIVITY ⓘ  {0:color:#bb9af7,bold}
+ACTIVITY Info  {0:color:#bb9af7,bold}
 × Codex · Reviewing the golden diff now  {0:color:#f7768e|36:dim}
 ✓ claude plugin test . 1m  {0:color:#9ece6a|2:dim|23:dim}
 × Scratch glyph check 1m  {0:color:#f7768e|22:dim}
-WORKING SET ⓘ3 files  {0:color:#ff9e64,bold|13:dim}
+WORKING SET Info 3 files  {0:color:#ff9e64,bold|17:dim}
 ✎ golden.test.tsx 1e 0r 1m  {0:color:#ff9e64|18:color:#ff9e64|21:color:#bb9af7|24:dim}
 · atlas.test.tsx 0e 1r 1m  {0:color:#bb9af7|17:color:#ff9e64|20:color:#bb9af7|23:dim}
 ✎ view.tsx 1e 1r 1m  {0:color:#ff9e64|11:color:#ff9e64|14:color:#bb9af7|17:dim}
-LATEST ⓘ confirm in Open  {0:color:#7aa2f7,bold|9:dim}
+LATEST Info confirm in Open  {0:color:#7aa2f7,bold|12:dim}
 ◆ Keep renderers pure  {0:color:#9ece6a}
 ◇ Use text goldens for visual review  {0:color:#9ece6a}
 ? Which surface gets the first manual check?  {0:color:#f7768e}
-RESUME NEXT ⓘpinned  {0:color:#7dcfff,bold|13:dim}
+RESUME NEXT Info pinned  {0:color:#7dcfff,bold|17:dim}
 ▸ Review the fixed pane sample and approve the visual boundary.  {0:color:#7dcfff}
-Legend + Mark  {0:dim|7:dim}
+Legend + Mark

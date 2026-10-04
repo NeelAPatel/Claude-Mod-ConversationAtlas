@@ -1,10 +1,10 @@
- Conversation Atlas   {0:color:#7dcfff,bold}
-Map Trail ▸Open 4 Evid  {10:color:#f7768e,bold}
-NEEDS YOUR CALL ⓘ2  {0:color:#7dcfff,bold|17:dim}
-○ Check whether the native controls stay le…
-↳ Desktop parity detour suggestion  {0:color:#e0af68|17:dim}
-OBSERVED DECISIONS ⓘ1  {0:color:#9ece6a,bold|20:dim}
+Map Trail Open 4 Evidence
+
+NEEDS YOUR CALL Info 2  {0:color:#7dcfff,bold|21:dim}
+○ Check whether the native controls stay legible. next suggestion · from Claude  {50:dim}
+↳ Desktop parity detour suggestion · from Claude  {0:color:#e0af68|17:dim}
+OBSERVED DECISIONS Info 1  {0:color:#9ece6a,bold|24:dim}
 ◇ Use text goldens for visual review  {0:color:#9ece6a}
-OPEN QUESTIONS ⓘ1  {0:color:#f7768e,bold|16:dim}
+OPEN QUESTIONS Info 1  {0:color:#f7768e,bold|20:dim}
 ? Which surface gets the first manual check?  {0:color:#f7768e}
-Legend + Mark  {0:dim|7:dim}
+Legend + Mark
