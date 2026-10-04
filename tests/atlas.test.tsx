@@ -29,7 +29,7 @@ import {
 import { expectedReportPath, handoffStart, parseHandoffReport, reportChanged, reportFingerprint } from '../hooks/delegation'
 import { atlasFullFileError, fromAtlasFullFile, pickRecallEntries, saveFile, sessionsToDelete } from '../hooks/recall'
 import { replay } from '../hooks/scan'
-import { cellWidth, collapseBarLabels, layoutRow, measuredBarItemWidth, truncateMiddleCells } from '../hooks/ui'
+import { cellWidth, collapseBarLabels, kitFor, layoutRow, measuredBarItemWidth, truncateMiddleCells } from '../hooks/ui'
 import { C, GLYPH, LEGEND, legendPanel, pane, popupShell, rowsOf, type Ctx } from '../hooks/view'
 import { buildEvidence } from '../hooks/screens/evidence'
 import { buildMap } from '../hooks/screens/map'
@@ -1751,11 +1751,32 @@ function scrollTestView(): AtlasView {
 function scrollTestContext(el: Ctx['el'], width: number, rows: number, view: AtlasView): Ctx {
   const { Box } = el
   return {
-    el, surface: 'terminal', width, rows, now: 1_800_000_000_000, mode: 'claude', setupDefault: 'claude',
+    el, surface: 'terminal', kit: kitFor('terminal'), width, rows, now: 1_800_000_000_000, mode: 'claude', setupDefault: 'claude',
     scan: { active: false, startedAt: 0, result: null, resultAt: 0 }, view,
     live: () => <Box />, act: () => undefined,
   }
 }
+
+describe('surface renderer kits', () => {
+  test('each kit owns glyphs, bars, actions, rules and the title rule', () => {
+    for (const kit of [kitFor('terminal'), kitFor('desktop')]) {
+      expect(kit.glyphs.prompt.length).toBeGreaterThan(0)
+      expect(typeof kit.Tabs).toBe('function')
+      expect(typeof kit.Bar).toBe('function')
+      expect(typeof kit.ActionGroup).toBe('function')
+      expect(typeof kit.rule).toBe('function')
+      expect(typeof kit.titleRule).toBe('function')
+    }
+  })
+
+  test('desktop selects GUI while terminal, vscode and mobile share TUI', () => {
+    const gui = kitFor('desktop')
+    const tui = kitFor('terminal')
+    expect(gui).not.toBe(tui)
+    expect(kitFor('vscode')).toBe(tui)
+    expect(kitFor('mobile')).toBe(tui)
+  })
+})
 
 const scrollPaneProps = (bodyColumns: number, bodyRows: number) => ({
   title: 'Atlas', isFocused: true, bodyColumns, placement: 'dock' as const,

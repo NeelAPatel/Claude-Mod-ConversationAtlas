@@ -6,20 +6,15 @@ import type { AtlasMode, AtlasScanState, AtlasSnapshot, AtlasTab, AtlasView } fr
 import type { LiveRow } from './live'
 import { openQuestions } from './model'
 import {
-  ActionGroup,
-  Bar,
-  collapseBarLabels,
   cellWidth,
-  glyphsFor,
-  isGui,
+  kitFor,
   layoutRow as uiLayoutRow,
   Popup as UiPopup,
   ScrollBox,
   Section,
   type BarItem,
   type Surface,
-  Tabs,
-  rule as uiRule,
+  type SurfaceKit,
 } from './ui'
 import { buildEvidence } from './screens/evidence'
 import { buildMap } from './screens/map'
@@ -93,6 +88,7 @@ type El = Pick<Elements['terminal'], 'Box' | 'Text' | 'Button'> & { Input?: Elem
 export type Ctx = {
   el: El
   surface: Surface
+  kit: SurfaceKit
   width: number
   rows: number
   bodyViewport?: number
@@ -109,6 +105,7 @@ export type Ctx = {
   ) => RenderElement
   act: (action: Action) => void
 }
+type PaneCtx = Omit<Ctx, 'kit'> & { kit?: SurfaceKit }
 
 const OBSERVER_NOTE = 'Needs the Claude observer · /atlas observer claude'
 const POPUP_BG = '#16161e'
@@ -212,7 +209,7 @@ function toneColor(tone: ScreenRow['tone'] | ScreenSection['tone']): string | un
   return tone ? C[tone] : undefined
 }
 function glyph(ctx: Ctx, name: GlyphKey): Glyph {
-  return { ...GLYPH[name], char: glyphsFor(ctx.surface)[name] }
+  return { ...GLYPH[name], char: ctx.kit.glyphs[name] }
 }
 function actions(
   ctx: Ctx,
@@ -220,8 +217,8 @@ function actions(
   options: { marginLeft?: number; gap?: number; flexWrap?: 'wrap' | 'nowrap' } = {},
 ): RenderElement | null {
   if (!items.length) return null
-  return ActionGroup(
-    { el: ctx.el, surface: ctx.surface, width: ctx.width },
+  return ctx.kit.ActionGroup(
+    { el: ctx.el, width: ctx.width },
     items.map(item => ({ key: item.key, label: item.label, primary: item.primary, role: item.role, onPress: () => ctx.act(item.action) })),
     options,
   )
@@ -594,7 +591,7 @@ function renderSection(ctx: Ctx, section: ScreenSection): RenderElement {
   ) : null
   const showInput = Boolean(section.input && Input && (ctx.view.editingGoal || section.rows.length === 0))
   return Section(
-    { el: ctx.el, surface: ctx.surface, width: ctx.width },
+    { el: ctx.el, width: ctx.width },
     {
       key: section.key,
       heading: section.heading,
@@ -1013,30 +1010,6 @@ function renderBody(ctx: Ctx, model: ScreenModel): RenderElement {
   )
 }
 
-function titleRule(ctx: Ctx): RenderElement {
-  const { Box, Text } = ctx.el
-  const name = ctx.width >= 34 ? ' Conversation Atlas ' : ' Atlas '
-  if (isGui(ctx.surface))
-    return (
-      <Box flexDirection="row" flexShrink={0} height={1} alignItems="center">
-        <Box flexGrow={1} minWidth={1} height={1} borderStyle="single" borderColor={C.goal} />
-        <Text bold color={C.goal}>
-          {name}
-        </Text>
-        <Box flexGrow={1} minWidth={1} height={1} borderStyle="single" borderColor={C.goal} />
-      </Box>
-    )
-  const left = Math.max(1, Math.floor((ctx.width - name.length) / 2))
-  return (
-    <Box flexDirection="row" flexShrink={0} height={1}>
-      <Text dimColor>{'─'.repeat(left)}</Text>
-      <Text bold color={C.goal}>
-        {name}
-      </Text>
-      <Text dimColor>{'─'.repeat(Math.max(1, ctx.width - name.length - left))}</Text>
-    </Box>
-  )
-}
 function tabItems(ctx: Ctx, snapshot: AtlasSnapshot): BarItem[] {
   const pending =
     snapshot.suggestions.length + snapshot.decisions.filter(item => item.status === 'observed').length + openQuestions(snapshot).length
@@ -1088,7 +1061,7 @@ function tabBar(ctx: Ctx, snapshot: AtlasSnapshot, scroll: { max: number; at: nu
   const width = Math.max(1, ctx.width - (scroll.max > 0 ? 5 : 0))
   return (
     <Box flexDirection="row" gap={1} flexShrink={0} overflow="hidden">
-      {Tabs({ el: ctx.el, surface: ctx.surface, width }, tabItems(ctx, snapshot))}
+      {ctx.kit.Tabs({ el: ctx.el, width }, tabItems(ctx, snapshot))}
       {scroll.max > 0 ? (
         <Box flexDirection="row" gap={1} flexShrink={0}>
           <Button
@@ -1112,7 +1085,7 @@ function tabBar(ctx: Ctx, snapshot: AtlasSnapshot, scroll: { max: number; at: nu
 }
 function tabBarRows(ctx: Ctx, snapshot: AtlasSnapshot, max: number): number {
   return (
-    collapseBarLabels(tabItems(ctx, snapshot), Math.max(1, ctx.width - (max > 0 ? 5 : 0)), ctx.surface, 1, 'tabs').grid.rows.length +
+    ctx.kit.collapseBarLabels(tabItems(ctx, snapshot), Math.max(1, ctx.width - (max > 0 ? 5 : 0)), 1, 'tabs').grid.rows.length +
     (ctx.view.legend ? 1 : 0)
   )
 }
@@ -1127,12 +1100,12 @@ function appBar(ctx: Ctx, snapshot: AtlasSnapshot): RenderElement {
   const items = appBarItems(ctx, snapshot)
   return (
     <Box key="app-bar" position="relative" flexDirection="column" flexShrink={0}>
-      {Bar({ el: ctx.el, surface: ctx.surface, width: ctx.width }, items.map(item => ({ ...item, active: item.key === 'legend' ? ctx.view.legend : false })))}
+      {ctx.kit.Bar({ el: ctx.el, width: ctx.width }, items.map(item => ({ ...item, active: item.key === 'legend' ? ctx.view.legend : false })))}
     </Box>
   )
 }
 function appBarRows(ctx: Ctx, snapshot: AtlasSnapshot): number {
-  return collapseBarLabels(appBarItems(ctx, snapshot), ctx.width, ctx.surface, 1, 'bar').grid.rows.length
+  return ctx.kit.collapseBarLabels(appBarItems(ctx, snapshot), ctx.width, 1, 'bar').grid.rows.length
 }
 function scrollbarCells(ctx: Ctx, viewport: number, content: number, at: number, maxScroll: number): RenderElement {
   const { Box, Button } = ctx.el
@@ -1167,19 +1140,20 @@ function expandedEvent(ctx: Ctx, model: ScreenModel): ScreenRow | undefined {
   return model.sections.flatMap(section => section.rows).find(row => row.id === ctx.view.expanded && row.kind === 'event')
 }
 
-export function pane(ctx: Ctx, snapshot: AtlasSnapshot): {
+export function pane(input: PaneCtx, snapshot: AtlasSnapshot): {
   tree: RenderElement
   maxScroll: number
   maxPopupScroll: number
   maxLegendScroll: number
   maxExpandedScroll: number
 } {
+  const ctx: Ctx = { ...input, kit: kitFor(input.surface) }
   const { Box } = ctx.el
   if (ctx.view.setup)
     return {
       tree: (
         <Box flexDirection="column" paddingX={1}>
-          {titleRule(ctx)}
+          {ctx.kit.titleRule({ el: ctx.el, width: ctx.width }, ctx.width, C.goal)}
           {setupScreen(ctx)}
         </Box>
       ),
@@ -1239,10 +1213,10 @@ export function pane(ctx: Ctx, snapshot: AtlasSnapshot): {
   )
   const tree = (
     <Box flexDirection="column" paddingX={1} {...(pinned ? { height: ctx.rows } : {})}>
-      {titleRule(ctx)}
+      {ctx.kit.titleRule({ el: ctx.el, width: ctx.width }, ctx.width, C.goal)}
       {tabBar(ctx, snapshot, { at, max: maxScroll, page: Math.max(1, viewport - 2) })}
       {bodyTree}
-      {uiRule({ el: ctx.el, surface: ctx.surface, width: ctx.width }, C.path)}
+      {ctx.kit.rule({ el: ctx.el, width: ctx.width }, C.path)}
       {legend ? (
         <Box flexDirection="column" flexShrink={0} height={legendRows} overflow="hidden">
           {legendPanel(ctx, legendRows, legendAt)}
