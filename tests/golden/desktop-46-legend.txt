@@ -5,19 +5,19 @@ What you are trying to do. Only you set it: confirm a suggestion, type one, or e
 ◎ Build a dependable Conve… · 3 suggestions  {0:color:#7dcfff|28:dim}
 CURRENT PATH ? 3 earlier  {0:color:#bb9af7,bold|15:dim}
 Topics from the start of the work to now; detour branches show where the main path paused. Claude keeps it current.  {0:italic,dim}
- Atlas foundations
- Map rendering ↳ left here  {15:dim}
-↳ Desktop parity return: 2 back  {0:color:#e0af68|2:italic,dim|17:dim}
-↳ Color tokens  {0:color:#e0af68|2:italic,dim}
+  Atlas foundations
+  Map rendering ↳ left here  {16:dim}
+↳  Desktop parity return: 2 back  {0:color:#e0af68|2:italic,dim|3:italic,dim|18:dim}
+↳  Color tokens  {0:color:#e0af68|2:italic,dim|3:italic,dim}
 POSSIBLE DETOUR ?  {0:color:#e0af68,bold}
 Looks like a side trip. Take it to get a return point, or say it is not one.  {0:italic,dim}
-↳ Desktop parity  {0:color:#e0af68|2:italic,dim}
+↳  Desktop parity  {0:color:#e0af68|2:italic,dim|3:italic,dim}
 Take detour Not a detour
 ACTIVITY ?  {0:color:#bb9af7,bold}
 What Claude is doing: spinner = running, done, or failed.  {0:italic,dim}
-× Codex · Reviewing the golden diff now  {0:color:#f7768e|36:dim}
-✓ claude plugin test . 1m  {0:color:#9ece6a|2:dim|23:dim}
-× Scratch glyph check 1m  {0:color:#f7768e|22:dim}
+×  Codex · Reviewing the golden diff now  {0:color:#f7768e|37:dim}
+✓  claude plugin test . 1m  {0:color:#9ece6a|2:dim|3:dim|24:dim}
+×  Scratch glyph check 1m  {0:color:#f7768e|23:dim}
 WORKING SET ? 3 files  {0:color:#ff9e64,bold|14:dim}
 Files touched lately: edited and read counts. Click one to point Claude at it.  {0:italic,dim}
 ✎ golden.test.tsx 1e 0r 1m  {0:color:#ff9e64|18:color:#ff9e64|21:color:#bb9af7|24:dim}
@@ -30,7 +30,7 @@ Newest decisions and questions. Confirm decisions in the Open tab.  {0:italic,di
 ? Which surface gets the first manual check?  {0:color:#f7768e}
 RESUME NEXT ? pinned  {0:color:#7dcfff,bold|14:dim}
 Where to pick up. Pinned is yours; suggested is Claude’s guess.  {0:italic,dim}
-▸ Review the fixed pane sample and approve …  {0:color:#7dcfff}
+▸  Review the fixed pane sample and approve…  {0:color:#7dcfff}
 HOW TO USE  {0:bold}
 Plain rows expand structured details inline. Desktop actions use native controls.  {0:dim}
 Topics from the start of the work to now stay observed; press an action to confirm intent.  {0:dim}

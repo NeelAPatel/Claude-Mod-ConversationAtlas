@@ -260,7 +260,9 @@ function rowMetaLayout(ctx: Ctx, row: ScreenRow, indent: number) {
     parts = parts.filter(part => !/^0\p{L}$/u.test(part.text.trim()))
     layout = layoutRow({ width: ctx.width, prefix: '', text: '', meta, metaParts: parts, right: row.right }, keepCounts)
   }
-  const cells = titleCells(layout)
+  // Text labels lack the native Button pill's left inset, so reserve its
+  // matching NBSP cell before truncating non-interactive titles.
+  const cells = Math.max(0, titleCells(layout) - (row.interactive ? 0 : 1))
   const titleBudget = Math.max(1, Math.floor(cells * GUI_TITLE_CHARACTER_ALLOWANCE))
   return { layout, titleBudget }
 }
@@ -376,7 +378,7 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
           />
         ) : (
           <Text bold={row.bold} dimColor={row.dim} italic={row.italic} wrap="truncate-end">
-            {rowTitle}
+            {'\u00a0'}{rowTitle}
           </Text>
         )}
       </Box>
@@ -528,32 +530,14 @@ function eventGeometry(ctx: Ctx, row: ScreenRow) {
     ) : null}
     {['✻', '⌬', '□'].includes(line.text[0] ?? '') && line.text[1] === ' ' ? line.text.slice(1) : line.text}
   </Text>)
-  const itemRows = items.map(item => rowsOf(item, Math.max(8, ctx.width - 2)))
-  const total = itemRows.reduce((sum, rows) => sum + rows, 0)
-  const visible = Math.min(total, 6)
-  return { items, itemRows, total, visible, maxScroll: Math.max(0, total - visible) }
+  return items
 }
 
 function EventDetail({ ctx, row }: { ctx: Ctx; row: ScreenRow }): RenderElement {
-  const { Box, Text, Button } = ctx.el
-  const geometry = eventGeometry(ctx, row)
-  const { visible, maxScroll } = geometry
-  const at = Math.min(Math.max(0, ctx.view.expandedScroll), maxScroll)
-  const window = rowWindow(geometry.items, geometry.itemRows, at, visible)
+  const { Box } = ctx.el
   return (
     <Box key={`expanded-detail-${row.id}`} flexDirection="column" marginLeft={2}>
-      <Box key={`expanded-body-${row.id}`} flexDirection="column" height={visible} overflow="hidden" flexShrink={0}>
-        <Box key={`expanded-window-${row.id}`} flexDirection="column" marginTop={-window.offset} flexShrink={0}>
-          {window.items}
-        </Box>
-      </Box>
-      {maxScroll > 0 ? (
-        <Box flexDirection="row" flexWrap="wrap" justifyContent="space-between" alignItems="flex-start">
-          <Button key="expanded-up" dimColor={at === 0} label="Previous" onPress={() => ctx.act({ type: 'expanded-scroll', by: -1 })} />
-          <Text dimColor>{`${at + 1}/${geometry.total}`}</Text>
-          <Button key="expanded-down" dimColor={at >= maxScroll} label="Next" onPress={() => ctx.act({ type: 'expanded-scroll', by: 1 })} />
-        </Box>
-      ) : null}
+      {eventGeometry(ctx, row)}
     </Box>
   )
 }
@@ -572,54 +556,20 @@ function sectionExpansionId(section: ScreenSection): string {
   return `section:${section.key}`
 }
 
-function visibleHelpRows(ctx: Ctx, totalRows: number): number {
-  const room = ctx.bodyViewport ?? ctx.rows
-  const target = room >= 12 ? 5 : 3
-  return Math.min(totalRows, target)
-}
-
 function helpGeometry(ctx: Ctx, section: ScreenSection) {
   const { Text } = ctx.el
   const items = section.help.map((line, index) =>
     guideRow(ctx, `help-line-${section.key}-${index}`, <Text dimColor wrap="wrap">{line}</Text>),
   )
-  const itemRows = items.map(item => rowsOf(item, Math.max(8, ctx.width - 2)))
-  const total = itemRows.reduce((sum, rows) => sum + rows, 0)
-  const visible = visibleHelpRows(ctx, total)
-  return { items, itemRows, total, visible, maxScroll: Math.max(0, total - visible) }
+  return items
 }
 
 function sectionHelp(ctx: Ctx, section: ScreenSection): RenderElement | null {
   if (ctx.view.expanded !== sectionExpansionId(section)) return null
-  const { Box, Button, Text } = ctx.el
-  const geometry = helpGeometry(ctx, section)
-  const { visible, maxScroll: max } = geometry
-  const at = Math.min(Math.max(0, ctx.view.expandedScroll), max)
-  const window = rowWindow(geometry.items, geometry.itemRows, at, visible)
+  const { Box, Text } = ctx.el
   return (
     <Box key={`help-${section.key}`} flexDirection="column" marginLeft={2}>
-      <Box key={`help-body-${section.key}`} flexDirection="column" height={visible} overflow="hidden" flexShrink={0}>
-        <Box key={`help-window-${section.key}`} flexDirection="column" marginTop={-window.offset} flexShrink={0}>
-          {window.items}
-        </Box>
-      </Box>
-      {max > 0 ? (
-        guideRow(ctx, `help-controls-${section.key}`, <Box flexDirection="row">
-          <Button
-            key={`help-up-${section.key}`}
-            dimColor={at === 0}
-            label="Previous"
-            onPress={() => ctx.act({ type: 'expanded-scroll', by: -1 })}
-          />
-          <Text dimColor>{` ${at + 1}/${geometry.total} `}</Text>
-          <Button
-            key={`help-down-${section.key}`}
-            dimColor={at >= max}
-            label="Next"
-            onPress={() => ctx.act({ type: 'expanded-scroll', by: 1 })}
-          />
-        </Box>)
-      ) : null}
+      {helpGeometry(ctx, section)}
       <Box key={`help-gap-${section.key}`} height={1} flexShrink={0}><Text>{''}</Text></Box>
     </Box>
   )
@@ -809,21 +759,6 @@ function setupScreen(ctx: Ctx): RenderElement {
   )
 }
 
-function rowWindow(items: RenderElement[], itemRows: number[], at: number, bodyRows: number) {
-  let start = 0
-  let skipped = 0
-  while (start < items.length && skipped + (itemRows[start] ?? 1) <= at) {
-    skipped += itemRows[start] ?? 1
-    start++
-  }
-  let end = start
-  let used = skipped
-  while (end < items.length && used < at + bodyRows) {
-    used += itemRows[end] ?? 1
-    end++
-  }
-  return { items: items.slice(start, end), start, offset: at - skipped }
-}
 export function popupShell(ctx: Ctx, popup: ScreenPopup, _placement: { top?: number; bottom?: number; left?: number }): RenderElement {
   const { Box } = ctx.el
   return <Box flexDirection="column">{popup.rows.map(row => renderRow(ctx, row))}</Box>
@@ -941,13 +876,14 @@ function tabItems(ctx: Ctx, snapshot: AtlasSnapshot): BarItem[] {
 function tabBar(ctx: Ctx, snapshot: AtlasSnapshot, scroll: { max: number; at: number; page: number }): RenderElement {
   const { Box, Button, Text, Svg } = ctx.el
   const items = tabItems(ctx, snapshot)
-  const labelWidth = Math.max(...items.map(item => item.label.length))
+  const labels = items.map(item => (ctx.width < 40 ? item.short : undefined) ?? item.label)
+  const labelWidth = Math.max(...labels.map(label => label!.length))
   return (
     <Box key="tab-bar" flexDirection="column" flexShrink={0} minWidth={0}>
       <Box flexDirection="row" gap={1} flexWrap="wrap" flexShrink={0}>
-        {items.map(item => (
-          <Box key={`tab-${item.key}`} flexDirection="column" width={0} flexGrow={1} flexShrink={1} minWidth={0} alignItems="center">
-            <Button key={item.key} label={`${'\u00a0'.repeat(Math.floor((labelWidth - item.label.length) / 2))}${item.label}${'\u00a0'.repeat(Math.ceil((labelWidth - item.label.length) / 2))}`} hotkey={item.hotkey} variant={item.active ? 'primary' : 'secondary'} onPress={item.onPress} />
+        {items.map((item, index) => (
+          <Box key={`tab-${item.key}`} flexDirection="column" flexGrow={1} flexShrink={0} alignItems="center">
+            <Button key={item.key} label={`${'\u00a0'.repeat(Math.floor((labelWidth - labels[index]!.length) / 2))}${labels[index]!}${'\u00a0'.repeat(Math.ceil((labelWidth - labels[index]!.length) / 2))}`} hotkey={item.hotkey} variant={item.active ? 'primary' : 'secondary'} onPress={item.onPress} />
           </Box>
         ))}
         {scroll.max > 0 || scroll.page <= 10 ? (
@@ -1085,11 +1021,7 @@ export function pane(input: PaneCtx, snapshot: AtlasSnapshot): {
     body = renderBody(drawCtx, model)
     content = rowsOf(body, ctx.width - 2)
   }
-  const maxExpandedScroll = expandedSection
-    ? helpGeometry(drawCtx, expandedSection).maxScroll
-    : expanded
-      ? eventGeometry(drawCtx, expanded).maxScroll
-      : 0
+  const maxExpandedScroll = 0
   const maxScroll = pinned ? Math.max(0, content - viewport) : 0
   const at = Math.min(Math.max(0, ctx.view.scroll), maxScroll)
   const scrollbar = bar && maxScroll > 0 ? scrollbarCells(ctx, viewport, content, at, maxScroll) : null
