@@ -12,6 +12,7 @@ export type Action =
   | { type: 'scroll-to'; at: number }
   | { type: 'trail-sort' }
   | { type: 'trail-view'; view: AtlasTrailView }
+  | { type: 'trail-view-set'; view: AtlasTrailView }
   | { type: 'trail-settings-page'; page: number }
   | { type: 'trail-filter'; filter: 'b' | 'h' }
   | { type: 'expand'; id: string }
@@ -78,6 +79,8 @@ export type ScreenRow = {
   sourceMark?: string
   sourceMarkColor?: string
   text: string
+  checkbox?: boolean
+  setting?: boolean
   meta?: string
   metaParts?: { text: string; compact?: string; tone?: ToneKey; dim?: boolean }[]
   right?: string

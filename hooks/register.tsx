@@ -547,7 +547,8 @@ async function act($: EngineInterface, a: Action, surface: Surface): Promise<voi
     case 'scroll-to':
       return setView($, v => ({ ...v, scroll: Math.max(0, Math.min(maxScroll, a.at)), popup: null, popupScroll: 0 }))
     case 'trail-sort':
-      return setView($, v => ({ ...v, trailNewest: !v.trailNewest, popup: null, popupScroll: 0, expanded: null, expandedScroll: 0 }))
+      return setView($, v => ({ ...v, trailNewest: !v.trailNewest, popupScroll: 0, expanded: null, expandedScroll: 0 }))
+    case 'trail-view-set':
     case 'trail-view': {
       const at = await $.clock.now()
       const current = await $.store.get(TRAIL_VIEW_STORE)
@@ -555,7 +556,14 @@ async function act($: EngineInterface, a: Action, surface: Surface): Promise<voi
         ? (current as { hidden: string[] }).hidden
         : []
       await $.store.set(TRAIL_VIEW_STORE, { view: a.view, hidden, at })
-      return setView($, v => ({ ...v, trailView: a.view, popup: null, popupScroll: 0, expanded: null, expandedScroll: 0 }))
+      return setView($, v => ({
+        ...v,
+        trailView: a.view,
+        ...(a.type === 'trail-view' ? { popup: null } : {}),
+        popupScroll: 0,
+        expanded: null,
+        expandedScroll: 0,
+      }))
     }
     case 'expand':
       return setView($, v => ({ ...v, expanded: v.expanded === a.id ? null : a.id, expandedScroll: 0, popup: null, popupScroll: 0 }))
@@ -1117,6 +1125,10 @@ export const register: Register = (on, options) => {
     const { maxScroll, maxPopupScroll, maxExpandedScroll, maxLegendScroll } = wheelBounds(e.bodyRows)
     const view = (await $.state.get(VIEW)).value as AtlasView | undefined
     if (view?.popup) {
+      if (view.popup.kind === 'trail-view') {
+        await setView($, v => ({ ...v, settingsPage: Math.max(0, Math.min(2, v.settingsPage + Math.sign(e.by))) }))
+        return {}
+      }
       await setView($, v => ({ ...v, popupScroll: Math.max(0, Math.min(maxPopupScroll, v.popupScroll + e.by)) }))
       return {}
     }

@@ -27,7 +27,7 @@ const trailHelp = [
   'Use ≡ for Trail settings: view, order and hidden types.',
   'The heading button opens this fuller explanation.',
   'Press the heading again to close it; row detail shares this one-open slot.',
-  '≡ Trail settings · ✕ close · ‹ › pages.',
+  '≡ Trail settings · ✕ close · ‹ › or wheel for pages.',
 ]
 
 const trailExplain =
@@ -256,33 +256,35 @@ export function trailViewPopup(
 ): ScreenPopup {
   const rows: ScreenRow[] = page === 0 ? [
       {
-        id: 'trail-choice-story', key: 'trail-choice-story', kind: 'suggestion', text: 'Grouped by turn',
-        meta: view === 'story' ? 'active · default' : 'default', expandable: false,
-        actions: [action('trail-view-story', 'Story', { type: 'trail-view', view: 'story' }, view === 'story')],
+        id: 'trail-choice-story', key: 'trail-view-story', kind: 'suggestion', text: 'Story · grouped by turn',
+        meta: view === 'story' ? 'active · default' : 'default', expandable: false, setting: true,
+        checkbox: view === 'story',
+        actions: [action('trail-view-story', 'Story', { type: 'trail-view-set', view: 'story' }, view === 'story')],
       },
       {
-        id: 'trail-choice-log', key: 'trail-choice-log', kind: 'suggestion', text: "Today's events, one per line",
-        meta: view === 'log' ? 'active' : undefined, expandable: false,
-        actions: [action('trail-view-log', 'Log', { type: 'trail-view', view: 'log' }, view === 'log')],
+        id: 'trail-choice-log', key: 'trail-view-log', kind: 'suggestion', text: 'Log · one event per line',
+        meta: view === 'log' ? 'active' : 'default', expandable: false, setting: true,
+        checkbox: view === 'log',
+        actions: [action('trail-view-log', 'Log', { type: 'trail-view-set', view: 'log' }, view === 'log')],
       },
     ] : page === 1 ? [
       {
-        id: 'trail-choice-sort', key: 'trail-choice-sort', kind: 'suggestion', text: 'Event order',
-        meta: newest ? 'newest first' : 'oldest first', expandable: false,
+        id: 'trail-choice-sort', key: 'trail-sort', kind: 'suggestion', text: `${newest ? '▼' : '▲'} Event time`,
+        meta: newest ? 'newest first' : 'oldest first', expandable: false, setting: true,
         actions: [action('trail-sort', 'Sort', { type: 'trail-sort' })],
       },
     ] : [
-      { id: 'trail-filter-b', key: 'trail-filter-b', kind: 'suggestion', glyph: 'reportBack', text: 'Report-backs',
+      { id: 'trail-filter-b', key: 'trail-filter-b-toggle', kind: 'suggestion', text: 'Report-backs', checkbox: hidden.includes('b'), setting: true,
         meta: hidden.includes('b') ? 'hidden' : 'shown', expandable: false,
         actions: [action('trail-filter-b-toggle', hidden.includes('b') ? 'Show' : 'Hide', { type: 'trail-filter', filter: 'b' })] },
-      { id: 'trail-filter-h', key: 'trail-filter-h', kind: 'suggestion', glyph: 'handoff', text: 'Hand-offs',
+      { id: 'trail-filter-h', key: 'trail-filter-h-toggle', kind: 'suggestion', text: 'Hand-offs', checkbox: hidden.includes('h'), setting: true,
         meta: hidden.includes('h') ? 'hidden' : 'shown', expandable: false,
         actions: [action('trail-filter-h-toggle', hidden.includes('h') ? 'Show' : 'Hide', { type: 'trail-filter', filter: 'h' })] },
     ]
   return {
     kind: 'trail-view',
     title: 'TRAIL SETTINGS',
-    page: { current: page, total: 3, name: ['View', 'Order', 'Hide types'][page] ?? 'View' },
+    page: { current: page, total: 3, name: ['VIEW', 'ORDER', 'HIDE TYPES'][page] ?? 'VIEW' },
     closeGlyph: true,
     rows,
   }

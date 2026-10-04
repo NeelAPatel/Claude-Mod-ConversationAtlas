@@ -283,6 +283,15 @@ function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
 
 function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
   const { Box, Text, Button } = ctx.el
+  if (row.setting) {
+    const prefix = row.checkbox === undefined ? '' : row.checkbox ? '[x] ' : '[ ] '
+    const layout = uiLayoutRow({ width: ctx.width, prefix, text: row.text, right: row.meta })
+    const tail = layout.right ?? ''
+    const used = cellWidth(prefix + layout.text) + (tail ? cellWidth(tail) + 1 : 0)
+    const label = `${prefix}${layout.text}${tail ? `${' '.repeat(Math.max(1, ctx.width - used))}${tail}` : ''}`
+    const action = row.actions?.[0]?.action
+    return <Button key={row.key} plain label={label} onPress={() => action && ctx.act(action)} />
+  }
   const rawGlyph = row.glyph ? glyph(ctx, row.glyph) : undefined
   const g = rawGlyph ? { ...rawGlyph, char: rawGlyph.char.replace(/\uFE0F/g, '') } : undefined
   const sourceMark = g ? undefined : row.sourceMark?.replace(/\uFE0F/g, '')
@@ -765,7 +774,7 @@ function popupContext(ctx: Ctx, popup?: ScreenPopup): Ctx {
 function popupGeometry(ctx: Ctx, items: RenderElement[], popup?: ScreenPopup) {
   const trailSettings = popup?.kind === 'trail-view'
   const itemRows = items.flatMap((item, index) => [
-    ...(trailSettings && index > 0 ? [1] : []),
+    ...(trailSettings && index > 0 && popup?.rows[index]?.checkbox === undefined ? [1] : []),
     Math.max(1, rowsOf(item, popupContext(ctx, popup).width)),
   ])
   const total = itemRows.reduce((sum, value) => sum + value, 0)
@@ -801,7 +810,7 @@ export function popupShell(ctx: Ctx, popup: ScreenPopup, placement: { top?: numb
   const left = Math.max(0, Math.min(requestedLeft, ctx.width - popupWidth(ctx, popup)))
   const trailSettings = popup.kind === 'trail-view'
   const visibleItems = trailSettings
-    ? items.flatMap((item, index) => index > 0
+    ? items.flatMap((item, index) => index > 0 && popup.rows[index]?.checkbox === undefined
       ? [<Box key={`trail-settings-gap-${index}`} height={1} overflow="hidden" flexShrink={0}><Text>{''}</Text></Box>, item]
       : [item])
     : items
@@ -815,12 +824,35 @@ export function popupShell(ctx: Ctx, popup: ScreenPopup, placement: { top?: numb
     action: { type: 'popup' as const, popup: { kind: popup.kind, ...(popup.id ? { id: popup.id } : {}) } },
   }
   const header = (
-    <Box flexDirection="row" justifyContent="space-between" flexShrink={0} backgroundColor={POPUP_BG}>
+    <Box
+      flexDirection="row"
+      justifyContent={trailSettings ? 'flex-start' : 'space-between'}
+      flexShrink={0}
+      backgroundColor={POPUP_BG}
+    >
       <Box flexDirection="row" gap={1}>
         <Text bold>{popup.title}</Text>
         {popup.titleCount ? <Text dimColor>{popup.titleCount}</Text> : null}
       </Box>
-      {trailSettings ? <Box flexGrow={1} /> : null}
+      {trailSettings && popup.page ? (
+        <Box flexDirection="row" gap={1}>
+          <Button
+            key="settings-page-prev"
+            plain
+            dimColor={popup.page.current <= 0}
+            label="‹"
+            onPress={() => ctx.act({ type: 'trail-settings-page', page: popup.page!.current - 1 })}
+          />
+          <Text dimColor>{`${popup.page.current + 1}/${popup.page.total}`}</Text>
+          <Button
+            key="settings-page-next"
+            plain
+            dimColor={popup.page.current >= popup.page.total - 1}
+            label="›"
+            onPress={() => ctx.act({ type: 'trail-settings-page', page: popup.page!.current + 1 })}
+          />
+        </Box>
+      ) : null}
       {!trailSettings && popup.page ? (
         <Box flexDirection="row" gap={1}>
           <Button
@@ -840,12 +872,13 @@ export function popupShell(ctx: Ctx, popup: ScreenPopup, placement: { top?: numb
           />
         </Box>
       ) : null}
+      {trailSettings ? <Box flexGrow={1} /> : null}
       {trailSettings ? (
         <Button key={closeAction.key} plain label={closeAction.label} onPress={() => ctx.act(closeAction.action)} />
       ) : actions(ctx, [closeAction], { marginLeft: 0, gap: 0, flexWrap: 'nowrap' })}
     </Box>
   )
-  const pager = popup.page ? (
+  const pager = !trailSettings && popup.page ? (
     <Box flexDirection="row" gap={1} flexShrink={0} backgroundColor={POPUP_BG}>
       <Button
         key="settings-page-prev"
@@ -866,9 +899,9 @@ export function popupShell(ctx: Ctx, popup: ScreenPopup, placement: { top?: numb
     </Box>
   ) : null
   const popupChildren: RenderElement[] = [header]
-  if (trailSettings && pager) {
+  if (trailSettings && popup.page) {
     popupChildren.push(
-      pager,
+      <Text key="trail-settings-page-name" bold>{`» ${popup.page.name}`}</Text>,
       <Box key="trail-settings-header-gap" height={1} overflow="hidden" flexShrink={0}>
         <Text>{''}</Text>
       </Box>,
