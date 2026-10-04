@@ -19,10 +19,10 @@
   GitHub turns a bare asset URL into an inline player. Keep the 60 MB file out of git history.
 -->
 
-Long Claude Code sessions drift. A quick tangent turns into an hour, a decision made early gets
-lost in scrollback, and after a break nobody remembers what "next" was.
-
-Atlas is a Claude Code plugin that adds a **side pane** which maps the session while you work:
+**Tame your Claude's conversation history.** Long Claude Code sessions drift: a quick tangent turns
+into an hour, a decision made early gets lost in scrollback, and after a break nobody remembers
+what "next" was. Conversation Atlas is a mod that hooks into your chats and adds a **side pane**
+that detects and helps you manage your goals, decisions and even detours while you work:
 
 - 🎯 **your goal**, and the path of topics that led here
 - ↳ **detours** you took, with a snapshot of where you left off
@@ -33,20 +33,15 @@ Atlas is a Claude Code plugin that adds a **side pane** which maps the session w
 > **Observation never becomes intent without you.** Atlas can *suggest* a goal, a detour or a
 > return. Only you turn a suggestion into intent, with a button press or an `/atlas` command.
 
-## Why you might want it
+## Installation
 
-| Without Atlas | With Atlas |
-|---|---|
-| "Wait, what were we doing?" | The goal and current topic are always on screen |
-| A tangent swallows the session | `/atlas detour` marks where you left; `/atlas return` brings Claude back up to speed in one packet |
-| Decisions buried in scrollback | A ledger of settled decisions and who is still waiting on an answer |
-| Starting cold after lunch | Sessions are saved per project and offer **Resume** |
-
-## Install
+> **Marketplace: coming soon.** For now, install from source.
 
 Requires **Claude Code 2.1.287+** (terminal or desktop Code tab). To dock the pane beside the
 transcript, use `/tui fullscreen` in a terminal at least 144 columns wide; otherwise open it from
-the footer button.
+the footer button or with `/atlas`.
+
+**Try it from source** (the repository root is the plugin):
 
 ```bash
 git clone https://github.com/NeelAPatel/Claude-Mod-ConversationAtlas.git
@@ -54,39 +49,65 @@ cd Claude-Mod-ConversationAtlas
 claude --plugin-dir .
 ```
 
-**Install for your user (Windows):** `.\scripts\install-atlas.ps1` validates the plugin and
-installs it to `~/.claude/skills/conversation-atlas`; then run `/reload-plugins` in a running
-session. Don't combine this with `--plugin-dir` in the same session, or two copies load.
+**Install for your user (Windows):** `.\scripts\install-atlas.ps1` validates the plugin and copies it
+to `~/.claude/skills/conversation-atlas`. Run `/reload-plugins` in a session that is already open.
+Don't combine this with `--plugin-dir` in the same session, or two copies load.
 
-## 60-second tour
+## Feature tour
 
-1. **Start a session.** The Atlas pane opens and asks you to choose an observer mode:
-   - **Claude observer**: Claude reports topic shifts, decisions and questions through a tiny
-     tool. Costs a little usage on turns where something changed.
-   - **Engine only (free)**: Atlas uses just files, activity, tests, commits and your wording.
-2. **Set a goal:** `/atlas goal ship the login refactor`
-3. **Wander:** `/atlas detour check the flaky test`
-4. **Come back:** `/atlas return`. Claude gets a short packet describing exactly where you were.
+### 1. Set up
 
-Joining mid-session? Atlas replays the earlier conversation for free, and `/atlas scan` can map
-it with a single, mostly cached Claude request.
+On first launch the pane asks how Atlas should observe. Nothing costs Claude usage until you choose.
 
-### The four tabs
+- **Claude observer**: Claude reports topic shifts, decisions and questions through a tiny tool.
+- **Engine only (free)**: Atlas uses just files, activity, tests, commits and your own wording.
+
+Change it any time with `/atlas observer [claude|engine]`.
+
+### 2. Goal, detour, return
+
+- `/atlas goal ship the login refactor` sets the goal. Atlas also shows the goal it *detected*;
+  **Use this as my goal** makes it yours.
+- `/atlas detour check the flaky test` snapshots where you left off and starts a side trip.
+  Decisions made during it are kept as its outcomes.
+- `/atlas return` ends the detour and sends Claude **one short packet**: the goal, topic, next step
+  and settled decisions from the moment you left. `/atlas promote` makes the detour the new goal.
+
+### 3. The pane
 
 | Tab | Key | What it shows |
 |---|---|---|
 | **Map** | `m` | Goal, current topic path, detours, live activity, working set, resume next |
-| **Trail** | `t` | Full topic tree and a timeline of prompts, shifts, decisions, detours, checkpoints |
+| **Trail** | `t` | Topic tree and a timeline of prompts, shifts, decisions, detours, checkpoints |
 | **Open** | `o` | Everything waiting on you: suggestions, decisions to settle, open questions |
 | **Evidence** | `e` | Checkpoints, settled-decision ledger, past detours, files, earlier sessions |
 
-The bottom bar holds **Legend** (`l`), **◇ decisions** (`d`), **? questions** (`q`) and
-**+ Mark** (`k`). **Add to message** on any item drops an `[Atlas #n: …]` chip into your draft;
-only chips still in the text when you send are passed to Claude.
+The bottom bar holds **Legend** (`l`), **decisions** (`d`), **open questions** (`q`) and **+ Mark**
+(`k`). **Add to message** on any item puts an `[Atlas #n: …]` chip in your draft; only chips still
+there when you send reach Claude. Details: [docs/REFERENCE.md](docs/REFERENCE.md).
 
-Full pane behaviour, glyphs and internals: [docs/REFERENCE.md](docs/REFERENCE.md).
+### 4. Recovering and scanning earlier conversations
 
-## Commands
+Atlas can pick up a chat it wasn't watching, or one you left yesterday.
+
+| Situation | What happens | Cost |
+|---|---|---|
+| **Atlas installed or reloaded mid-chat**, or you resume an old chat | Atlas replays the earlier messages: your prompts, files read and edited, test and commit checkpoints, a goal suggestion, and a question left open | Free |
+| **You want topics and decisions for that history** | `/atlas scan` (or **Map earlier conversation** in Trail) asks Claude once over the session's own transcript. Results are observations; confirm what is true in the Open tab | One mostly cached request |
+| **A new session in the same project** | Atlas offers to **Resume** the last goal | Free |
+| **Older sessions** | `/atlas recover` lists them; `/atlas recover 2` resumes number 2. **Evidence → Earlier sessions** does the same with buttons | Free |
+
+Two ways to resume an earlier session:
+
+- **Resume this** brings back its goal, next step and settled decisions and keeps your current map.
+- **Resume full** (Atlas saves only) *replaces* the current map with the saved one, after a confirm:
+  `/atlas recover <n> full confirm`.
+
+Nothing is adopted automatically; every resume is an explicit press or command. Set
+`scanOnLaunch` to `claude` to also run the one-request scan whenever Atlas joins a chat that
+already has history.
+
+## Commands and configuration
 
 Everything is under `/atlas` (`/atlas help` lists them).
 
@@ -98,61 +119,67 @@ Everything is under `/atlas` (`/atlas help` lists them).
 | `/atlas mark [name]` | Add a marked checkpoint |
 | `/atlas decision <text> [--reason <why>]` | Record a settled decision |
 | `/atlas detour <reason>` | Take a detour |
-| `/atlas outcome <finding>` / `/atlas exclude <material>` | Record or exclude a finding made during a detour |
-| `/atlas return` | Return from the detour and send the return packet |
-| `/atlas promote` | Promote the current detour to the goal |
+| `/atlas outcome <finding>` / `/atlas exclude <material>` | Keep or set aside a finding made during a detour |
+| `/atlas return` | End the detour and send the return packet |
+| `/atlas promote` | Promote the detour to the goal |
 | `/atlas scan` | Map the conversation so far (one cached Claude request) |
+| `/atlas recover [n]` / `/atlas recover <n> full [confirm]` | List earlier sessions, resume one, or replace the map with one |
 | `/atlas observer [claude\|engine]` | Show or change the observer mode |
+| `/atlas hide <b\|h>` / `show <b\|h>` / `filters` | Hide, show or list report-backs (b) and hand-offs (h) in Trail |
 | `/atlas setup` | Show the setup screen again |
-| `/atlas recover [n]` | List earlier sessions, or resume number *n* |
 | `/atlas reset` | Clear this session's map (saved files are kept) |
 
-## Configuration
-
-Open `/config` → **conversation-atlas**, or set `pluginConfigs` in your settings.
+Settings live in `/config` → **conversation-atlas**, or `pluginConfigs` in your settings:
 
 | Setting | Values | Default | Effect |
 |---|---|---|---|
-| `observer` | `claude and engine`, `engine only` | `claude and engine` | Preselected choice on the first-run setup screen. After setup, the stored choice wins (`/atlas observer`). |
-| `scanOnLaunch` | `engine`, `claude`, `off` | `engine` | What happens when Atlas joins a session that already has history. |
+| `observer` | `claude and engine`, `engine only` | `claude and engine` | Preselected choice on the setup screen. After setup, your stored choice wins |
+| `scanOnLaunch` | `engine`, `claude`, `off` | `engine` | What Atlas does when it joins a chat that already has history |
 
 ## Privacy and cost
 
-- **No network calls, no telemetry.** All data stays on your machine.
-- **Nothing costs Claude usage before you choose a mode.** Engine-only mode is free.
-- **Claude observer mode** adds one cached rules section to the system prompt, plus a small
-  `observe` call (a few dozen tokens) on turns where something changed. Measured at about 0.8% of
-  usage on day one, Opus only.
-- **What Atlas sends to Claude:** the rules section (Claude mode only), a one-line note of your
-  *confirmed* goal and detour, a pending return packet, and any chips you left in your message.
-  Observed items are never presented to Claude as settled facts.
-- **Where it saves:** Claude Code's plugin store, plus `<project>/.claude/atlas/<session>.json`.
-  Add `.claude/atlas/` to your `.gitignore` if you don't want session maps committed.
+- **Local only.** Atlas makes no network calls and has no telemetry. It saves to Claude Code's plugin
+  store and to `<project>/.claude/atlas/` (add that to `.gitignore` if you don't want session maps
+  committed).
+- **Engine-only mode costs nothing**, and neither does anything before you pick a mode.
+- **Claude observer mode is cheap, not free.** It adds one cached rules section to the system prompt
+  and a small `observe` tool call on turns where something changed. Each call re-reads the cached
+  context, so the cost grows with chat length; in one long-session measurement it was around 10% of
+  the session's tokens. If usage matters, use engine-only.
+- **`/atlas scan`** is always an explicit action: one forked, mostly cached request.
+- **What reaches Claude:** the rules section (Claude mode), a one-line note of your *confirmed* goal
+  and detour (Claude mode), a pending return packet, and chips you left in your message. Observed
+  items are never presented as settled facts.
 
 ## Limitations
 
-- In engine-only mode there is no topic path; topic quality depends on Claude calling `observe`.
-- Wording cues such as "btw" or "quick tangent" are English-only, and only ever create suggestions.
-- One detour at a time. Nested tangents appear as topics inside the detour.
-- Matching a return to an earlier topic is fuzzy; a wrong match moves only the observed path,
-  never your intent.
-- Docking depends on the fullscreen layout and terminal width.
+- Engine-only mode has no topic path; topic quality depends on Claude calling `observe`.
+- Wording cues like "btw" or "quick tangent" are English-only and only create suggestions.
+- One detour at a time; nested tangents show as topics inside it.
+- Matching a return to an earlier topic is fuzzy. A wrong match moves the observed path, never your intent.
+- Docking needs the fullscreen layout and a wide terminal; scroll limits are estimates.
+- Recovery reads at most 80 files per folder and lists 12 sessions.
 
 ## Roadmap
 
-- [ ] Graphical timeline on desktop: topics as lanes, detours as branches, checkpoints as pins
-- [ ] Checkpoints that attach test output or a diff stat, with "rewind context to here"
-- [ ] Export the settled-decision ledger to a project file Claude reads at session start
-- [ ] Opt-in end-of-session summary as a resume note, shown before it is saved
-- [ ] Link pane topics to the transcript rows they cover
+Ideas that build directly on what Atlas already captures:
+
+- [ ] **End-of-session recap**: an opt-in summary of goal, decisions and next step, shown before it is saved as a resume note
+- [ ] **Smarter resume**: open a new session with the recap and return packet ready to review
+- [ ] **Prompt and output summaries** when you open an event in Trail (desktop first)
+- [ ] **Decision ledger export** to a project file Claude can read at session start
+- [ ] **Checkpoint detail**: attach test output or a diff stat to a checkpoint
+- [ ] **Topic to transcript links**: jump from a pane topic to the messages it covers
 
 ## Contributing
 
-Bug reports, ideas and PRs are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md); security
-issues go through [SECURITY.md](SECURITY.md). Architecture and invariants live in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [AGENTS.md](AGENTS.md).
+Contributions are welcome: bug reports, ideas and pull requests. Read [CONTRIBUTING.md](CONTRIBUTING.md)
+first; architecture and invariants live in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
+[AGENTS.md](AGENTS.md), and security reports go through [SECURITY.md](SECURITY.md). Everyone
+participating follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+*This is my first open-source project, so ideas, feedback and discussions are very welcome.*
 
 ## License
 
-[MIT](LICENSE) © 2026 NeelAPatel. Atlas replaces the earlier Trailhead plugin and keeps its
-goal → detour → return model; `/atlas recover` still reads Trailhead checkpoints.
+[MIT](LICENSE) © 2026 NeelAPatel.

@@ -126,14 +126,7 @@ Atlas is a single Claude Code plugin with one hooks module and pure, testable he
 - State: `$.state` `conversation-atlas.snapshot` via `update` (CAS), plus the render-readable
   `.view` and `.mode` keys. Render hooks only read it. Durable data is in `$.store` (`setup`,
   `session:<id>`, `project:<root>`) and the project-local save file. Earlier sessions are read
-  from `.claude/atlas/` and from Trailhead's `.claude/trailhead/*.json` (highest checkpoint per
-  session).
+  from `.claude/atlas/`.
 
 Every hook observes with `await next(e)` and returns the engine's result unchanged. The only
 things Atlas answers itself are its own `observe` tool and the `/atlas` command.
-
-### Migrating from Trailhead
-
-Atlas replaces the earlier Trailhead plugin and keeps its goal → detour → return model.
-`/atlas recover` also lists Trailhead checkpoints from `.claude/trailhead/`. Resuming one
-restores the goal, the next step and the main-goal decisions.
