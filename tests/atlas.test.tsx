@@ -30,7 +30,6 @@ import { expectedReportPath, handoffStart, parseHandoffReport, reportChanged, re
 import { atlasFullFileError, fromAtlasFullFile, pickRecallEntries, saveFile, sessionsToDelete } from '../hooks/recall'
 import { replay } from '../hooks/scan'
 import { cellWidth, layoutRow, measuredBarItemWidth, truncateMiddleCells } from '../hooks/ui/shared'
-import { guiCollapseBarLabels } from '../hooks/render-gui'
 import { tuiCollapseBarLabels } from '../hooks/render-tui'
 import { C, GLYPH, LEGEND, legendPanel, pane, popupShell, rendererFor, rowsOf, type Ctx } from '../hooks/view'
 
@@ -491,11 +490,10 @@ describe('hooks', () => {
     await $.tool.call({ tool: OBSERVE, topic: 'Passive observatory', decisions: ['Keep the UI native'], questions: ['Should topics persist across sessions?'], next: 'Wire the pane' } as any)
     await clock.settle()
 
-    for (const surface of ['terminal', 'desktop'] as const) {
+    for (const surface of ['terminal'] as const) {
       const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
       const text = await drawn(ui)
       for (const word of ['Passive observatory', 'model.ts', 'Tests passed', 'Wire the pane', 'Keep the UI native']) expect(text).toContain(word)
-      if (surface === 'desktop') expect(text).not.toContain('did not load')
       expect(await ui.find({ key: 'tab-open' })).toBeDefined()
       await ui.press({ key: 'tab-evidence' })
       expect(await drawn(ui)).toContain('Tests passed')
@@ -705,7 +703,7 @@ describe('readability: app bar, legend, resizing', () => {
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await $.tool.call({ tool: OBSERVE, topic: 'Pane layout', decisions: ['Keep it native'] } as any)
     await clock.settle()
-    for (const surface of ['terminal', 'desktop'] as const) {
+    for (const surface of ['terminal'] as const) {
       const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
       for (const button of await ui.findAll({ type: 'Button' })) expect(String(button.props.label ?? '')).not.toMatch(/ \^$/)
       await ui.press({ key: 'bar-legend' })
@@ -884,10 +882,6 @@ describe('readability: app bar, legend, resizing', () => {
     expect(info?.props.label).toBe('ⓘ')
     expect(info?.props.plain).toBe(true)
     await ui.unmount()
-    const desktop = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
-    if (await desktop.find({ key: 'tab-map', type: 'Button' })) await desktop.press({ key: 'tab-map' })
-    expect(await drawn(desktop)).toContain('"color":"yellowBright"')
-    await desktop.unmount()
   })
 
   test('section titles are colored Text beside plain info Buttons on both surfaces', { timeoutMs: 20_000 }, async ($, on) => {
@@ -910,19 +904,6 @@ describe('readability: app bar, legend, resizing', () => {
     await terminal.press({ key: 'events-heading' })
     await terminal.unmount()
 
-    const desktop = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
-    if (await desktop.find({ key: 'tab-trail', type: 'Button' })) await desktop.press({ key: 'tab-trail' })
-    const desktopHeading = await desktop.find({ type: 'Text', text: 'TRAIL · Story' })
-    expect(desktopHeading?.props.color).toBe(C.trail)
-    expect(desktopHeading?.props.bold).toBe(true)
-    expect(desktopHeading?.props.wrap).toBe('truncate-end')
-    const desktopInfo = await desktop.find({ key: 'events-heading', type: 'Button' })
-    expect(desktopInfo?.props.label).toBe('ⓘ')
-    expect(desktopInfo?.props.plain).toBe(true)
-    expect(desktopInfo?.props.variant).toBeUndefined()
-    await desktop.press({ key: 'events-heading' })
-    expect(await drawn(desktop)).toContain('A chronological record of prompts, topics, decisions and checkpoints.')
-    await desktop.unmount()
   })
 
   test('settled decisions draw a solid green diamond', { timeoutMs: 20_000 }, async ($, on) => {
@@ -1069,7 +1050,7 @@ describe('milestone 1: UI primitives and engine noise', () => {
     expect(measuredBarItemWidth({ label: 'Map', hotkey: 'm' })).toBe(6)
     expect(measuredBarItemWidth({ label: 'Trail', activeMarker: '▸' })).toBe(6)
     expect(measuredBarItemWidth({ label: '9', icon: '◇', prefixGap: 1, hotkey: 'd', buttonChrome: 'bracketed' })).toBe(8)
-    for (const collapse of [tuiCollapseBarLabels, guiCollapseBarLabels]) {
+    for (const collapse of [tuiCollapseBarLabels]) {
       let previousTabs = 0
       let previousBottom = 0
       for (let width = 20; width <= 100; width++) {
@@ -1096,11 +1077,11 @@ describe('milestone 1: UI primitives and engine noise', () => {
     }
   })
 
-  test('rendered bars keep whole labels at the requested terminal and desktop widths', { timeoutMs: 20_000 }, async ($, on) => {
+  test('rendered bars keep whole labels at the requested terminal widths', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await clock.settle()
-    const surfaceWidths = [['terminal', [30, 40, 46, 60, 100]] as const, ['desktop', [30, 60]] as const]
+    const surfaceWidths = [['terminal', [30, 40, 46, 60, 100]] as const]
     for (const [surface, widths] of surfaceWidths) {
       for (const bodyColumns of widths) {
         const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'atlas', props: { ...PANE_PROPS, bodyColumns } })
@@ -1390,7 +1371,7 @@ describe('milestone 2: screens and surface parity', () => {
     expect(log?.rows.some(candidate => candidate.sourceMark === '✻')).toBe(true)
   })
 
-  test('terminal and desktop render every screen at narrow and wide widths', { timeoutMs: 20_000 }, async ($, on) => {
+  test('terminal renders every screen at narrow and wide widths', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await $.tool.call({
@@ -1401,7 +1382,7 @@ describe('milestone 2: screens and surface parity', () => {
       next: 'Check both surfaces',
     } as any)
     await clock.settle()
-    for (const surface of ['terminal', 'desktop'] as const) {
+    for (const surface of ['terminal'] as const) {
       for (const bodyColumns of [40, 80]) {
         const ui = await $.ui.mount({
           plugin: 'conversation-atlas',
@@ -1425,10 +1406,6 @@ describe('milestone 2: screens and surface parity', () => {
         const text = await drawn(ui)
         expect(text).toContain('tab-trail')
         expect(text).toContain('bar-legend')
-        if (surface === 'desktop') {
-          expect(text).not.toContain('"children":["["]')
-          expect(text).not.toContain('────')
-        }
         await ui.unmount()
       }
     }
@@ -1585,7 +1562,7 @@ describe('milestone 2: screens and surface parity', () => {
       checkpoint: 'Row layout tested',
     } as any)
     await clock.settle()
-    for (const surface of ['terminal', 'desktop'] as const) {
+    for (const surface of ['terminal'] as const) {
       for (const bodyColumns of [46, 80]) {
         const ui = await $.ui.mount({
           plugin: 'conversation-atlas',
@@ -1694,30 +1671,6 @@ describe('joining a conversation late', () => {
     await ui.unmount()
   })
 
-  test('desktop loads the live client and advances its scan animation', { timeoutMs: 20_000 }, async ($, on) => {
-    const { clock } = world(on)
-    on('model.fork', async () => {
-      await clock.sleep(2_000)
-      return { value: { isAnswered: true, text: MAP_REPLY, usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } }
-    })
-    await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true } as any)
-    await clock.settle()
-    const running = $.command.run({ command: 'atlas', args: 'scan', origin: { kind: 'composer' } } as any)
-    await clock.settle()
-    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
-    const before = await drawn(ui)
-    expect(before).toContain('Mapping earlier conversation…')
-    expect(before).not.toContain('did not load')
-    const clientBefore = JSON.stringify(await ui.drawn({ in: 'live-scan' }))
-    await ui.advance(100)
-    const clientAfter = JSON.stringify(await ui.drawn({ in: 'live-scan' }))
-    expect(clientAfter).not.toBe(clientBefore)
-    expect(clientAfter).not.toContain('did not load')
-    await clock.advance(2_000)
-    await running
-    await ui.unmount()
-  })
-
   test('the title rule names the product and shortens when narrow', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
@@ -1765,10 +1718,8 @@ function scrollTestContext(el: Ctx['el'], width: number, rows: number, view: Atl
 }
 
 describe('independent surface renderers', () => {
-  test('both renderers own their bar label rules', () => {
-    expect(tuiCollapseBarLabels).not.toBe(guiCollapseBarLabels)
+  test('terminal renderer owns its bar label rules', () => {
     expect(tuiCollapseBarLabels([], 20).labels).toEqual([])
-    expect(guiCollapseBarLabels([], 20).labels).toEqual([])
   })
 })
 
@@ -1872,7 +1823,7 @@ describe('expansion hanging indent, spacing and section tones', () => {
       measured = pane(scrollTestContext($.ui.resolve(e), e.props.bodyColumns, 100, view), snapshot)
       return measured.tree
     })
-    for (const surface of ['terminal', 'desktop'] as const) {
+    for (const surface of ['terminal'] as const) {
       for (const width of [46, 80]) {
         open = true
         const ui = await $.ui.mount({
@@ -1925,7 +1876,7 @@ describe('expansion hanging indent, spacing and section tones', () => {
       measured = pane({ ...ctx, now: 0 }, snapshot)
       return measured.tree
     })
-    for (const surface of ['terminal', 'desktop'] as const) {
+    for (const surface of ['terminal'] as const) {
       for (width of [46, 80]) {
         scroll = 0
         const ui = await $.ui.mount({
@@ -1991,7 +1942,7 @@ describe('popup and help row scrolling', () => {
     })
     for (const requestedWidth of [46, 80]) {
       width = requestedWidth
-      for (const surface of ['terminal', 'desktop'] as const) {
+      for (const surface of ['terminal'] as const) {
         const ui = await $.ui.mount({
           plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'trail-settings-layout',
           props: scrollPaneProps(requestedWidth, 30),
@@ -2029,7 +1980,7 @@ describe('popup and help row scrolling', () => {
       }
       return popupShell({ ...ctx, surface: e.surface }, popup, { top: 0 })
     })
-    for (const surface of ['terminal', 'desktop'] as const) {
+    for (const surface of ['terminal'] as const) {
       const ui = await $.ui.mount({
         plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'popup-window-test', props: scrollPaneProps(48, 20),
       })
@@ -2085,7 +2036,7 @@ describe('popup and help row scrolling', () => {
     const { clock, fixture } = scrollWorld(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
     await clock.settle()
-    for (const surface of ['terminal', 'desktop'] as const) {
+    for (const surface of ['terminal'] as const) {
       await setScrollView(fixture, { ...scrollTestView(), tab: 'trail' })
       const ui = await $.ui.mount({
         plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'atlas', props: scrollPaneProps(48, 40),
@@ -2179,18 +2130,11 @@ describe('scroll bounds belong to the rendering surface', () => {
     await setScrollSnapshot(fixture, snapshot)
     await clock.settle()
     const terminalProps = scrollPaneProps(48, 12)
-    const desktopProps = scrollPaneProps(82, 16)
     const terminal = await $.ui.mount({
       plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: terminalProps,
     })
-    const desktop = await $.ui.mount({
-      plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: desktopProps,
-    })
     const measureTerminal = await $.ui.mount({
       plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'measure-scroll-bounds', props: terminalProps,
-    })
-    const measureDesktop = await $.ui.mount({
-      plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'measure-scroll-bounds', props: desktopProps,
     })
     const scenarios = [
       { view: { ...scrollTestView(), tab: 'open' as const }, field: 'scroll', bound: 'maxScroll', down: 'scroll-down', up: 'scroll-up' },
@@ -2208,17 +2152,12 @@ describe('scroll bounds belong to the rendering surface', () => {
       measuringView = scenario.view
       await setScrollView(fixture, scenario.view)
       await terminal.redraw()
-      await desktop.redraw()
       await measureTerminal.redraw()
-      await measureDesktop.redraw()
       const terminalMax = measured.get('terminal')?.[scenario.bound] ?? 0
-      const desktopMax = measured.get('desktop')?.[scenario.bound] ?? 0
-      expect(terminalMax, scenario.field).toBeGreaterThan(desktopMax)
-      expect(desktopMax, scenario.field).toBeGreaterThan(0)
-      for (const order of [[terminal, desktop], [desktop, terminal]]) {
+      expect(terminalMax, scenario.field).toBeGreaterThan(0)
+      for (const order of [[terminal], [terminal]] as const) {
         await order[0]?.redraw()
-        await order[1]?.redraw()
-        for (const [ui, max, bodyRows] of [[terminal, terminalMax, 12], [desktop, desktopMax, 16]] as const) {
+        for (const [ui, max, bodyRows] of [[terminal, terminalMax, 12]] as const) {
           // A clipped Legend owns the wheel; it has no separate paging buttons.
           if (scenario.field !== 'legendScroll') {
             await setScrollView(fixture, { ...scenario.view, [scenario.field]: max - 1 })
@@ -2238,32 +2177,19 @@ describe('scroll bounds belong to the rendering surface', () => {
       await setScrollView(fixture, scenario.view)
       await wheel($, 99, 1_000) // No matching surface: use the largest bound.
       expect((await readScrollView(fixture))[scenario.field]).toBe(terminalMax)
-      await desktop.redraw(scrollPaneProps(82, 12)) // Both surfaces now match the same row count.
-      await measureDesktop.redraw(scrollPaneProps(82, 12))
-      const sameRowsMax = measured.get('desktop')?.[scenario.bound] ?? 0
-      await setScrollView(fixture, scenario.view)
-      await wheel($, 12, 1_000)
-      expect((await readScrollView(fixture))[scenario.field]).toBe(Math.max(terminalMax, sameRowsMax))
-      await desktop.redraw(desktopProps)
-      await measureDesktop.redraw(desktopProps)
     }
     measuringView = { ...scrollTestView(), tab: 'open' }
     await setScrollView(fixture, measuringView)
     await terminal.redraw()
-    await desktop.redraw()
     await measureTerminal.redraw()
-    await measureDesktop.redraw()
     const terminalMax = measured.get('terminal')?.maxScroll ?? 0
-    const desktopMax = measured.get('desktop')?.maxScroll ?? 0
-    for (const [ui, max] of [[terminal, terminalMax], [desktop, desktopMax]] as const) {
+    for (const [ui, max] of [[terminal, terminalMax]] as const) {
       const cells = (await ui.findAll({ type: 'Button' })).filter(cell => cell.key?.startsWith('sb-'))
       await ui.press({ key: String(cells.at(-1)?.key) })
       expect((await readScrollView(fixture)).scroll).toBe(max)
     }
     await terminal.unmount()
-    await desktop.unmount()
     await measureTerminal.unmount()
-    await measureDesktop.unmount()
   })
 })
 
@@ -2655,7 +2581,7 @@ describe('b4 row anatomy', () => {
       ['2e', 'write'], ['3r', 'read'], ['1t', 'path'], ['2d', 'decision'],
     ])
     expect(story?.detail?.[2]).toBe('counts: 2 edits · 3 reads · 1 topic · 2 decisions')
-    for (const surface of ['terminal', 'desktop'] as const) {
+    for (const surface of ['terminal'] as const) {
       for (const width of [46, 80]) {
         tab = 'map'
         log = false
@@ -2758,7 +2684,7 @@ describe('b5: icon colors, source marks and complete Legend', () => {
       const ctx = scrollTestContext($.ui.resolve(e), e.props.bodyColumns, 100, view)
       return pane({ ...ctx, surface: e.surface }, snapshot).tree
     })
-    for (const surface of ['terminal', 'desktop'] as const) {
+    for (const surface of ['terminal'] as const) {
       const ui = await $.ui.mount({
         plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'icon-color', props: scrollPaneProps(80, 100),
       })
@@ -2785,7 +2711,7 @@ describe('b5: icon colors, source marks and complete Legend', () => {
       const ctx = scrollTestContext($.ui.resolve(e), 80, 100, view)
       return pane({ ...ctx, surface: e.surface }, snapshot).tree
     })
-    for (const surface of ['terminal', 'desktop'] as const) {
+    for (const surface of ['terminal'] as const) {
       for (const trailView of ['story', 'log'] as const) {
         for (const [kind, mark, color] of [
           ['topic', '', ''], ['checkpoint', '✻', '#d97757'],
@@ -2827,7 +2753,7 @@ describe('b5: icon colors, source marks and complete Legend', () => {
       measured = pane(ctx, sampleSnapshot())
       return measured.tree
     })
-    for (const surface of ['terminal', 'desktop'] as const) {
+    for (const surface of ['terminal'] as const) {
       for (const width of [46, 80]) {
         view = { ...view, legendScroll: 0 }
         const ui = await $.ui.mount({

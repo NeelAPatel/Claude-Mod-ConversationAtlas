@@ -1102,7 +1102,7 @@ export const register: Register = (on, options) => {
           ))}
         </Box>
       )
-    const el = { Box: t.Box, Text: t.Text, Button: t.Button, Input: 'Input' in t ? t.Input : undefined }
+    const el = { Box: t.Box, Text: t.Text, Button: t.Button, Input: 'Input' in t ? t.Input : undefined, Select: 'Select' in t ? t.Select : undefined, Svg: 'Svg' in t ? t.Svg : undefined, Link: 'Link' in t ? t.Link : undefined, Code: 'Code' in t ? t.Code : undefined, Markdown: 'Markdown' in t ? t.Markdown : undefined }
     const rows = Math.max(8, e.props.scroll?.bodyRows ?? e.viewport?.rows ?? 30)
     const surface = (e.surface ?? 'terminal') as Surface
     const drawn = pane({
