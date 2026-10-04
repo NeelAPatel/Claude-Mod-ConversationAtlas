@@ -281,7 +281,10 @@ export function trailViewPopup(
     ]
   return {
     kind: 'trail-view',
-    title: 'TRAIL SETTINGS', page: { current: page, total: 3 }, closeGlyph: true, rows,
+    title: 'TRAIL SETTINGS',
+    page: { current: page, total: 3, name: ['View', 'Order', 'Hide types'][page] ?? 'View' },
+    closeGlyph: true,
+    rows,
   }
 }
 

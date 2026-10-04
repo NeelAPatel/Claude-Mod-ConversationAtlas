@@ -34,7 +34,7 @@ import { C, GLYPH, LEGEND, legendPanel, pane, popupShell, rowsOf, type Ctx } fro
 import { buildEvidence } from '../hooks/screens/evidence'
 import { buildMap } from '../hooks/screens/map'
 import { buildOpen } from '../hooks/screens/open'
-import { buildTrail, eventText } from '../hooks/screens/trail'
+import { buildTrail, eventText, trailViewPopup } from '../hooks/screens/trail'
 import type { On } from 'claude-code'
 import type { AtlasEvent, AtlasSnapshot, AtlasView } from '../types'
 import { SAMPLE_NOW, sampleSnapshot } from './fixtures/sample'
@@ -1942,6 +1942,39 @@ describe('expansion hanging indent, spacing and section tones', () => {
 })
 
 describe('popup and help row scrolling', () => {
+  test('Trail Settings header, pager and compact fit stay aligned on both surfaces', async ($, on) => {
+    let page = 0
+    let width = 46
+    on('ui.render', { component: 'Pane', requestId: 'trail-settings-layout' }, ($, e) => {
+      const view = { ...scrollTestView(), popupScroll: 0 }
+      const ctx = scrollTestContext($.ui.resolve(e), width, 30, view)
+      return popupShell({ ...ctx, surface: e.surface }, trailViewPopup('story', true, [], page), { top: 0 })
+    })
+    for (const requestedWidth of [46, 80]) {
+      width = requestedWidth
+      for (const surface of ['terminal', 'desktop'] as const) {
+        const ui = await $.ui.mount({
+          plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'trail-settings-layout',
+          props: scrollPaneProps(requestedWidth, 30),
+        })
+        for (page of [0, 2]) {
+          await ui.redraw()
+          const tree = await ui.drawn()
+          const popup = JSON.stringify(tree)
+          expect(popup).toContain(page === 0 ? '1/3' : '3/3')
+          expect(popup).toContain(page === 0 ? 'View' : 'Hide types')
+          expect(popup).toContain('trail-settings-header-gap')
+          expect(popup).not.toContain('popup-up')
+          expect(popup).not.toContain('popup-down')
+          expect(await ui.find({ key: 'popup-close', type: 'Button' })).toBeDefined()
+          const shell = nodeByKey(tree, 'atlas-popup')
+          expect(shell?.props?.width).toBe(requestedWidth === 46 ? 42 : 64)
+        }
+        await ui.unmount()
+      }
+    }
+  })
+
   test('popup windows reach every row of oversized and mixed items on both surfaces', async ($, on) => {
     const width = 38 // A 46-column context has a 42-column popup and 38-column body.
     const tall = Array.from({ length: 12 }, (_, i) => `ROW-${i}`.padEnd(width, '.')).join('') + 'LAST-LINE'
@@ -2210,9 +2243,16 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     let t = await events()
     expect(t).toContain('TRAIL · Log')
     await ui.press({ key: 'trail-view-menu' })
-    expect(await drawn(ui)).toContain('1/3')
+    let popup = await drawn(ui)
+    expect(popup).toContain('1/3')
+    expect(popup).toContain('View')
+    expect(popup).not.toContain('popup-up')
+    expect(popup).not.toContain('popup-down')
+    expect(popup).toContain('trail-settings-header-gap')
     await ui.press({ key: 'settings-page-next' })
-    expect(await drawn(ui)).toContain('2/3')
+    popup = await drawn(ui)
+    expect(popup).toContain('2/3')
+    expect(popup).toContain('Order')
     expect(await ui.find({ key: 'trail-sort', type: 'Button' })).toBeDefined()
     expect(String((await ui.find({ key: 'trail-sort', type: 'Button' }))?.props.label).trim()).toBe('Sort')
     await ui.press({ key: 'trail-sort' })
@@ -2248,6 +2288,7 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     await runAtlas('show h')
     expect((await runAtlas('filters')).text).toBe('no filters')
     const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    let popup = ''
     await ui.press({ key: 'tab-trail' })
     await ui.press({ key: 'trail-view-menu' })
     await ui.press({ key: 'settings-page-prev' })
@@ -2255,7 +2296,11 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     await ui.press({ key: 'settings-page-next' })
     await ui.press({ key: 'settings-page-next' })
     await ui.press({ key: 'settings-page-next' })
-    expect(await drawn(ui)).toContain('3/3')
+    popup = await drawn(ui)
+    expect(popup).toContain('3/3')
+    expect(popup).toContain('Hide types')
+    expect(popup).not.toContain('popup-up')
+    expect(popup).not.toContain('popup-down')
     await ui.press({ key: 'settings-page-prev' })
     expect(await drawn(ui)).toContain('2/3')
     await ui.press({ key: 'settings-page-next' })

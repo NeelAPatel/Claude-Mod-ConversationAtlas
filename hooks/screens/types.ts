@@ -121,7 +121,7 @@ export type ScreenPopup = {
   id?: string
   title: string
   titleCount?: string
-  page?: { current: number; total: number }
+  page?: { current: number; total: number; name: string }
   closeGlyph?: boolean
   rows: ScreenRow[]
   footer?: string
