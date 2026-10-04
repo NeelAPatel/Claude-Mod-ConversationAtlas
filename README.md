@@ -144,10 +144,12 @@ Settings live in `/config` → **conversation-atlas**, or `pluginConfigs` in you
   store and to `<project>/.claude/atlas/` (add that to `.gitignore` if you don't want session maps
   committed).
 - **Engine-only mode costs nothing**, and neither does anything before you pick a mode.
-- **Claude observer mode is cheap, not free.** It adds one cached rules section to the system prompt
-  and a small `observe` tool call on turns where something changed. Each call re-reads the cached
-  context, so the cost grows with chat length; in one long-session measurement it was around 10% of
-  the session's tokens. If usage matters, use engine-only.
+- **Claude observer mode has a small usage cost.** It adds one cached rules section to the system
+  prompt and a short `observe` tool call on turns where something changed. Each call re-reads the
+  cached context, so the cost grows with chat length: in one long-session measurement it came to
+  roughly 10% of that session's tokens. That is a known rough edge, and some hooks and updates
+  will be optimized in future releases to bring it down. Until then, engine-only mode is the free
+  option, and the observer is worth it when topic and decision tracking matters to you.
 - **`/atlas scan`** is always an explicit action: one forked, mostly cached request.
 - **What reaches Claude:** the rules section (Claude mode), a one-line note of your *confirmed* goal
   and detour (Claude mode), a pending return packet, and chips you left in your message. Observed
