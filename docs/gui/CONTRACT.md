@@ -11,7 +11,7 @@ The desktop renderer must mount and validate on every tab, with Legend open, a p
 | `observer-toggle` | `toggle-observer` |
 | `events-heading` and other `<section>-heading` help keys | `expand` |
 | `trail-view-menu`, `trail-view-story`, `trail-view-log`, `trail-sort`, `trail-filter-b-toggle`, `trail-filter-h-toggle`, `trail-settings-page-*` | `popup`, `trail-view`, `trail-sort`, `trail-filter`, `trail-settings-page` respectively |
-| `popup-close`, `popup-up`, `popup-down`, `help-up-*`, `help-down-*`, `scroll-up`, `scroll-down`, `sb-*` | `popup`, `popup-scroll`, `expanded-scroll`, `scroll`, `scroll-to` respectively |
+| `popup-close`, `popup-up`, `popup-down`, `help-up-*`, `help-down-*`, `scroll-up`, `scroll-down`, `sb-thumb` | `popup`, `popup-scroll`, `expanded-scroll`, `scroll`, `scroll-to` respectively |
 | `close-*`, `add-*`, `sg-*`, `qsel-*`, `dsel-*`, `tsel-*`, `goal-alternative-*`, `path-*`, `sel-*`, `ef-*`, `csel-*`, `dh-*`, `rc-*`, `evb-*`, `evb-story-*` | The `Action` attached to that screen action or row (expand, attach, confirm, dismiss, settle, exclude, drop, restore, resolve, reopen, return, promote, adopt, or adopt-full as applicable) |
 
 Contract tests press these concrete keys: `tab-trail`, `tab-open`, `tab-evidence`, `tab-map`, `bar-legend`, `trail-view-menu`, `events-heading`, and `setup-engine`. They dispatch `tab`, `legend`, `popup`, `expand`, and `set-observer` according to the table.

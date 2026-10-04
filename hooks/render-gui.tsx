@@ -225,7 +225,8 @@ function actions(
 }
 
 function layoutRow(input: Parameters<typeof uiLayoutRow>[0], keepCounts = false): ReturnType<typeof uiLayoutRow> {
-  const layout = uiLayoutRow(keepCounts ? { ...input, text: '' } : input)
+  const width = input.metaParts?.length ? Math.max(60, input.width) : input.width
+  const layout = uiLayoutRow(keepCounts ? { ...input, width, text: '' } : { ...input, width })
   const parts = layout.metaParts.map(part => part.text)
   const meta = parts.length ? [...parts, ...(layout.right ? [layout.right] : [])].join(' ')
     : [layout.meta, layout.right].filter(Boolean).join(' · ')
@@ -233,6 +234,34 @@ function layoutRow(input: Parameters<typeof uiLayoutRow>[0], keepCounts = false)
   const available = Math.max(1, input.width - cellWidth(input.prefix) - cellWidth(meta) - 1)
   const title = uiLayoutRow({ width: available, prefix: '', text: input.text, middle: input.middle })
   return { ...layout, text: title.text }
+}
+
+function truncateCells(value: string, budget: number, middle = false): string {
+  const width = Math.max(0, budget)
+  if (cellWidth(value) <= width) return value
+  if (width <= 1) return width === 0 ? '' : '…'
+  const room = width - 1
+  if (!middle) {
+    let out = ''
+    for (const char of value) {
+      if (cellWidth(out + char) > room) break
+      out += char
+    }
+    return `${out}…`
+  }
+  let left = ''
+  let right = ''
+  const leftRoom = Math.ceil(room / 2)
+  const rightRoom = Math.floor(room / 2)
+  for (const char of value) {
+    if (cellWidth(left + char) > leftRoom) break
+    left += char
+  }
+  for (const char of [...value].reverse()) {
+    if (cellWidth(char + right) > rightRoom) break
+    right = char + right
+  }
+  return `${left}…${right}`
 }
 
 function inlineMeta(ctx: Ctx, row: ScreenRow, layout: ReturnType<typeof layoutRow>): RenderElement | null {
@@ -303,9 +332,12 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
     : undefined
   const icon = sourceMark ?? g?.char ?? (row.fresh ? GLYPH.fresh.char : open ? GLYPH.expanded.char : '')
   const metaLayout = layoutRow({ width: ctx.width, prefix: '', text: '', meta: row.meta, metaParts: row.metaParts, right: row.right }, row.kind === 'event' && Boolean(row.metaParts?.length))
+  const metaText = [...metaLayout.metaParts.map(part => part.text), metaLayout.meta, metaLayout.right].filter(Boolean).join(' ')
+  const titleBudget = Math.max(1, ctx.width - indent - 2 - 3 - 2 - cellWidth(metaText) - 2)
+  const rowTitle = truncateCells(row.text, titleBudget, row.kind === 'file')
   const head = (
-    <Box key={`head-${row.key}`} flexDirection="row" gap={1} flexShrink={0} marginLeft={indent}>
-      <Box width={3} flexShrink={0}>
+    <Box key={`head-${row.key}`} flexDirection="row" gap={1} flexGrow={1} flexShrink={1} minWidth={0} marginLeft={indent}>
+      <Box width={3} flexShrink={0} alignItems="center" justifyContent="center">
         <Text color={sourceMark ? row.sourceMarkColor : g?.color ?? (row.fresh ? GLYPH.fresh.color : open ? GLYPH.expanded.color : undefined)} bold={row.bold || open} dimColor={!icon}>{icon}</Text>
       </Box>
       <Box flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
@@ -314,12 +346,12 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
             key={row.key}
             plain
             dimColor={row.dim}
-            label={row.text}
+            label={rowTitle}
             onPress={headPress}
           />
         ) : (
           <Text bold={row.bold} dimColor={row.dim} italic={row.italic} wrap="truncate-end">
-            {row.text}
+            {rowTitle}
           </Text>
         )}
       </Box>
@@ -334,7 +366,7 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
     )
   if (row.kind === 'suggestion' && !row.expandable)
     return (
-      <Box key={row.key} flexDirection="column">
+      <Box key={row.key} flexDirection="column" flexGrow={1} minWidth={0}>
         {head}
         {actions(ctx, row.actions ?? [])}
       </Box>
@@ -352,7 +384,7 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
       </Box>
     )
   }
-  if (row.kind === 'activity') return <Box key={row.key}>{head}</Box>
+  if (row.kind === 'activity') return <Box key={row.key} flexDirection="column" flexGrow={1} minWidth={0}>{head}</Box>
   if (row.kind === 'detour')
     return (
       <Box key={row.key} flexDirection="column">
@@ -572,7 +604,7 @@ function renderSection(ctx: Ctx, section: ScreenSection): RenderElement {
       color: toneColor(section.tone),
       dim: section.dim,
     },
-    <Box flexDirection="column">
+    <Box flexDirection="column" flexGrow={1} minWidth={0}>
       {section.dim ? (
         <Text dimColor wrap="truncate-end">
           {OBSERVER_NOTE}
@@ -642,6 +674,7 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
             {
               key: 'observer-toggle',
               label: ctx.mode === 'claude' ? 'Observer: Claude' : 'Observer: Engine only',
+              primary: ctx.mode === 'claude',
               action: { type: 'toggle-observer' },
             },
           ],
@@ -957,7 +990,7 @@ function renderBody(ctx: Ctx, model: ScreenModel): RenderElement {
         sectionTop += rowsOf(sectionTree, ctx.width)
         const placement = popup ? popupPlacement(ctx, popup, rowTop) : undefined
         return (
-          <Box key={`screen-${section.key}`} flexDirection="column">
+          <Box key={`screen-${section.key}`} flexDirection="column" flexGrow={1} minWidth={0}>
             {sectionTree}
             {popup && placement ? popupShell(ctx, popup, placement) : null}
           </Box>
@@ -1014,14 +1047,19 @@ function tabItems(ctx: Ctx, snapshot: AtlasSnapshot): BarItem[] {
   ]
 }
 function tabBar(ctx: Ctx, snapshot: AtlasSnapshot, scroll: { max: number; at: number; page: number }): RenderElement {
-  const { Box, Button } = ctx.el
+  const { Box, Button, Text, Svg } = ctx.el
+  const items = tabItems(ctx, snapshot)
   return (
-    <Box key="tab-bar" flexDirection="row" gap={1} flexWrap="wrap" flexShrink={0}>
-      {tabItems(ctx, snapshot).map(item => (
-        <Button key={item.key} label={item.label} hotkey={item.hotkey} variant={item.active ? 'primary' : 'secondary'} onPress={item.onPress} />
-      ))}
-      {scroll.max > 0 || scroll.page <= 10 ? (
-        <Box flexDirection="row" gap={1} flexShrink={0}>
+    <Box key="tab-bar" flexDirection="column" flexShrink={0} minWidth={0}>
+      <Box flexDirection="row" gap={1} flexWrap="wrap" flexShrink={0}>
+        {items.map(item => (
+          <Box key={`tab-${item.key}`} flexDirection="column" flexShrink={0}>
+            <Button key={item.key} label={item.label} hotkey={item.hotkey} variant={item.active ? 'primary' : 'secondary'} onPress={item.onPress} />
+            {item.active ? <Text color={item.activeColor} bold>{'━'.repeat(Math.max(4, item.label.length + 2))}</Text> : null}
+          </Box>
+        ))}
+        {scroll.max > 0 || scroll.page <= 10 ? (
+          <Box flexDirection="row" gap={1} flexShrink={0}>
           <Button
             key="scroll-up"
             dimColor={scroll.max === 0 || scroll.at === 0}
@@ -1034,13 +1072,21 @@ function tabBar(ctx: Ctx, snapshot: AtlasSnapshot, scroll: { max: number; at: nu
             label="Down"
             onPress={() => ctx.act({ type: 'scroll', by: scroll.page })}
           />
-        </Box>
-      ) : null}
+          </Box>
+        ) : null}
+      </Box>
+      {Svg ? <Svg
+        key="tab-baseline"
+        source={'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 2" preserveAspectRatio="none"><path d="M0 1H100" stroke="#41414a" stroke-width="1"/></svg>'}
+        alt="Tab strip baseline"
+        width={Math.max(1, ctx.width * 8)}
+        height={2}
+      /> : <Text dimColor>{'_'.repeat(Math.max(1, ctx.width - 2))}</Text>}
     </Box>
   )
 }
 function tabBarRows(ctx: Ctx, snapshot: AtlasSnapshot, max: number): number {
-  return (ctx.view.legend ? 2 : 1) + 1
+  return rowsOf(tabBar(ctx, snapshot, { at: 0, max: 0, page: Math.max(11, ctx.width) }), ctx.width) + 1
 }
 function appBarItems(ctx: Ctx, snapshot: AtlasSnapshot): BarItem[] {
   return [
@@ -1049,32 +1095,43 @@ function appBarItems(ctx: Ctx, snapshot: AtlasSnapshot): BarItem[] {
   ]
 }
 function appBar(ctx: Ctx, snapshot: AtlasSnapshot): RenderElement {
-  const { Box, Button } = ctx.el
+  const { Box, Button, Text } = ctx.el
   const items = appBarItems(ctx, snapshot)
   return (
     <Box key="app-bar" flexDirection="row" gap={1} flexWrap="wrap" flexShrink={0} marginTop={1}>
-      {items.map(item => <Button key={item.key === 'mark' ? 'mark' : 'bar-legend'} label={item.label} hotkey={item.hotkey} variant="secondary" onPress={item.onPress} />)}
+      {items.map(item => (
+        <Box key={`bar-${item.key}`} flexDirection="column" flexShrink={0}>
+          <Button key={item.key === 'mark' ? 'mark' : 'bar-legend'} label={item.label} hotkey={item.hotkey} variant={item.key === 'legend' && ctx.view.legend ? 'primary' : 'secondary'} onPress={item.onPress} />
+          {item.key === 'legend' && ctx.view.legend ? <Text color={TAB_ACCENT[ctx.view.tab]} bold>━━━━━━</Text> : null}
+        </Box>
+      ))}
     </Box>
   )
 }
 function appBarRows(ctx: Ctx, snapshot: AtlasSnapshot): number {
-  return 2
+  return ctx.view.legend ? 3 : 2
 }
 function scrollbarCells(ctx: Ctx, viewport: number, content: number, at: number, maxScroll: number): RenderElement {
-  const { Box, Button } = ctx.el
+  const { Box, Button, Svg } = ctx.el
   const size = Math.min(viewport, Math.max(1, Math.round((viewport * viewport) / content)))
   const top = maxScroll ? Math.round((at / maxScroll) * (viewport - size)) : 0
   return (
-    <Box flexDirection="column" width={1} flexShrink={0} height={viewport} overflow="hidden">
-      {Array.from({ length: viewport }, (_, index) => (
+    <Box key="scrollbar" flexDirection="column" position="relative" width={2} flexShrink={0} height={viewport} overflow="hidden">
+      {Svg ? <Svg
+        key="scrollbar-track"
+        source={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 ${viewport * 16}" preserveAspectRatio="none"><rect x="1" y="0" width="2" height="${viewport * 16}" rx="1" fill="#41414a"/><rect x="0" y="${top * 16}" width="4" height="${Math.max(16, size * 16)}" rx="2" fill="#7aa2f7"/></svg>`}
+        alt={`Scroll position ${at + 1} of ${maxScroll + 1}`}
+        width={8}
+        height={viewport * 16}
+      /> : null}
+      <Box position="absolute" top={top} left={0}>
         <Button
-          key={`sb-${index}`}
+          key="sb-thumb"
           plain
-          dimColor={!(index >= top && index < top + size)}
-          label=" "
-          onPress={() => ctx.act({ type: 'scroll-to', at: Math.round((index / Math.max(1, viewport - 1)) * maxScroll) })}
+          label="●"
+          onPress={() => ctx.act({ type: 'scroll-to', at: Math.round((top / Math.max(1, viewport - size)) * maxScroll) })}
         />
-      ))}
+      </Box>
     </Box>
   )
 }
@@ -1150,9 +1207,9 @@ export function pane(input: PaneCtx, snapshot: AtlasSnapshot): {
   const popupItems = popup ? popup.rows.map(row => renderRow(popupContext(drawCtx, popup), row)) : []
   const maxPopupScroll = popup ? popupGeometry(drawCtx, popupItems, popup).maxScroll : 0
   const bodyTree = pinned ? (
-    <Box flexDirection="row" flexGrow={1} flexShrink={1} overflow="hidden" position="relative">
-      <Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="visible">
-        <Box flexDirection="column" flexShrink={0} marginTop={-at}>
+    <Box flexDirection="row" flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden" position="relative">
+      <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
+        <Box flexDirection="column" flexShrink={0} minWidth={0} marginTop={-at}>
           {body}
         </Box>
       </Box>
@@ -1164,7 +1221,7 @@ export function pane(input: PaneCtx, snapshot: AtlasSnapshot): {
     </Box>
   )
   const tree = (
-    <Box flexDirection="column" paddingX={1} {...(pinned ? { height: ctx.rows } : {})}>
+    <Box key="pane-root" flexDirection="column" minWidth={0} overflow="hidden" paddingX={1} {...(pinned ? { height: ctx.rows } : {})}>
       {tabBar(ctx, snapshot, { at, max: maxScroll, page: Math.max(1, viewport - 2) })}
       <Box height={1} flexShrink={0}><Text>{''}</Text></Box>
       {bodyTree}
@@ -1195,28 +1252,28 @@ type ActionGroupOptions = { marginLeft?: number; gap?: number; flexWrap?: 'wrap'
 function Section(ctx: UiContext, section: UiSection, children: RenderElement): RenderElement {
   const { Box, Text, Button } = ctx.el
   return (
-    <Box key={section.key} flexDirection="column" marginTop={1}>
-      <Box flexDirection="row" gap={1} flexShrink={0}>
-        <Text bold color={section.color} dimColor={section.dim} wrap="truncate-end">
-          {section.heading}
-        </Text>
+    <Box key={section.key} flexDirection="column" minWidth={0} marginTop={1}>
+      <Box flexDirection="row" gap={1} flexShrink={0} minWidth={0}>
+        <Box flexDirection="row" flexGrow={0} flexShrink={1} minWidth={0} overflow="hidden">
+          <Text bold color={section.color} dimColor={section.dim} wrap="truncate-end">
+            {section.heading}
+          </Text>
+        </Box>
         {section.headingPress ? (
           <Button
             key={`${section.key}-heading`}
             variant="secondary"
             dimColor={section.dim}
-            label="Info"
+            label="?"
             onPress={section.headingPress}
           />
         ) : null}
-        <Box flexGrow={1} />
+        <Box flexGrow={1} flexShrink={1} minWidth={0} />
         {section.count ? (
-          <Text dimColor wrap="truncate-end">
-            {section.count}
-          </Text>
+          <Box flexShrink={0}><Text dimColor>{section.count}</Text></Box>
         ) : null}
         {section.right ? (
-          <Box flexDirection="row" gap={1}>
+          <Box flexDirection="row" gap={1} flexShrink={0}>
             {typeof section.right === 'string' ? <Text dimColor wrap="truncate-end">{section.right}</Text> : section.right}
           </Box>
         ) : null}
@@ -1256,7 +1313,7 @@ function Popup(
   // The shell and each flow region carry the fill. This is intentional: an
   // absolute panel must paint every cell, including gaps beside short rows.
   return (
-      <Box
+    <Box
         key="atlas-popup"
         position="absolute"
         top={options.top}
@@ -1266,6 +1323,8 @@ function Popup(
         height={options.height}
         overflow="hidden"
         backgroundColor={options.backgroundColor}
+        borderStyle="round"
+        borderColor={options.borderColor ?? C.path}
         paddingX={1}
         flexDirection="column"
       >
