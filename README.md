@@ -32,7 +32,12 @@ that detects and helps you manage your goals, decisions and even detours while y
 
 ## Installation
 
-> **Marketplace: coming soon.** For now, install from source.
+**From the marketplace** (once v0.1.0 is on `main`):
+
+```bash
+claude plugin marketplace add NeelAPatel/Claude-Mod-ConversationAtlas
+claude plugin install conversation-atlas@neel-cc-mods
+```
 
 Requires **Claude Code 2.1.287+** (terminal or desktop Code tab). To dock the pane beside the
 transcript, use `/tui fullscreen` in a terminal at least 144 columns wide; otherwise open it from
