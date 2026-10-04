@@ -6,3 +6,6 @@ tsconfig.json
 node_modules/
 .tmp-npm-cache/
 *.log
+
+# Large demo media: attach to GitHub instead of committing
+readme media/
