@@ -1,4 +1,4 @@
-Map Trail Open 4 Evidence
+  Map     Trail    Open 4  Evidence
 
 NEEDS YOUR CALL ? 2  {0:color:#7dcfff,bold|18:dim}
 ○ Check… next suggestion · from Claude  {9:dim}

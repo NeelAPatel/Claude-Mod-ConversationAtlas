@@ -159,3 +159,27 @@ test('desktop scan keeps the live Client mounted while the scan runs', { timeout
   await running
   await ui.unmount()
 })
+
+test('desktop tab cells are equalized and separated from the active baseline at both widths', { timeoutMs: 20_000 }, async ($, on) => {
+  const { clock } = world(on)
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true } as any)
+  await clock.settle()
+  for (const bodyColumns of [46, 80]) {
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: { ...PANE_PROPS, bodyColumns } })
+    await ui.press({ key: 'tab-map' })
+    const buttons = await ui.findAll({ type: 'Button' })
+    const tabs = ['tab-map', 'tab-trail', 'tab-open', 'tab-evidence'].map(key => buttons.find((button: any) => button.props.key === key))
+    if (!tabs.every(Boolean)) throw new Error(`Missing tab buttons at ${bodyColumns}: ${JSON.stringify(buttons.map((button: any) => button.props.key))}`)
+    const lengths = tabs.map((button: any) => String(button.props.label).length)
+    if (new Set(lengths).size !== 1) throw new Error(`Unequal tab labels at ${bodyColumns}: ${JSON.stringify(tabs.map((button: any) => button.props.label))}`)
+    const all = (value: any): any[] => !value || typeof value !== 'object' ? [] : Array.isArray(value) ? value.flatMap(all) : [value, ...all(value.children)]
+    const tree = all(await ui.drawn())
+    expect(tree.some(node => node.type === 'Box' && node.props?.key === 'tab-baseline-gap')).toBe(false)
+    const baseline = async () => all(await ui.drawn()).find(node => node.type === 'Svg' && node.props?.alt === 'Tab strip baseline')
+    expect((await baseline())?.props.height).toBe(8)
+    expect((await baseline())?.props.source).toContain('#e0af68')
+    await ui.press({ key: 'tab-open' })
+    expect((await baseline())?.props.source).toContain('#f7768e')
+    await ui.unmount()
+  }
+})

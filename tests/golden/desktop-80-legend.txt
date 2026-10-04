@@ -1,4 +1,4 @@
-Map Trail Open 4 Evidence Up Down  {26:dim}
+  Map     Trail    Open 4  Evidence Up Down  {36:dim}
 
 GOAL ? Edit● 1/13  {0:color:#7dcfff,bold}
 What you are trying to do. Only you set it: confirm a suggestion, type one, or explicitly adopt Atlas’s detected aim.  {0:italic,dim}

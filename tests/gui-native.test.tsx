@@ -56,7 +56,7 @@ test('desktop renderer uses flexible native controls and clean pane chrome', { t
       await ui.press({ key })
       const activeBaseline = elements(await ui.drawn()).find(node => node.type === 'Svg' && node.props?.alt === 'Tab strip baseline')
       expect(activeBaseline?.props.source).toContain(accents[key])
-      expect(activeBaseline?.props.height).toBe(2)
+      expect(activeBaseline?.props.height).toBe(8)
       expect(JSON.stringify(await ui.drawn())).not.toContain('━')
       expect(tabPaths(await ui.drawn())).toEqual(initialTabPaths)
       if ((await ui.find({ key, type: 'Button' }))?.props.variant !== 'primary') throw new Error(`tab ${key} did not use the primary variant`)
@@ -186,6 +186,36 @@ test('desktop overflow items expand inline and close without popup actions', { t
   expect(tree.some(node => node.props?.key === 'atlas-popup')).toBe(false)
   expect(tree.some(node => node.type === 'Box' && node.props?.position === 'absolute')).toBe(false)
   await ui.unmount()
+})
+
+test('desktop Trail detail labels use two columns at 80 and one column at 46', { timeoutMs: 20_000 }, async ($, on) => {
+  const clock = setup(on)
+  on('turn.start', () => ({ turnId: 'gui-detail-layout' }))
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true } as any)
+  await $.turn.start({ turnId: 'gui-detail-layout', text: 'Check the compact detail layout.\n- retain full width notes' } as any)
+  await clock.settle()
+  for (const bodyColumns of [46, 80]) {
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: { ...PANE, bodyColumns } })
+    await ui.press({ key: 'tab-trail' })
+    const event = (await ui.findAll({ type: 'Button' })).find((button: any) => String(button.props.key ?? '').startsWith('evb-'))
+    if (!event?.props.key) throw new Error(`Trail event missing at ${bodyColumns} columns`)
+    await ui.press({ key: String(event.props.key) })
+    const tree = elements(await ui.drawn())
+    const grids = tree.filter(node => String(node.props?.key ?? '').startsWith('expanded-line-story-1-grid-'))
+    expect(grids.length > 0).toBe(bodyColumns >= 64)
+    if (bodyColumns >= 64) {
+      const firstGridRow = (grids[0]?.children ?? []).find((node: any) => node.type === 'Box' && node.props?.flexDirection === 'row')
+      expect(firstGridRow?.children).toHaveLength(2)
+    }
+    const buttons = await ui.findAll({ type: 'Button' })
+    expect(buttons.filter((button: any) => button.props.label === 'Add to message')).toHaveLength(1)
+    expect(buttons.filter((button: any) => button.props.label === 'Close')).toHaveLength(1)
+    const detail = await text(ui)
+    expect(detail).toContain('turn: 1')
+    expect(detail).toContain('when: now')
+    expect(detail.indexOf('turn: 1')).toBeLessThan(detail.indexOf('when: now'))
+    await ui.unmount()
+  }
 })
 
 test('desktop shows an inline notice for stale terminal popup state', { timeoutMs: 20_000 }, async ($, on) => {

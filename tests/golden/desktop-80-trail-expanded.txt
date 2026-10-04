@@ -1,4 +1,4 @@
-Map Trail Open 4 Evidence
+  Map     Trail    Open 4  Evidence
 
 MAP OF TOPICS ? 4  {0:color:#b9f27c,bold|16:dim}
 ○ Atlas foundations t1  {20:dim}
@@ -8,13 +8,10 @@ MAP OF TOPICS ? 4  {0:color:#b9f27c,bold|16:dim}
 TRAIL · Story ?  {0:color:#b9f27c,bold}
 ✓ Report-backs ✓ Hand-offs Newest ▼
 › Review the visual regression boundary for the Atlas pane carefu… ⚑ now  {0:color:#7dcfff,bold|67:color:#7aa2f7|69:dim}
-turn: 2  {0:dim}
-when: now  {0:dim}
-counts: commit  {0:dim}
-✻ Milestone: Post-prompt milestone  {0:color:#d97757}
+turn: 2when: now  {0:dim|7:dim}
+counts: commit✻ Milestone: Post-prompt milestone  {0:dim}
 Commit: Post-prompt commit
-› Review the visual regression boundary for the Atlas pane carefully. Preserve the existing action semantics while checking the fixed sample state.
-Previous1/14Next  {0:dim|8:dim}
+Previous1/20Next  {0:dim|8:dim}
 Add to message Close
 
 › Build a dependable Conversation Atlas pane … 2e 2r ⚑ 4t 3d 2q 2h 1b 1m  {0:color:#7dcfff|47:color:#ff9e64|50:color:#bb9af7|53:color:#7aa2f7|55:color:#bb9af7|58:color:#9ece6a|61:color:#f7768e|64:color:#7aa2f7|67:color:#7aa2f7|70:dim}

@@ -450,6 +450,37 @@ function eventDetailLines(row: ScreenRow): DetailLine[] {
   )
 }
 
+function detailLayout(ctx: Ctx, prefix: string, lines: DetailLine[], renderFull?: (line: DetailLine) => RenderElement): RenderElement[] {
+  const { Box, Text } = ctx.el
+  const columns = ctx.width >= 64
+  const isShortLabel = (line: DetailLine) => line.text.length <= 40 && /^[^:\n]+:\s+\S/.test(line.text)
+  const elements: RenderElement[] = []
+  let group: DetailLine[] = []
+  const flush = () => {
+    if (!group.length) return
+    const short = group
+    group = []
+    if (!columns) {
+      elements.push(...short.map((line, index) => guideRow(ctx, `${prefix}-${elements.length + index}`, <Text dimColor={line.dim} wrap="wrap">{line.text}</Text>)))
+      return
+    }
+    elements.push(<Box key={`${prefix}-grid-${elements.length}`} flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
+      {Array.from({ length: Math.ceil(short.length / 2) }, (_unused, rowIndex) => <Box key={`${prefix}-grid-row-${rowIndex}`} flexDirection="row" flexGrow={1} flexShrink={1} minWidth={0}>
+      {short.slice(rowIndex * 2, rowIndex * 2 + 2).map((line, columnIndex) => <Box key={`${prefix}-cell-${rowIndex}-${columnIndex}`} flexDirection="row" width={0} flexGrow={1} flexShrink={1} minWidth={0} marginLeft={columnIndex ? 1 : 0}><Text dimColor={line.dim} wrap="wrap">{line.text}</Text></Box>)}
+      </Box>)}
+    </Box>)
+  }
+  lines.forEach((line, index) => {
+    if (isShortLabel(line)) group.push(line)
+    else {
+      flush()
+      elements.push(guideRow(ctx, `${prefix}-full-${index}`, renderFull?.(line) ?? <Text dimColor={line.dim} wrap="wrap">{line.text}</Text>))
+    }
+  })
+  flush()
+  return elements
+}
+
 function guideRow(ctx: Ctx, key: string, content: RenderElement): RenderElement {
   const { Box } = ctx.el
   return (
@@ -460,15 +491,14 @@ function guideRow(ctx: Ctx, key: string, content: RenderElement): RenderElement 
 }
 
 function eventGeometry(ctx: Ctx, row: ScreenRow) {
+  const lines = eventDetailLines(row)
   const { Text } = ctx.el
-  const items = eventDetailLines(row).map((line, index) =>
-    guideRow(ctx, `expanded-line-${row.id}-${index}`, <Text dimColor={line.dim} wrap="wrap">
-      {['✻', '⌬', '□'].includes(line.text[0] ?? '') && line.text[1] === ' ' ? (
-        <Text color={Object.values(SOURCE_MARK).find(source => source.mark === line.text[0])?.color}>{line.text[0]}</Text>
-      ) : null}
-      {['✻', '⌬', '□'].includes(line.text[0] ?? '') && line.text[1] === ' ' ? line.text.slice(1) : line.text}
-    </Text>),
-  )
+  const items = detailLayout(ctx, `expanded-line-${row.id}`, lines, line => <Text dimColor={line.dim} wrap="wrap">
+    {['✻', '⌬', '□'].includes(line.text[0] ?? '') && line.text[1] === ' ' ? (
+      <Text color={Object.values(SOURCE_MARK).find(source => source.mark === line.text[0])?.color}>{line.text[0]}</Text>
+    ) : null}
+    {['✻', '⌬', '□'].includes(line.text[0] ?? '') && line.text[1] === ' ' ? line.text.slice(1) : line.text}
+  </Text>)
   const itemRows = items.map(item => rowsOf(item, Math.max(8, ctx.width - 2)))
   const total = itemRows.reduce((sum, rows) => sum + rows, 0)
   const visible = Math.min(total, 6)
@@ -500,12 +530,11 @@ function EventDetail({ ctx, row }: { ctx: Ctx; row: ScreenRow }): RenderElement 
 }
 
 function Detail({ ctx, row }: { ctx: Ctx; row: ScreenRow }): RenderElement {
-  const { Box, Text } = ctx.el
+  const { Box } = ctx.el
+  const lines = (row.detail?.length ? row.detail : ['No additional details recorded.']).flatMap(line => line.split(/\r?\n/).map(text => ({ text })))
   return (
     <Box flexDirection="column" marginLeft={2}>
-      {(row.detail?.length ? row.detail : ['No additional details recorded.']).map((line, index) =>
-        guideRow(ctx, `detail-${row.key}-${index}`, <Text dimColor wrap="wrap">{line}</Text>),
-      )}
+      {detailLayout(ctx, `detail-${row.key}`, lines)}
     </Box>
   )
 }
@@ -883,12 +912,13 @@ function tabItems(ctx: Ctx, snapshot: AtlasSnapshot): BarItem[] {
 function tabBar(ctx: Ctx, snapshot: AtlasSnapshot, scroll: { max: number; at: number; page: number }): RenderElement {
   const { Box, Button, Text, Svg } = ctx.el
   const items = tabItems(ctx, snapshot)
+  const labelWidth = Math.max(...items.map(item => item.label.length))
   return (
     <Box key="tab-bar" flexDirection="column" flexShrink={0} minWidth={0}>
       <Box flexDirection="row" gap={1} flexWrap="wrap" flexShrink={0}>
         {items.map(item => (
-          <Box key={`tab-${item.key}`} flexDirection="column" flexShrink={0}>
-            <Button key={item.key} label={item.label} hotkey={item.hotkey} variant={item.active ? 'primary' : 'secondary'} onPress={item.onPress} />
+          <Box key={`tab-${item.key}`} flexDirection="column" width={0} flexGrow={1} flexShrink={1} minWidth={0} alignItems="center">
+            <Button key={item.key} label={`${'\u00a0'.repeat(Math.floor((labelWidth - item.label.length) / 2))}${item.label}${'\u00a0'.repeat(Math.ceil((labelWidth - item.label.length) / 2))}`} hotkey={item.hotkey} variant={item.active ? 'primary' : 'secondary'} onPress={item.onPress} />
           </Box>
         ))}
         {scroll.max > 0 || scroll.page <= 10 ? (
@@ -910,10 +940,10 @@ function tabBar(ctx: Ctx, snapshot: AtlasSnapshot, scroll: { max: number; at: nu
       </Box>
       {Svg ? <Svg
         key="tab-baseline"
-        source={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 2" preserveAspectRatio="none"><path d="M0 1H100" stroke="${TAB_ACCENT[ctx.view.tab]}" stroke-width="2"/></svg>`}
+        source={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 8" preserveAspectRatio="none"><path d="M0 7H100" stroke="${TAB_ACCENT[ctx.view.tab]}" stroke-width="2"/></svg>`}
         alt="Tab strip baseline"
         width={Math.max(1, ctx.width * 8)}
-        height={2}
+        height={8}
       /> : <Text dimColor>{'_'.repeat(Math.max(1, ctx.width - 2))}</Text>}
     </Box>
   )

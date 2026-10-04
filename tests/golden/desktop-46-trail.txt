@@ -1,4 +1,4 @@
-Map Trail Open 4 Evidence
+  Map     Trail    Open 4  Evidence
 
 MAP OF TOPICS ? 4  {0:color:#b9f27c,bold|16:dim}
 ○ Atlas foundations t1  {20:dim}
