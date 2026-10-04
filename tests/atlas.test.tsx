@@ -1438,6 +1438,30 @@ describe('milestone 2: screens and surface parity', () => {
     expect(JSON.stringify(row)).not.toContain('← ←')
   })
 
+  test('handoff marks identify named agents and preserve default marks for built-in agents', () => {
+    const snapshot = emptySnapshot('handoff-marks', ROOT, 0)
+    const agents = ['Ollama', 'Codex', 'background', 'Claude']
+    snapshot.handoffs = agents.map((agent, index) => ({
+      id: `h${index}`, label: `Task ${index}`, agent, brief: null, reportPath: null,
+      at: 100 + index * 10, turn: 1, status: 'reported', summary: null, tests: null,
+      files: [], reportFingerprint: null, taskId: null,
+    }))
+    snapshot.events = agents.flatMap((agent, index) => ([
+      { id: `handoff-${index}`, at: 100 + index * 10, turn: 1, kind: 'handoff' as const, text: `Task ${index}` },
+      { id: `report-${index}`, at: 101 + index * 10, turn: 1, kind: 'report-back' as const, text: `Task ${index} complete` },
+    ]))
+    const rows = buildTrail(snapshot, { ...screenView('trail'), trailView: 'log' }, 200).sections
+      .flatMap(section => section.rows)
+    for (const index of [0, 1, 2, 3]) {
+      const expected = index === 0 ? ['□', '#9aa5b1'] : ['⌬', '#7c8cff']
+      for (const id of [`handoff-${index}`, `report-${index}`]) {
+        const row = rows.find(candidate => candidate.id === id)
+        expect(row?.detail?.[3]?.startsWith(`${expected[0]} `)).toBe(true)
+        expect(row?.sourceMarkColor).toBe(expected[1])
+      }
+    }
+  })
+
   test('Legend stays compact and section headings open fuller inline help', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)

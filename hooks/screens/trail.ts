@@ -23,7 +23,7 @@ const trailHelp = [
   'A chronological record of prompts, topics, decisions and checkpoints.',
   'Press an event to open its full text and points.',
   'Story groups each turn; Log lists today\'s events one per line.',
-  'Marks: › you · ✻ Claude · ⌬ Codex. Dim italic rows are observations or guesses.',
+  'Marks: › you · ✻ Claude · ⌬ Codex · □ other. Dim italic rows are observations or guesses.',
   'Use ≡ for Trail settings: view, order and hidden types.',
   'The heading button opens this fuller explanation.',
   'Press the heading again to close it; row detail shares this one-open slot.',
@@ -32,14 +32,15 @@ const trailHelp = [
 
 const trailExplain =
   'A chronological record of prompts, topics, decisions and checkpoints. Use ≡ for Trail settings: view, order and hidden types. ' +
-  '↑ = newest first; ↓ = oldest first. Marks: › you · ✻ Claude · ⌬ Codex.'
+  '↑ = newest first; ↓ = oldest first. Marks: › you · ✻ Claude · ⌬ Codex · □ other.'
 
-export const SOURCE_MARK: Record<AtlasSource | 'codex', { mark: string; color: string }> = {
+export const SOURCE_MARK: Record<AtlasSource | 'codex' | 'other', { mark: string; color: string }> = {
   person: { mark: '›', color: '#7dcfff' },
   cue: { mark: '›', color: '#7dcfff' },
   claude: { mark: '✻', color: '#d97757' },
   engine: { mark: '', color: '#7aa2f7' },
   codex: { mark: '⌬', color: '#7c8cff' },
+  other: { mark: '□', color: '#9aa5b1' },
 }
 
 const EVENT_GLYPH: Record<AtlasEvent['kind'], ScreenRow['glyph']> = {
@@ -113,8 +114,20 @@ function isGuess(snapshot: AtlasSnapshot, event: AtlasEvent, source: AtlasSource
 
 function sourceDetails(snapshot: AtlasSnapshot, event: AtlasEvent): { mark: string; color: string; guess: boolean } {
   const source = sourceForEvent(snapshot, event)
-  const markSource = event.kind === 'handoff' || event.kind === 'report-back' ? 'codex' : source
+  const markSource = event.kind === 'handoff' || event.kind === 'report-back'
+    ? handoffMarkSource(snapshot, event)
+    : source
   return { ...SOURCE_MARK[markSource], guess: isGuess(snapshot, event, source) }
+}
+
+function handoffMarkSource(snapshot: AtlasSnapshot, event: AtlasEvent): 'codex' | 'other' {
+  const candidates = snapshot.handoffs.filter(handoff => handoff.turn === event.turn)
+  const text = eventText(event.text).toLocaleLowerCase()
+  const match = candidates.find(handoff => text.includes(handoff.label.toLocaleLowerCase()))
+    ?? candidates.reduce<typeof candidates[number] | null>((nearest, handoff) =>
+      !nearest || Math.abs(handoff.at - event.at) < Math.abs(nearest.at - event.at) ? handoff : nearest, null)
+  const agent = match?.agent.toLocaleLowerCase() ?? ''
+  return agent && !['codex', 'claude', 'subagent', 'background'].some(name => agent.includes(name)) ? 'other' : 'codex'
 }
 
 export function trailSourceMark(snapshot: AtlasSnapshot, event: AtlasEvent): string {

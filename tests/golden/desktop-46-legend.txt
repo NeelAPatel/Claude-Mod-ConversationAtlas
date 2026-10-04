@@ -34,7 +34,7 @@ Where to pick up. Pinned is yours; suggested is Claude’s guess.  {0:italic,dim
 HOW TO USE  {0:bold}
 Plain rows expand structured details inline. Secondary controls are bracketed on terminal and native on desktop.  {0:dim}
 Topics from the start of the work to now stay observed; press an action to confirm intent.  {0:dim}
-Marks: › you · ✻ Claude · ⌬ Codex  {7:color:#7dcfff|15:color:#d97757|26:color:#7c8cff}
+Marks: › you · ✻ Claude · ⌬ Codex · □ other  {7:color:#7dcfff|15:color:#d97757|26:color:#7c8cff|36:color:#9aa5b1}
 Observer mode: Observer: Claude  {0:dim}
 LEGEND  {0:bold}
 counts: e edits r reads t topics d decisions q questions h hand-offs b report-backs  {8:color:#ff9e64|16:color:#bb9af7|24:color:#bb9af7|33:color:#9ece6a|45:color:#f7768e|57:color:#7aa2f7|69:color:#7aa2f7}

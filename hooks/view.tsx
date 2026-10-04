@@ -467,10 +467,10 @@ function eventGeometry(ctx: Ctx, row: ScreenRow) {
   const { Text } = ctx.el
   const items = eventDetailLines(row).map((line, index) =>
     guideRow(ctx, `expanded-line-${row.id}-${index}`, <Text dimColor={line.dim} wrap="wrap">
-      {['✻', '⌬'].includes(line.text[0] ?? '') && line.text[1] === ' ' ? (
+      {['✻', '⌬', '□'].includes(line.text[0] ?? '') && line.text[1] === ' ' ? (
         <Text color={Object.values(SOURCE_MARK).find(source => source.mark === line.text[0])?.color}>{line.text[0]}</Text>
       ) : null}
-      {['✻', '⌬'].includes(line.text[0] ?? '') && line.text[1] === ' ' ? line.text.slice(1) : line.text}
+      {['✻', '⌬', '□'].includes(line.text[0] ?? '') && line.text[1] === ' ' ? line.text.slice(1) : line.text}
     </Text>),
   )
   const itemRows = items.map(item => rowsOf(item, Math.max(8, ctx.width - 2)))
@@ -669,7 +669,8 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
       </Text></Box>
       <Box flexShrink={0}><Text wrap="wrap">
         Marks: <Text color={SOURCE_MARK.person.color}>›</Text> you ·{' '}
-        <Text color={SOURCE_MARK.claude.color}>✻</Text> Claude · <Text color={SOURCE_MARK.codex.color}>⌬</Text> Codex
+        <Text color={SOURCE_MARK.claude.color}>✻</Text> Claude · <Text color={SOURCE_MARK.codex.color}>⌬</Text> Codex ·{' '}
+        <Text color={SOURCE_MARK.other.color}>□</Text> other
       </Text></Box>
       <Box flexDirection="row" gap={1} flexShrink={0}>
         <Text dimColor>Observer mode:</Text>
