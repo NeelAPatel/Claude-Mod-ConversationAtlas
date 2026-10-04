@@ -1,8 +1,8 @@
   Map     Trail    Open 4  Evidence
 
 NEEDS YOUR CALL ? 2  {0:color:#7dcfff,bold|18:dim}
-○ Check whether the native controls stay … next suggestion · from Claude  {43:dim}
-↳ … detour suggestion · from Claude · Compare native labels before returning.  {0:color:#e0af68|4:dim}
+○ Check whether the native controls stay legible. next suggestion · from Claude  {50:dim}
+↳ Desktop parity  {0:color:#e0af68}
 OBSERVED DECISIONS ? 1  {0:color:#9ece6a,bold|21:dim}
 ◇ Use text goldens for visual review  {0:color:#9ece6a}
 OPEN QUESTIONS ? 1  {0:color:#f7768e,bold|17:dim}

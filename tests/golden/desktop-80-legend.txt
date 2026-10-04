@@ -2,7 +2,7 @@
 
 GOAL ? Edit● 1/13  {0:color:#7dcfff,bold}
 What you are trying to do. Only you set it: confirm a suggestion, type one, or explicitly adopt Atlas’s detected aim.  {0:italic,dim}
-◎ Build a dependable Conversation Atlas pane for long… · 3 suggestions  {0:color:#7dcfff|55:dim}
+◎ Build a dependable Conversation Atlas pane for long sessions. · 3 suggestions  {0:color:#7dcfff|64:dim}
 CURRENT PATH ? 3 earlier  {0:color:#bb9af7,bold|15:dim}
 Topics from the start of the work to now; detour branches show where the main path paused. Claude keeps it current.  {0:italic,dim}
  Atlas foundations
@@ -11,7 +11,7 @@ Topics from the start of the work to now; detour branches show where the main pa
 ↳ Color tokens unconfirmed  {0:color:#e0af68|2:italic,dim|15:dim}
 POSSIBLE DETOUR ?  {0:color:#e0af68,bold}
 Looks like a side trip. Take it to get a return point, or say it is not one.  {0:italic,dim}
-↳ … detour suggestion · from Claude · Compare native labels before returning.  {0:color:#e0af68|2:italic,dim|4:dim}
+↳ Desktop parity  {0:color:#e0af68|2:italic,dim}
 Take detour Not a detour
 ACTIVITY ?  {0:color:#bb9af7,bold}
 What Claude is doing: spinner = running, done, or failed.  {0:italic,dim}

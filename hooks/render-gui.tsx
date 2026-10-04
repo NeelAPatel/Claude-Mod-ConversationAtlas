@@ -223,8 +223,10 @@ function actions(
 }
 
 function layoutRow(input: Parameters<typeof uiLayoutRow>[0], keepCounts = false): ReturnType<typeof uiLayoutRow> {
-  const width = input.metaParts?.length ? Math.max(60, input.width) : input.width
-  const layout = uiLayoutRow(keepCounts ? { ...input, width, text: '' } : { ...input, width })
+  const guiInput = input.metaParts?.length
+    ? { ...input, metaParts: input.metaParts.map(part => ({ ...part, compact: undefined })) }
+    : input
+  const layout = uiLayoutRow(keepCounts ? { ...guiInput, text: '' } : guiInput)
   const parts = layout.metaParts.map(part => part.text)
   const meta = parts.length ? [...parts, ...(layout.right ? [layout.right] : [])].join(' ')
     : [layout.meta, layout.right].filter(Boolean).join(' · ')
@@ -232,6 +234,35 @@ function layoutRow(input: Parameters<typeof uiLayoutRow>[0], keepCounts = false)
   const available = Math.max(1, input.width - cellWidth(input.prefix) - cellWidth(meta) - 1)
   const title = uiLayoutRow({ width: available, prefix: '', text: input.text, middle: input.middle })
   return { ...layout, text: title.text }
+}
+
+const ROW_ICON_CELLS = 3
+const ROW_GAP_CELLS = 1
+const ROW_MIN_GUTTER_CELLS = 2
+// Desktop proportional fonts fit more average title characters than pane cells.
+const GUI_TITLE_CHARACTER_ALLOWANCE = 1.15
+
+function rowMetaLayout(ctx: Ctx, row: ScreenRow, indent: number) {
+  const metaParts = row.metaParts ?? []
+  let meta = row.meta
+  let parts = metaParts
+  const keepCounts = Boolean(metaParts.length)
+  let layout = layoutRow({ width: ctx.width, prefix: '', text: '', meta, metaParts: parts, right: row.right }, keepCounts)
+  const titleCells = (value: typeof layout) => Math.max(0,
+    ctx.width - indent - ROW_ICON_CELLS - ROW_GAP_CELLS * 2 - ROW_MIN_GUTTER_CELLS
+    - [...value.metaParts.map(part => part.text), value.meta, value.right].filter(Boolean).reduce((sum, text, index) => sum + cellWidth(text!) + (index ? 1 : 0), 0))
+  // Free attribution first, then zero counts; preserve age after all other metadata.
+  if (titleCells(layout) < 24 && meta) {
+    meta = undefined
+    layout = layoutRow({ width: ctx.width, prefix: '', text: '', meta, metaParts: parts, right: row.right }, keepCounts)
+  }
+  if (titleCells(layout) < 24 && parts.length) {
+    parts = parts.filter(part => !/^0\p{L}$/u.test(part.text.trim()))
+    layout = layoutRow({ width: ctx.width, prefix: '', text: '', meta, metaParts: parts, right: row.right }, keepCounts)
+  }
+  const cells = titleCells(layout)
+  const titleBudget = Math.max(1, Math.floor(cells * GUI_TITLE_CHARACTER_ALLOWANCE))
+  return { layout, titleBudget }
 }
 
 function truncateCells(value: string, budget: number, middle = false): string {
@@ -327,9 +358,7 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
         )
     : undefined
   const icon = sourceMark ?? g?.char ?? (row.fresh ? GLYPH.fresh.char : open ? GLYPH.expanded.char : '')
-  const metaLayout = layoutRow({ width: ctx.width, prefix: '', text: '', meta: row.meta, metaParts: row.metaParts, right: row.right }, row.kind === 'event' && Boolean(row.metaParts?.length))
-  const metaText = [...metaLayout.metaParts.map(part => part.text), metaLayout.meta, metaLayout.right].filter(Boolean).join(' ')
-  const titleBudget = Math.max(1, ctx.width - indent - 2 - 3 - 2 - cellWidth(metaText) - 2)
+  const { layout: metaLayout, titleBudget } = rowMetaLayout(ctx, row, indent)
   const rowTitle = truncateCells(row.text, titleBudget, row.kind === 'file')
   const head = (
     <Box key={`head-${row.key}`} flexDirection="row" gap={1} flexGrow={1} flexShrink={1} minWidth={0} marginLeft={indent}>
@@ -464,9 +493,9 @@ function detailLayout(ctx: Ctx, prefix: string, lines: DetailLine[], renderFull?
       elements.push(...short.map((line, index) => guideRow(ctx, `${prefix}-${elements.length + index}`, <Text dimColor={line.dim} wrap="wrap">{line.text}</Text>)))
       return
     }
-    elements.push(<Box key={`${prefix}-grid-${elements.length}`} flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
-      {Array.from({ length: Math.ceil(short.length / 2) }, (_unused, rowIndex) => <Box key={`${prefix}-grid-row-${rowIndex}`} flexDirection="row" flexGrow={1} flexShrink={1} minWidth={0}>
-      {short.slice(rowIndex * 2, rowIndex * 2 + 2).map((line, columnIndex) => <Box key={`${prefix}-cell-${rowIndex}-${columnIndex}`} flexDirection="row" width={0} flexGrow={1} flexShrink={1} minWidth={0} marginLeft={columnIndex ? 1 : 0}><Text dimColor={line.dim} wrap="wrap">{line.text}</Text></Box>)}
+    elements.push(<Box key={`${prefix}-grid-${elements.length}`} flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0} alignItems="flex-start">
+      {Array.from({ length: Math.ceil(short.length / 2) }, (_unused, rowIndex) => <Box key={`${prefix}-grid-row-${rowIndex}`} flexDirection="row" flexShrink={0} minWidth={0} alignItems="flex-start">
+      {short.slice(rowIndex * 2, rowIndex * 2 + 2).map((line, columnIndex) => <Box key={`${prefix}-cell-${rowIndex}-${columnIndex}`} flexDirection="row" width={0} flexGrow={1} flexShrink={1} minWidth={0} marginLeft={columnIndex ? 1 : 0} alignItems="flex-start"><Text dimColor={line.dim} wrap="wrap">{line.text}</Text></Box>)}
       </Box>)}
     </Box>)
   }
@@ -519,7 +548,7 @@ function EventDetail({ ctx, row }: { ctx: Ctx; row: ScreenRow }): RenderElement 
         </Box>
       </Box>
       {maxScroll > 0 ? (
-        <Box flexDirection="row" justifyContent="space-between">
+        <Box flexDirection="row" flexWrap="wrap" justifyContent="space-between" alignItems="flex-start">
           <Button key="expanded-up" dimColor={at === 0} label="Previous" onPress={() => ctx.act({ type: 'expanded-scroll', by: -1 })} />
           <Text dimColor>{`${at + 1}/${geometry.total}`}</Text>
           <Button key="expanded-down" dimColor={at >= maxScroll} label="Next" onPress={() => ctx.act({ type: 'expanded-scroll', by: 1 })} />

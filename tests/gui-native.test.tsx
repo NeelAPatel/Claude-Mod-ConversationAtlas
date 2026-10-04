@@ -74,6 +74,10 @@ test('desktop renderer uses flexible native controls and clean pane chrome', { t
         expect(drawnOpen).toContain('"children":["2"]')
         const long = (await ui.findAll({ type: 'Button' })).find((button: any) => String(button.props.label ?? '').startsWith('Long nested'))
         if (!long || !String(long.props.label).endsWith('…')) throw new Error(`long Open row was not truncated at ${bodyColumns} columns: ${JSON.stringify(long?.props)}`)
+        if (bodyColumns === 80) {
+          const oldBudget = Math.max(1, bodyColumns - 2 - 3 - 2 - 2)
+          expect(String(long.props.label).length).toBeGreaterThan(oldBudget)
+        }
       }
       if (tab === 'map') {
         const heads = elements(await ui.drawn())
@@ -206,6 +210,10 @@ test('desktop Trail detail labels use two columns at 80 and one column at 46', {
     if (bodyColumns >= 64) {
       const firstGridRow = (grids[0]?.children ?? []).find((node: any) => node.type === 'Box' && node.props?.flexDirection === 'row')
       expect(firstGridRow?.children).toHaveLength(2)
+      expect(firstGridRow?.props?.alignItems).toBe('flex-start')
+      expect(firstGridRow?.props?.flexShrink).toBe(0)
+      for (const cell of firstGridRow.children) expect(cell.props?.alignItems).toBe('flex-start')
+      expect(grids.flatMap((grid: any) => grid.children ?? []).filter((node: any) => node.props?.flexDirection === 'row').length).toBeGreaterThan(1)
     }
     const buttons = await ui.findAll({ type: 'Button' })
     expect(buttons.filter((button: any) => button.props.label === 'Add to message')).toHaveLength(1)
