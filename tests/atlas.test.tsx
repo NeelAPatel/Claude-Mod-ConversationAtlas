@@ -113,7 +113,7 @@ describe('model: observation never writes intent', () => {
     expect(s.topics.find(t => t.title === 'Investigating UI capabilities')?.kind).toBe('possible-detour')
   })
 
-  test('confirming a detour keeps a Trailhead departure snapshot and return emits one packet', async () => {
+  test('confirming a detour keeps its departure snapshot and return emits one packet', async () => {
     let s = emptySnapshot('s', ROOT, 0)
     s = startTurn(s, 'Build the atlas pane for long sessions.', 1)
     const goal = s.suggestions.find(x => x.kind === 'goal')
@@ -580,23 +580,7 @@ describe('hooks', () => {
   )
 })
 
-const TRAILHEAD_CHECKPOINT = JSON.stringify({
-  format: 'trailhead-checkpoint',
-  storageVersion: 1,
-  checkpointSequence: 3,
-  savedAt: '2026-10-01T12:00:00.000Z',
-  projectRoot: ROOT,
-  sessionId: 'old-trailhead-session',
-  snapshot: {
-    activeGoalId: 'goal-1',
-    activeDetourId: 'detour-1',
-    goals: [{ id: 'goal-1', objective: 'Ship the release checklist', intendedNextStep: 'Wire the checklist pane' }],
-    detours: [{ id: 'detour-1', reason: 'Investigate flaky tests' }],
-    decisions: [{ id: 'decision-1', conclusion: 'Keep the UI native', scope: 'active-goal' }],
-  },
-})
-
-describe('merge: Trailhead features inside Atlas', () => {
+describe('Atlas detour findings', () => {
   test('excluded detour material reaches the return packet, separately from outcomes', async () => {
     let s = emptySnapshot('s', ROOT, 0)
     s = startTurn(s, 'Build the atlas pane for long sessions.', 1)
@@ -613,26 +597,6 @@ describe('merge: Trailhead features inside Atlas', () => {
     const packet = s.pendingContext[0] ?? ''
     expect(packet).toContain('Accepted detour outcomes:\n- Retry wrapper fixes it')
     expect(packet).toContain('Excluded material (explored, do not rely on it):\n- Rewrite the runner')
-  })
-
-  test('/atlas recover lists a Trailhead trail and resuming restores goal, next step and decision', { timeoutMs: 20_000 }, async ($, on) => {
-    const { clock } = world(on)
-    on('fs.list', (_$: any, e: any) => (/[\\/]\.claude[\\/]trailhead$/.test(String(e.path)) ? { value: [{ name: 'old-trailhead-session.a.json', kind: 'file', size: 1, mtimeMs: 0, isLink: false }] } : { value: [] }))
-    on('fs.read', () => ({ value: TRAILHEAD_CHECKPOINT }))
-    on('fs.write', () => ({ value: undefined }))
-    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
-    await clock.settle()
-    const listed = await $.command.run({ command: 'atlas', args: 'recover', origin: { kind: 'composer' } } as any)
-    expect(listed.text).toContain('Ship the release checklist')
-    expect(listed.text).toContain('trailhead')
-    const resumed = await $.command.run({ command: 'atlas', args: 'recover 1', origin: { kind: 'composer' } } as any)
-    expect(resumed.text).toContain('Resumed trailhead session')
-    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
-    const text = await drawn(ui)
-    expect(text).toContain('Ship the release checklist')
-    expect(text).toContain('Wire the checklist pane')
-    expect(text).toContain('Investigate flaky tests')
-    await ui.unmount()
   })
 
   test('/atlas recover full gates replacement and then loads the saved Atlas map', { timeoutMs: 20_000 }, async ($, on) => {
@@ -794,10 +758,13 @@ describe('readability: app bar, legend, resizing', () => {
 
   test('needs-your-call, observed-decision and earlier-session actions live in one expansion', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
-    on('fs.list', (_$: any, event: any) => /[\\/]\.claude[\\/]trailhead$/.test(String(event.path))
-      ? { value: [{ name: 'prior.json', kind: 'file', size: 1, mtimeMs: 0, isLink: false }] }
+    const earlier = emptySnapshot('prior-atlas-session', ROOT, 0)
+    earlier.goal = { id: 'prior-goal', text: 'Earlier Atlas goal', at: 1, turn: 1, source: 'person' }
+    const saved = saveFile(earlier, 20)
+    on('fs.list', (_$: any, event: any) => /[\\/]\.claude[\\/]atlas$/.test(String(event.path))
+      ? { value: [{ name: 'prior-atlas-session.json', kind: 'file', size: saved.length, mtimeMs: 20, isLink: false }] }
       : { value: [] })
-    on('fs.read', () => ({ value: TRAILHEAD_CHECKPOINT }))
+    on('fs.read', (_$: any, event: any) => String(event.path).endsWith('prior-atlas-session.json') ? { value: saved } : { deny: 'not found' })
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await $.tool.call({ tool: OBSERVE, topic: 'Action layout', next: 'Check the next action', decisions: ['Keep the observed action'] } as any)
     await $.tool.call({ tool: OBSERVE, topic: 'Side action', shift: 'possible-detour', why: 'Check the side path' } as any)

@@ -2,13 +2,11 @@
 // lists and reads the files, this turns their text into resume candidates.
 //
 //   .claude/atlas/<session>.json           Atlas save files (written by this mod)
-//   .claude/trailhead/<session>.{a,b}.json Trailhead checkpoints (alternating slots)
 
 import type { AtlasRecall, AtlasSnapshot } from '../types'
 import { snapshotError, summary } from './model'
 
 export const ATLAS_DIR = '.claude/atlas'
-export const TRAILHEAD_DIR = '.claude/trailhead'
 export const SAVE_FORMAT = 'conversation-atlas'
 
 export type AtlasFullRecall = {
@@ -102,46 +100,15 @@ export function fromAtlasFullFile(text: string, root: string): AtlasFullRecall |
   return { id: `atlas:${envelope.sessionId}`, sessionId: envelope.sessionId, snapshot: envelope.v.snapshot }
 }
 
-// One Trailhead checkpoint envelope: { format, checkpointSequence, savedAt, projectRoot, sessionId, snapshot }.
-export function fromTrailheadFile(text: string, root: string): (AtlasRecall & { seq: number }) | null {
-  const v = parse(text)
-  if (!v || !isRecord(v.snapshot) || typeof v.checkpointSequence !== 'number') return null
-  const sessionId = str(v.sessionId)
-  const projectRoot = str(v.projectRoot)
-  if (!sessionId || (projectRoot && projectRoot.replace(/\\/g, '/').toLowerCase() !== root.toLowerCase())) return null
-  const snap = v.snapshot
-  const goals = Array.isArray(snap.goals) ? snap.goals.filter(isRecord) : []
-  const goal = goals.find(g => g.id === snap.activeGoalId) ?? null
-  const detours = Array.isArray(snap.detours) ? snap.detours.filter(isRecord) : []
-  const detour = detours.find(d => d.id === snap.activeDetourId) ?? null
-  const decisions = Array.isArray(snap.decisions) ? snap.decisions.filter(isRecord) : []
-  const kept = decisions.filter(d => d.scope !== 'detour').map(d => str(d.conclusion)).filter((x): x is string => Boolean(x))
-  if (!goal && !detour) return null
-  const savedAt = str(v.savedAt)
-  return {
-    id: `trailhead:${sessionId}`,
-    source: 'trailhead',
-    sessionId,
-    seq: v.checkpointSequence,
-    at: savedAt ? Date.parse(savedAt) || 0 : 0,
-    goal: goal ? str(goal.objective) : null,
-    nextStep: goal ? str(goal.intendedNextStep) : null,
-    detour: detour ? str(detour.reason) : null,
-    topic: null,
-    decisions: kept.slice(-8),
-  }
-}
-
-// Newest first; a Trailhead session keeps only its highest checkpoint.
-export function mergeRecall(list: (AtlasRecall & { seq?: number })[]): AtlasRecall[] {
-  const best = new Map<string, AtlasRecall & { seq?: number }>()
+// Keep the newest candidate for each session, ordered by save time.
+export function mergeRecall(list: AtlasRecall[]): AtlasRecall[] {
+  const best = new Map<string, AtlasRecall>()
   for (const r of list) {
     const cur = best.get(r.id)
-    if (!cur || (r.seq ?? 0) > (cur.seq ?? 0) || r.at > cur.at) best.set(r.id, r)
+    if (!cur || r.at > cur.at) best.set(r.id, r)
   }
   return [...best.values()]
     .sort((a, b) => b.at - a.at)
-    .map(({ seq: _seq, ...r }) => r)
 }
 
 export function sessionsToDelete(entries: StoredSession[], currentKey: string, keep: number): string[] {
