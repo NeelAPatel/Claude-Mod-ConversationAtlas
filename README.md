@@ -59,8 +59,10 @@ Don't combine this with `--plugin-dir` in the same session, or two copies load.
 
 On first launch the pane asks how Atlas should observe. Nothing costs Claude usage until you choose.
 
-- **Claude observer**: Claude reports topic shifts, decisions and questions through a tiny tool.
-- **Engine only (free)**: Atlas uses just files, activity, tests, commits and your own wording.
+- **Claude observer** *(minimal usage cost, [read below](#privacy-and-cost))*: Claude reports topic
+  shifts, decisions and questions through a tiny tool.
+- **Engine only** *(free, no usage cost)*: Atlas uses just files, activity, tests, commits and your
+  own wording.
 
 Change it any time with `/atlas observer [claude|engine]`.
 
