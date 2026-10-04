@@ -282,7 +282,8 @@ export function trailViewPopup(
       },
     ] : page === 1 ? [
       {
-        id: 'trail-choice-sort', key: 'trail-sort', kind: 'suggestion', text: `${newest ? '▼' : '▲'} Event time`,
+        id: 'trail-choice-sort', key: 'trail-sort', kind: 'suggestion', text: 'Event time',
+        direction: newest ? 'desc' : 'asc',
         meta: newest ? 'newest first' : 'oldest first', expandable: false, setting: true,
         actions: [action('trail-sort', 'Sort', { type: 'trail-sort' })],
       },

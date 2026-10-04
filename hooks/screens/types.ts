@@ -80,6 +80,7 @@ export type ScreenRow = {
   sourceMarkColor?: string
   text: string
   checkbox?: boolean
+  direction?: 'asc' | 'desc'
   setting?: boolean
   meta?: string
   metaParts?: { text: string; compact?: string; tone?: ToneKey; dim?: boolean }[]

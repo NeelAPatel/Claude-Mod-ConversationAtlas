@@ -5,7 +5,7 @@
 
 import type { Elements, RenderElement } from 'claude-code'
 
-export type Surface = 'terminal' | 'desktop' | 'vscode' | 'mobile'
+export type Surface = string
 export type UiElements = Pick<Elements['terminal'], 'Box' | 'Text' | 'Button'>
 
 export type UiContext = {
@@ -355,127 +355,5 @@ export function collapseBarLabelsWith(
   })
   const widths = widthsFor(compact, false)
   return { tier: 'compact', labels: compact, itemWidths: widths, grid: barGrid(widths, width, gap) }
-}
-
-export function Row(ctx: UiContext, row: UiRow): RenderElement {
-  const { Box, Text, Button } = ctx.el
-  const layout = layoutRow({
-    width: ctx.width,
-    prefix: row.glyph ? `${row.glyph} ` : '',
-    text: row.text,
-    right: row.right,
-  })
-  return (
-    <Box key={row.key} flexDirection="row" gap={1} flexShrink={0}>
-      {row.glyph ? (
-        <Text color={row.glyphColor} dimColor={row.dim}>
-          {row.glyph}
-        </Text>
-      ) : null}
-      <Box flexShrink={1} minWidth={0} overflow="hidden">
-        {row.onPress ? (
-          <Button key={row.key} plain dimColor={row.dim} label={layout.text} onPress={() => row.onPress?.()} />
-        ) : (
-          <Text bold={row.bold} dimColor={row.dim} wrap="truncate-end">
-            {layout.text}
-          </Text>
-        )}
-      </Box>
-      <Box flexGrow={1} />
-      {layout.right ? (
-        <Text dimColor wrap="truncate-end">
-          {layout.right}
-        </Text>
-      ) : null}
-    </Box>
-  )
-}
-
-export function Section(ctx: UiContext, section: UiSection, children: RenderElement): RenderElement {
-  const { Box, Text, Button } = ctx.el
-  return (
-    <Box key={section.key} flexDirection="column" marginTop={1}>
-      <Box flexDirection="row" flexShrink={0}>
-        <Text bold color={section.color} dimColor={section.dim} wrap="truncate-end">
-          {section.heading}
-        </Text>
-        {section.headingPress ? <Text> </Text> : null}
-        {section.headingPress ? (
-          <Button
-            key={`${section.key}-heading`}
-            plain
-            dimColor={section.dim}
-            label="ⓘ"
-            onPress={section.headingPress}
-          />
-        ) : null}
-        <Box flexGrow={1} />
-        {section.count ? (
-          <Text dimColor wrap="truncate-end">
-            {section.count}
-          </Text>
-        ) : null}
-        {section.right ? (
-          <Box flexDirection="row">
-            <Text> </Text>
-            {typeof section.right === 'string' ? <Text dimColor wrap="truncate-end">{section.right}</Text> : section.right}
-          </Box>
-        ) : null}
-      </Box>
-      {section.explain ? (
-        <Text dimColor italic wrap="wrap">
-          {section.explain}
-        </Text>
-      ) : null}
-      {section.expansion}
-      {children}
-    </Box>
-  )
-}
-
-export function ScrollBox(
-  ctx: UiContext,
-  children: RenderElement[],
-  options: { height: number; backgroundColor?: string },
-): RenderElement {
-  const { Box } = ctx.el
-  return (
-    <Box key="popup-body" flexDirection="column" height={options.height} overflow="hidden" backgroundColor={options.backgroundColor}>
-      {children.map((child, i) => (
-        <Box key={`popup-row-${i}`} backgroundColor={options.backgroundColor} flexShrink={0}>{child}</Box>
-      ))}
-    </Box>
-  )
-}
-
-export function Popup(
-  ctx: UiContext,
-  children: RenderElement[],
-  options: { width: number; height: number; backgroundColor: string; borderColor?: string; top?: number; left?: number; bottom?: number },
-): RenderElement {
-  const { Box } = ctx.el
-  // The shell and each flow region carry the fill. This is intentional: an
-  // absolute panel must paint every cell, including gaps beside short rows.
-  return (
-      <Box
-        key="atlas-popup"
-        position="absolute"
-        top={options.top}
-        left={options.left}
-        bottom={options.bottom}
-        width={options.width}
-        height={options.height}
-        overflow="hidden"
-        borderStyle="round"
-        borderColor={options.borderColor}
-        backgroundColor={options.backgroundColor}
-        paddingX={1}
-        flexDirection="column"
-      >
-      {children.map((child, i) => (
-        <Box key={`popup-fill-${i}`} backgroundColor={options.backgroundColor} flexShrink={0}>{child}</Box>
-      ))}
-    </Box>
-  )
 }
 

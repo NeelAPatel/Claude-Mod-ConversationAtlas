@@ -72,7 +72,7 @@ import {
   type AtlasFullRecall,
 } from './recall'
 import { type Action, oneLine, pane, TONES } from './view'
-import type { Surface } from './ui'
+import type { Surface } from './ui/shared'
 
 const PLUGIN = 'conversation-atlas'
 const SNAP = { plugin: 'conversation-atlas', key: 'snapshot' } as const

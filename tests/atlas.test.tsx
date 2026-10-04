@@ -29,8 +29,15 @@ import {
 import { expectedReportPath, handoffStart, parseHandoffReport, reportChanged, reportFingerprint } from '../hooks/delegation'
 import { atlasFullFileError, fromAtlasFullFile, pickRecallEntries, saveFile, sessionsToDelete } from '../hooks/recall'
 import { replay } from '../hooks/scan'
-import { cellWidth, collapseBarLabels, kitFor, layoutRow, measuredBarItemWidth, truncateMiddleCells } from '../hooks/ui'
-import { C, GLYPH, LEGEND, legendPanel, pane, popupShell, rowsOf, type Ctx } from '../hooks/view'
+import { cellWidth, layoutRow, measuredBarItemWidth, truncateMiddleCells } from '../hooks/ui/shared'
+import { guiCollapseBarLabels } from '../hooks/render-gui'
+import { tuiCollapseBarLabels } from '../hooks/render-tui'
+import { C, GLYPH, LEGEND, legendPanel, pane, popupShell, rendererFor, rowsOf, type Ctx } from '../hooks/view'
+
+test('surface dispatcher selects the GUI only for desktop', () => {
+  expect(rendererFor('desktop')).toBe('gui')
+  for (const surface of ['terminal', 'vscode', 'mobile'] as const) expect(rendererFor(surface)).toBe('tui')
+})
 import { buildEvidence } from '../hooks/screens/evidence'
 import { buildMap } from '../hooks/screens/map'
 import { buildOpen } from '../hooks/screens/open'
@@ -1062,12 +1069,12 @@ describe('milestone 1: UI primitives and engine noise', () => {
     expect(measuredBarItemWidth({ label: 'Map', hotkey: 'm' })).toBe(6)
     expect(measuredBarItemWidth({ label: 'Trail', activeMarker: '▸' })).toBe(6)
     expect(measuredBarItemWidth({ label: '9', icon: '◇', prefixGap: 1, hotkey: 'd', buttonChrome: 'bracketed' })).toBe(8)
-    for (const surface of ['terminal', 'desktop'] as const) {
+    for (const collapse of [tuiCollapseBarLabels, guiCollapseBarLabels]) {
       let previousTabs = 0
       let previousBottom = 0
       for (let width = 20; width <= 100; width++) {
-        const t = collapseBarLabels(tabs, width, surface, 1, 'tabs')
-        const b = collapseBarLabels(bottom, width, surface, 1, 'bar')
+        const t = collapse(tabs, width, 1, 'tabs')
+        const b = collapse(bottom, width, 1, 'bar')
         expect(t.labels).toHaveLength(4)
         expect(b.labels).toHaveLength(4)
         expect(t.grid.fits).toBe(true)
@@ -1081,10 +1088,10 @@ describe('milestone 1: UI primitives and engine noise', () => {
         previousTabs = t.grid.columns
         previousBottom = b.grid.columns
       }
-      if (surface === 'terminal') {
-        expect(collapseBarLabels(tabs, 20, surface, 1, 'tabs').grid.columns).toBe(1)
-        expect(collapseBarLabels(tabs, 23, surface, 1, 'tabs').grid.columns).toBe(2)
-        expect(collapseBarLabels(tabs, 100, surface, 1, 'tabs').grid.columns).toBe(4)
+      if (collapse === tuiCollapseBarLabels) {
+        expect(collapse(tabs, 20, 1, 'tabs').grid.columns).toBe(1)
+        expect(collapse(tabs, 23, 1, 'tabs').grid.columns).toBe(2)
+        expect(collapse(tabs, 100, 1, 'tabs').grid.columns).toBe(4)
       }
     }
   })
@@ -1181,7 +1188,7 @@ summary: Atlas M1 review fixes
 branch: feat/m1-ui-library
 tests: pending
 files:
-hooks/ui/index.tsx
+hooks/render-tui.tsx
 hooks/delegation.ts
 hooks/model.ts
 hooks/register.tsx
@@ -1191,7 +1198,7 @@ tests/atlas.test.tsx
 
 A: The prose body must not become a file.`)
     expect(realShape?.files).toHaveLength(7)
-    expect(realShape?.files).toEqual(['hooks/ui/index.tsx', 'hooks/delegation.ts', 'hooks/model.ts', 'hooks/register.tsx', 'hooks/view.tsx', 'types/index.d.ts', 'tests/atlas.test.tsx'])
+    expect(realShape?.files).toEqual(['hooks/render-tui.tsx', 'hooks/delegation.ts', 'hooks/model.ts', 'hooks/register.tsx', 'hooks/view.tsx', 'types/index.d.ts', 'tests/atlas.test.tsx'])
 
     let files = emptySnapshot('s', ROOT, 0)
     files = touchFile(files, `${ROOT}/hooks/view.tsx`, 'write', 1)
@@ -1751,30 +1758,17 @@ function scrollTestView(): AtlasView {
 function scrollTestContext(el: Ctx['el'], width: number, rows: number, view: AtlasView): Ctx {
   const { Box } = el
   return {
-    el, surface: 'terminal', kit: kitFor('terminal'), width, rows, now: 1_800_000_000_000, mode: 'claude', setupDefault: 'claude',
+    el, surface: 'terminal', width, rows, now: 1_800_000_000_000, mode: 'claude', setupDefault: 'claude',
     scan: { active: false, startedAt: 0, result: null, resultAt: 0 }, view,
     live: () => <Box />, act: () => undefined,
   }
 }
 
-describe('surface renderer kits', () => {
-  test('each kit owns glyphs, bars, actions, rules and the title rule', () => {
-    for (const kit of [kitFor('terminal'), kitFor('desktop')]) {
-      expect(kit.glyphs.prompt.length).toBeGreaterThan(0)
-      expect(typeof kit.Tabs).toBe('function')
-      expect(typeof kit.Bar).toBe('function')
-      expect(typeof kit.ActionGroup).toBe('function')
-      expect(typeof kit.rule).toBe('function')
-      expect(typeof kit.titleRule).toBe('function')
-    }
-  })
-
-  test('desktop selects GUI while terminal, vscode and mobile share TUI', () => {
-    const gui = kitFor('desktop')
-    const tui = kitFor('terminal')
-    expect(gui).not.toBe(tui)
-    expect(kitFor('vscode')).toBe(tui)
-    expect(kitFor('mobile')).toBe(tui)
+describe('independent surface renderers', () => {
+  test('both renderers own their bar label rules', () => {
+    expect(tuiCollapseBarLabels).not.toBe(guiCollapseBarLabels)
+    expect(tuiCollapseBarLabels([], 20).labels).toEqual([])
+    expect(guiCollapseBarLabels([], 20).labels).toEqual([])
   })
 })
 
