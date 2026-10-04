@@ -41,8 +41,11 @@ test('desktop pane mounts and validates without overlays on every tab at support
       expect(hasAbsoluteBox(tree)).toBe(false)
     }
     if (await ui.find({ key: 'tab-trail', type: 'Button' })) await ui.press({ key: 'tab-trail' })
-    for (const key of ['trail-view-story', 'trail-view-log', 'trail-sort', 'trail-filter-b-toggle', 'trail-filter-h-toggle'])
+    for (const key of ['trail-sort', 'trail-filter-b-toggle', 'trail-filter-h-toggle'])
       expect(await ui.find({ key, type: 'Button' })).toBeDefined()
+    expect(await ui.find({ key: 'trail-view-select', type: 'Select' })).toBeDefined()
+    expect(await ui.find({ key: 'trail-view-story', type: 'Button' })).toBeUndefined()
+    expect(await ui.find({ key: 'trail-view-log', type: 'Button' })).toBeUndefined()
     expect(await ui.find({ key: 'trail-view-menu', type: 'Button' })).toBeUndefined()
     await ui.press({ key: 'bar-legend' })
     expect(await drawn(ui)).not.toContain('did not load')

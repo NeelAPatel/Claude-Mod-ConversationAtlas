@@ -787,14 +787,26 @@ function trailToolbar(ctx: Ctx): RenderElement {
     return <Button key={key} label={label} variant={primary ? 'primary' : 'secondary'} dimColor={dimColor ?? false} onPress={() => action && ctx.act(action)} />
   }
   const stateLabel = (row: ScreenRow | undefined) => `${row?.checkbox ? '○' : '✓'} ${row?.text ?? ''}`
+  const Select = (ctx.el as any).Select
+  const viewControl = Select
+    ? <Select key="trail-view-select" options={[{ value: 'story', label: 'Story' }, { value: 'log', label: 'Log' }]} value={ctx.view.trailView} onSelect={(value: string) => {
+        const row = value === 'log' ? log : story
+        const action = row?.actions?.[0]?.action
+        if (action) ctx.act(action)
+      }} />
+    : <Box flexDirection="row" gap={1}>
+        {button(story, 'trail-view-story', 'Story', story?.checkbox === true)}
+        {button(log, 'trail-view-log', 'Log', log?.checkbox === true)}
+      </Box>
   return (
     <Box key="trail-toolbar" flexDirection="row" flexWrap="wrap" gap={1} flexShrink={0}>
-      {button(story, 'trail-view-story', 'Story', story?.checkbox === true)}
-      {button(log, 'trail-view-log', 'Log', log?.checkbox === true)}
-      <Text dimColor>·</Text>
-      {button(orderRow, 'trail-sort', orderRow?.meta === 'oldest first' ? '↑ Oldest' : '↓ Newest')}
-      {button(reports, 'trail-filter-b-toggle', stateLabel(reports), false, reports?.checkbox === true)}
-      {button(handoffs, 'trail-filter-h-toggle', stateLabel(handoffs), false, handoffs?.checkbox === true)}
+      <Box flexDirection="row" flexWrap="wrap" gap={1}>
+        {viewControl}
+        {button(reports, 'trail-filter-b-toggle', stateLabel(reports), false, reports?.checkbox === true)}
+        {button(handoffs, 'trail-filter-h-toggle', stateLabel(handoffs), false, handoffs?.checkbox === true)}
+      </Box>
+      <Box flexGrow={1} />
+      {button(orderRow, 'trail-sort', orderRow?.meta === 'oldest first' ? 'Oldest ▲' : 'Newest ▼')}
     </Box>
   )
 }
