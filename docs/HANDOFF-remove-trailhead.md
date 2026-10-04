@@ -1,7 +1,7 @@
 # Handoff: remove Trailhead from the code
 
 Trailhead is retired and Atlas owns all of its features (owner, 2026-10-04). Public docs (README,
-`docs/REFERENCE.md`) are already clean. This job removes what is left in code. Branch:
+`docs/REFERENCE.md`) are already clean on `main` and `dev`. This job removes what is left in code. Branch:
 `feat/remove-trailhead`, cut from `dev`. One change; goldens may change only where noted.
 
 ## Remove
@@ -37,3 +37,8 @@ Trailhead is retired and Atlas owns all of its features (owner, 2026-10-04). Pub
 
 Owner's own old `.claude/trailhead/*.json` saves become unreadable after this. If any matter,
 convert them to Atlas saves first.
+
+## Status
+
+Not started. Queue as one Codex job on `feat/remove-trailhead` (cut from `dev`); Claude reviews the
+Evidence golden diff, merges to `dev` and installs for the owner to try before anything moves to `main`.
