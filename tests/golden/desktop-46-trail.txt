@@ -1,5 +1,4 @@
 Map Trail Open 4 Evidence
-━━━━━━━  {0:color:#b9f27c,bold}
 
 MAP OF TOPICS ? 4  {0:color:#b9f27c,bold|16:dim}
 ○ Atlas foundations t1  {20:dim}
@@ -7,7 +6,7 @@ MAP OF TOPICS ? 4  {0:color:#b9f27c,bold|16:dim}
 ↳ Desktop parity t1  {0:color:#e0af68|17:dim}
 ● Color tokens t1  {0:color:#bb9af7,bold|15:dim}
 TRAIL · Story ?  {0:color:#b9f27c,bold}
-View Story Log Order Newest first Show Report-backs · shown Hand-offs · shown  {0:dim|15:dim|34:dim}
+Story Log · ↓ Newest ✓ Report-backs ✓ Hand-offs  {10:dim}
 › Review the visual regression … ⚑ now  {0:color:#7dcfff|33:color:#7aa2f7|35:dim}
 › Build a d… 2e 2r ⚑ 4t 3d 2q 2h 1b 1m  {0:color:#7dcfff|13:color:#ff9e64|16:color:#bb9af7|19:color:#7aa2f7|21:color:#bb9af7|24:color:#9ece6a|27:color:#f7768e|30:color:#7aa2f7|33:color:#7aa2f7|36:dim}
 Legend + Mark

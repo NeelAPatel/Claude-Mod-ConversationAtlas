@@ -72,7 +72,7 @@ export const GLYPH: Record<GlyphKey, Glyph> = {
   handoff: { char: '→', color: C.checkpoint },
   reportBack: { char: '←', color: C.ok },
 }
-const TAB_ACCENT: Record<AtlasTab, string> = { map: C.map, trail: C.trail, open: C.question, evidence: C.checkpoint }
+const TAB_ACCENT: Record<AtlasTab, string> = { map: C.detour, trail: C.decision, open: C.question, evidence: C.checkpoint }
 export const TONES: Record<string, string[]> = {
   violet: ['#6d5a9c', '#8f78c9', '#b9a3f0', '#efe6ff'],
   orange: ['#9c5a2c', '#c9783e', '#f0a46e', '#fff0e0'],
@@ -664,14 +664,14 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
         <Text color={SOURCE_MARK.claude.color}>✻</Text> Claude · <Text color={SOURCE_MARK.codex.color}>⌬</Text> Codex ·{' '}
         <Text color={SOURCE_MARK.other.color}>□</Text> other
       </Text></Box>
-      <Box flexDirection="row" gap={1} flexShrink={0}>
-        <Text dimColor>Observer mode:</Text>
+      <Box flexShrink={0}><Text bold>OBSERVER</Text></Box>
+      <Box flexDirection="row" flexShrink={0}>
         {actions(
           ctx,
           [
             {
               key: 'observer-toggle',
-              label: ctx.mode === 'claude' ? 'Observer: Claude' : 'Observer: Engine only',
+              label: ctx.mode === 'claude' ? 'Claude' : 'Engine only',
               primary: ctx.mode === 'claude',
               action: { type: 'toggle-observer' },
             },
@@ -686,7 +686,10 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
         <Text color={C.question}>q</Text> questions <Text color={C.checkpoint}>h</Text> hand-offs{' '}
         <Text color={C.checkpoint}>b</Text> report-backs
       </Text></Box>
-      {LEGEND.map(([name, meaning]) => {
+      <Box flexDirection="row" flexGrow={1} flexShrink={1}>
+      {(ctx.width >= 64 ? [LEGEND.slice(0, Math.ceil(LEGEND.length / 2)), LEGEND.slice(Math.ceil(LEGEND.length / 2))] : [LEGEND]).map((column, columnIndex) => (
+        <Box key={`legend-columns-${columnIndex}`} flexDirection="column" flexGrow={1} flexShrink={1}>
+        {column.map(([name, meaning]) => {
         const g = glyph(ctx, name)
         return (
           <Box key={`lg-${name}`} flexDirection="row" gap={1} flexShrink={0}>
@@ -695,6 +698,9 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
           </Box>
         )
       })}
+        </Box>
+      ))}
+      </Box>
     </Box>
   )
   const frame = (
@@ -780,17 +786,15 @@ function trailToolbar(ctx: Ctx): RenderElement {
     const action = row?.actions?.[0]?.action
     return <Button key={key} label={label} variant={primary ? 'primary' : 'secondary'} dimColor={dimColor ?? false} onPress={() => action && ctx.act(action)} />
   }
-  const stateLabel = (row: ScreenRow | undefined) => `${row?.text ?? ''} · ${row?.meta ?? ''}`
+  const stateLabel = (row: ScreenRow | undefined) => `${row?.checkbox ? '○' : '✓'} ${row?.text ?? ''}`
   return (
     <Box key="trail-toolbar" flexDirection="row" flexWrap="wrap" gap={1} flexShrink={0}>
-      <Text dimColor>View</Text>
       {button(story, 'trail-view-story', 'Story', story?.checkbox === true)}
       {button(log, 'trail-view-log', 'Log', log?.checkbox === true)}
-      <Text dimColor>Order</Text>
-      {button(orderRow, 'trail-sort', orderRow?.meta === 'oldest first' ? 'Oldest first' : 'Newest first')}
-      <Text dimColor>Show</Text>
-      {button(reports, 'trail-filter-b-toggle', stateLabel(reports), false, reports?.meta === 'hidden')}
-      {button(handoffs, 'trail-filter-h-toggle', stateLabel(handoffs), false, handoffs?.meta === 'hidden')}
+      <Text dimColor>·</Text>
+      {button(orderRow, 'trail-sort', orderRow?.meta === 'oldest first' ? '↑ Oldest' : '↓ Newest')}
+      {button(reports, 'trail-filter-b-toggle', stateLabel(reports), false, reports?.checkbox === true)}
+      {button(handoffs, 'trail-filter-h-toggle', stateLabel(handoffs), false, handoffs?.checkbox === true)}
     </Box>
   )
 }
@@ -873,7 +877,6 @@ function tabBar(ctx: Ctx, snapshot: AtlasSnapshot, scroll: { max: number; at: nu
         {items.map(item => (
           <Box key={`tab-${item.key}`} flexDirection="column" flexShrink={0}>
             <Button key={item.key} label={item.label} hotkey={item.hotkey} variant={item.active ? 'primary' : 'secondary'} onPress={item.onPress} />
-            {item.active ? <Text color={item.activeColor} bold>{'━'.repeat(Math.max(4, item.label.length + 2))}</Text> : null}
           </Box>
         ))}
         {scroll.max > 0 || scroll.page <= 10 ? (
@@ -895,7 +898,7 @@ function tabBar(ctx: Ctx, snapshot: AtlasSnapshot, scroll: { max: number; at: nu
       </Box>
       {Svg ? <Svg
         key="tab-baseline"
-        source={'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 2" preserveAspectRatio="none"><path d="M0 1H100" stroke="#41414a" stroke-width="1"/></svg>'}
+        source={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 2" preserveAspectRatio="none"><path d="M0 1H100" stroke="${TAB_ACCENT[ctx.view.tab]}" stroke-width="2"/></svg>`}
         alt="Tab strip baseline"
         width={Math.max(1, ctx.width * 8)}
         height={2}

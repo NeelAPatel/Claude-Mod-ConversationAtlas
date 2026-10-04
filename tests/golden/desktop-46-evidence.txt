@@ -1,5 +1,4 @@
 Map Trail Open 4 Evidence
-━━━━━━━━━━  {0:color:#7aa2f7,bold}
 
 CHECKPOINTS ? 5  {0:color:#7aa2f7,bold|14:dim}
 ⚑ Post-prompt milestone milestone · now  {0:color:#7aa2f7|24:dim|34:dim|36:dim}

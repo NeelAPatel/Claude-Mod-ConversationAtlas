@@ -1,5 +1,4 @@
 Map Trail Open 4 Evidence
-━━━━━  {0:color:yellowBright,bold}
 
 GOAL ? Edit  {0:color:#7dcfff,bold}
 ◎ Build a dependable Conversation Atlas pane for long s… · 3 suggestions  {0:color:#7dcfff|57:dim}

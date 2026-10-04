@@ -1,7 +1,6 @@
 Map Trail Open 4 Evidence Up Down  {26:dim}
-━━━━━  {0:color:yellowBright,bold}
 
-GOAL ? Edit● 1/5  {0:color:#7dcfff,bold}
+GOAL ? Edit● 1/13  {0:color:#7dcfff,bold}
 What you are trying to do. Only you set it: confirm a suggestion, type one, or explicitly adopt Atlas’s detected aim.  {0:italic,dim}
 ◎ Build a dependable Conversation Atlas pane for long… · 3 suggestions  {0:color:#7dcfff|55:dim}
 CURRENT PATH ? 3 earlier  {0:color:#bb9af7,bold|15:dim}
@@ -36,10 +35,11 @@ HOW TO USE  {0:bold}
 Plain rows expand structured details inline. Desktop actions use native controls.  {0:dim}
 Topics from the start of the work to now stay observed; press an action to confirm intent.  {0:dim}
 Marks: › you · ✻ Claude · ⌬ Codex · □ other  {7:color:#7dcfff|15:color:#d97757|26:color:#7c8cff|36:color:#9aa5b1}
-Observer mode: Observer: Claude  {0:dim}
+OBSERVER  {0:bold}
+Claude
 LEGEND  {0:bold}
 counts: e edits r reads t topics d decisions q questions h hand-offs b report-backs  {8:color:#ff9e64|16:color:#bb9af7|24:color:#bb9af7|33:color:#9ece6a|45:color:#f7768e|57:color:#7aa2f7|69:color:#7aa2f7}
-◎ your goal (confirmed)  {0:color:#7dcfff,bold}
+◎ your goal (confirmed)× failed  {0:color:#7dcfff,bold|23:color:#f7768e,bold}
 ○ suggestion, needs you  {0:bold}
 ● current topic  {0:color:#bb9af7,bold}
 ↳ detour / possible detour  {0:color:#e0af68,bold}
@@ -49,7 +49,6 @@ counts: e edits r reads t topics d decisions q questions h hand-offs b report-ba
 ⚑ checkpoint / evidence  {0:color:#7aa2f7,bold}
 ? open question  {0:color:#f7768e,bold}
 ✓ done  {0:color:#9ece6a,bold}
-× failed  {0:color:#f7768e,bold}
 ✎ file edited  {0:color:#ff9e64,bold}
 · file read  {0:color:#bb9af7,bold}
 ✦ just changed  {0:bold}
@@ -59,4 +58,4 @@ counts: e edits r reads t topics d decisions q questions h hand-offs b report-ba
 → hand-off running  {0:color:#7aa2f7,bold}
 ← report back  {0:color:#9ece6a,bold}
 Legend + Mark
-━━━━━━  {0:color:yellowBright,bold}
+━━━━━━  {0:color:#e0af68,bold}
