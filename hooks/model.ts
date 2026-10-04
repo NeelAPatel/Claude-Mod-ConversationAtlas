@@ -419,11 +419,11 @@ export function setItemStatus(s: AtlasSnapshot, iid: string, status: AtlasItem['
   const items = status === 'drop' ? s[list].filter(x => x.id !== iid) : s[list].map(x => (x.id === iid ? { ...x, status } : x))
   let next = { ...s, [list]: items } as AtlasSnapshot
   if (status === 'settled' && s.detour) {
-    // A decision the person settles during a detour is an accepted outcome of it (Trailhead's outcome).
+    // A decision settled during a detour is an accepted outcome of it.
     next = { ...next, detour: { ...s.detour, outcomes: [...s.detour.outcomes, hit.text].slice(-20) } }
   }
   if (status === 'excluded' && s.detour) {
-    // Trailhead's exclude: explored during the detour, must not become an assumption.
+    // Excluded material was explored during the detour and must not become an assumption.
     next = { ...next, detour: { ...s.detour, exclusions: [...s.detour.exclusions, hit.text].slice(-20) } }
   }
   const verb = status === 'settled' ? 'Settled' : status === 'excluded' ? 'Excluded' : status === 'resolved' ? 'Resolved' : status === 'open' ? 'Reopened' : status === 'drop' ? 'Dropped' : 'Marked'
@@ -758,7 +758,7 @@ export function mark(s: AtlasSnapshot, name: string, now: number): AtlasSnapshot
 export function startDetour(s: AtlasSnapshot, reason: string, topicId: string | null, now: number): AtlasSnapshot {
   const body = clip(reason, 120)
   if (!body || s.detour) return s
-  // Trailhead: a detour departs from the latest mark, creating one when none exists.
+  // A detour departs from the latest mark, creating one when none exists.
   let next = s
   let checkpoint = [...s.checkpoints].reverse().find(c => c.kind === 'marked') ?? null
   if (!checkpoint) {
@@ -792,7 +792,7 @@ export function startDetour(s: AtlasSnapshot, reason: string, topicId: string | 
 
 const missing = (v: string | null | undefined) => (v && v.trim() ? v : 'not recorded')
 
-// Trailhead's deterministic return packet: what Claude needs to pick the main work back up.
+// Deterministic return packet with what Claude needs to pick the main work back up.
 export function returnPacket(s: AtlasSnapshot, d: AtlasDetour): string {
   const cp = s.checkpoints.find(c => c.id === d.departure.checkpointId)
   const observed = s.decisions.filter(x => x.status === 'observed' && x.at >= d.at).map(x => x.text)
@@ -848,7 +848,7 @@ export function recordDecision(s: AtlasSnapshot, text: string, why: string | nul
   return item && item.text === body && item.status === 'observed' ? setItemStatus(added, item.id, 'settled', now) : added
 }
 
-// /atlas outcome and /atlas exclude: Trailhead's explicit detour findings.
+// /atlas outcome and /atlas exclude record explicit detour findings.
 export function addDetourFinding(s: AtlasSnapshot, kind: 'outcomes' | 'exclusions', text: string, now: number): AtlasSnapshot {
   const body = clip(text, 160)
   if (!s.detour || !body) return s
@@ -911,7 +911,7 @@ export function recoverFull(
   return event(next, 'resume', `Loaded full map from session ${source.sessionId.slice(0, 8)}`, now)
 }
 
-// Resume an earlier session (Atlas or Trailhead): its goal, next step and settled
+// Resume an earlier Atlas session: its goal, next step and settled
 // decisions become yours because you pressed Resume; a detour it was on comes back
 // as a suggestion, so you choose whether to re-enter it.
 export function adoptRecall(s: AtlasSnapshot, rid: string, now: number): AtlasSnapshot {
@@ -926,7 +926,7 @@ export function adoptRecall(s: AtlasSnapshot, rid: string, now: number): AtlasSn
     next = item && item !== next.decisions[next.decisions.length - 1] ? setItemStatus(added, item.id, 'settled', now) : added
   }
   if (r.detour && !next.detour) next = suggest(next, 'detour', r.detour, 'The earlier session was on this detour', 'engine', now)
-  return event(dropSuggestions(next, 'resume'), 'resume', `Resumed ${r.source === 'trailhead' ? 'Trailhead trail' : 'session'} ${r.sessionId.slice(0, 8)}: ${r.goal ?? 'no goal'}`, now)
+  return event(dropSuggestions(next, 'resume'), 'resume', `Resumed session ${r.sessionId.slice(0, 8)}: ${r.goal ?? 'no goal'}`, now)
 }
 
 export function confirmSuggestion(s: AtlasSnapshot, sid: string, now: number): AtlasSnapshot {

@@ -39,7 +39,7 @@ const help: Record<string, string[]> = {
     'This history explains where the path changed.',
   ],
   'EARLIER SESSIONS': [
-    'Sessions Atlas or Trailhead recovered from this project.',
+    'Earlier Atlas sessions in this project.',
     '◎ marks an available session; ✓ marks one already adopted.',
     'Press Resume this to restore its goal, next step and decisions.',
     'Resume full is available for Atlas saves and replaces this map after confirmation.',
@@ -190,7 +190,7 @@ export const buildEvidence: ScreenBuilder = (snapshot, view, now): ScreenModel =
             kind: 'recall' as const,
             glyph: snapshot.adopted.includes(recall.id) ? ('ok' as const) : ('resume' as const),
             text: recall.goal ?? 'no goal recorded',
-            meta: `${recall.source === 'trailhead' ? 'Trailhead' : 'Atlas'} · ${recall.sessionId.slice(0, 8)} · ${ago(now - recall.at)}`,
+            meta: `Atlas · ${recall.sessionId.slice(0, 8)} · ${ago(now - recall.at)}`,
             dim: snapshot.adopted.includes(recall.id),
             actions: snapshot.adopted.includes(recall.id)
               ? []
@@ -210,7 +210,7 @@ export const buildEvidence: ScreenBuilder = (snapshot, view, now): ScreenModel =
             detail: [
               `goal: ${recall.goal ?? 'no goal recorded'}`,
               'kind: earlier session',
-              `source: ${recall.source === 'trailhead' ? 'Trailhead' : 'Atlas'}`,
+              'source: Atlas',
               `when: ${ago(now - recall.at)}`,
               `topic: ${recall.topic ?? 'not recorded'}`,
               ...(recall.nextStep ? [`next step: ${recall.nextStep}`] : []),

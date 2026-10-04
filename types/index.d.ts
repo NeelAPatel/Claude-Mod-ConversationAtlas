@@ -22,7 +22,7 @@ export type AtlasDetectedGoal = {
   at: number
 }
 
-// Trailhead's departure snapshot, kept: what to come back to when a detour ends.
+// Frozen context from when a detour began, used when it ends.
 export type AtlasDeparture = {
   goal: string | null
   topic: string | null
@@ -39,7 +39,7 @@ export type AtlasDetour = {
   topicId: string | null
   departure: AtlasDeparture
   outcomes: string[]
-  // Trailhead's /trail exclude: material from the detour that must not become an assumption.
+  // Material explored during the detour that must not become an assumption.
   exclusions: string[]
   status: 'active' | 'returned' | 'promoted'
   endedAt: number | null
@@ -145,11 +145,10 @@ export type AtlasHandoff = {
   taskId: string | null
 }
 
-// An earlier session of this project that can be resumed: an Atlas save file or a
-// Trailhead checkpoint, both read from the project's .claude folder.
+// An earlier Atlas save file from this project that can be resumed.
 export type AtlasRecall = {
   id: string
-  source: 'atlas' | 'trailhead'
+  source: 'atlas'
   sessionId: string
   at: number
   goal: string | null

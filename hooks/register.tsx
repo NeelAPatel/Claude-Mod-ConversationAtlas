@@ -62,13 +62,11 @@ import {
   fromAtlasFile,
   fromAtlasFullFile,
   atlasFullFileError,
-  fromTrailheadFile,
   mergeRecall,
   pickRecallEntries,
   safeName,
   saveFile,
   sessionsToDelete,
-  TRAILHEAD_DIR,
   type AtlasFullRecall,
 } from './recall'
 import { type Action, oneLine, pane, TONES } from './view'
@@ -388,37 +386,32 @@ async function mapWithClaude($: EngineInterface): Promise<string> {
   return outcome || 'Atlas could not map the conversation.'
 }
 
-// Earlier sessions of this project from its .claude folder: Atlas saves and Trailhead checkpoints.
+// Earlier Atlas save files from this project's .claude folder.
 async function loadRecall($: EngineInterface): Promise<number> {
   const found: Parameters<typeof mergeRecall>[0] = []
-  for (const [dir, parse] of [
-    [ATLAS_DIR, fromAtlasFile],
-    [TRAILHEAD_DIR, fromTrailheadFile],
-  ] as const) {
-    const path = `${root}/${dir}`
-    let entries: { name: string; kind: string }[] = []
+  const path = `${root}/${ATLAS_DIR}`
+  let entries: { name: string; kind: string }[] = []
+  try {
+    entries = await $.fs.list(path)
+  } catch {
+    entries = []
+  }
+  const candidates = entries.filter(x => x.kind === 'file' && x.name.endsWith('.json'))
+  const dated = await Promise.all(candidates.map(async entry => {
     try {
-      entries = await $.fs.list(path)
+      const stat = await $.fs.stat(`${path}/${entry.name}`)
+      return { name: entry.name, mtimeMs: stat.mtimeMs }
+    } catch {
+      return { name: entry.name }
+    }
+  }))
+  for (const entry of pickRecallEntries(dated, 80)) {
+    try {
+      const text = await $.fs.read(`${path}/${entry.name}`)
+      const hit = typeof text === 'string' ? fromAtlasFile(text, root) : null
+      if (hit) found.push(hit)
     } catch {
       continue
-    }
-    const candidates = entries.filter(x => x.kind === 'file' && x.name.endsWith('.json'))
-    const dated = await Promise.all(candidates.map(async entry => {
-      try {
-        const stat = await $.fs.stat(`${path}/${entry.name}`)
-        return { name: entry.name, mtimeMs: stat.mtimeMs }
-      } catch {
-        return { name: entry.name }
-      }
-    }))
-    for (const entry of pickRecallEntries(dated, 80)) {
-      try {
-        const text = await $.fs.read(`${path}/${entry.name}`)
-        const hit = typeof text === 'string' ? parse(text, root) : null
-        if (hit) found.push(hit)
-      } catch {
-        continue
-      }
     }
   }
   const recall = mergeRecall(found)
@@ -697,7 +690,7 @@ const HELP = [
   '  Trail: use ≡ for Trail settings: view, order and hidden types',
   '  /atlas setup                    show the first-run setup screen again',
   '  /atlas scan                     map the conversation so far with Claude (one cached request)',
-  '  /atlas recover [n]              list earlier sessions (Atlas + Trailhead), or resume number n',
+  '  /atlas recover [n]              list earlier sessions, or resume number n',
   '  /atlas recover <n> full [confirm] replace this map with an Atlas save',
   "  /atlas reset                    clear this session's map",
 ].join('\n')
@@ -787,7 +780,7 @@ async function command($: EngineInterface, args: string): Promise<string> {
     case 'recover': {
       await loadRecall($)
       const list = (await snap($))?.recall ?? []
-      if (!list.length) return 'No earlier Atlas or Trailhead sessions found in this project.'
+      if (!list.length) return 'No earlier sessions found in this project.'
       const [numberText = '', mode = '', confirmation = ''] = rest
       const n = Number(numberText)
       if (text && Number.isInteger(n) && n >= 1 && n <= list.length) {
