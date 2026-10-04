@@ -21,7 +21,7 @@ function world(on: any, entries: Record<string, unknown> = { setup: { observer: 
 
 async function drawn(ui: any): Promise<string> { return JSON.stringify(await ui.drawn()) }
 
-test('desktop pane mounts and validates on every tab, with overlays and setup at supported widths', { timeoutMs: 30_000 }, async ($, on) => {
+test('desktop pane mounts and validates without overlays on every tab at supported widths', { timeoutMs: 30_000 }, async ($, on) => {
   const { clock } = world(on)
   await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true } as any)
   await $.tool.call({ tool: 'mcp__conversation-atlas__observe', topic: 'Desktop contract topic', decisions: ['Desktop contract decision'], questions: ['Desktop contract question?'] } as any)
@@ -33,9 +33,17 @@ test('desktop pane mounts and validates on every tab, with overlays and setup at
       const text = await drawn(ui)
       expect(text).not.toContain('did not load')
       expect(text).not.toContain('fallback')
+      const tree = await ui.drawn()
+      expect(JSON.stringify(tree)).not.toContain('atlas-popup')
+      const hasAbsoluteBox = (value: any): boolean => Array.isArray(value)
+        ? value.some(hasAbsoluteBox)
+        : Boolean(value && typeof value === 'object' && ((value.type === 'Box' && value.props?.position === 'absolute') || hasAbsoluteBox(value.children)))
+      expect(hasAbsoluteBox(tree)).toBe(false)
     }
     if (await ui.find({ key: 'tab-trail', type: 'Button' })) await ui.press({ key: 'tab-trail' })
-    if (await ui.find({ key: 'trail-view-menu', type: 'Button' })) await ui.press({ key: 'trail-view-menu' })
+    for (const key of ['trail-view-story', 'trail-view-log', 'trail-sort', 'trail-filter-b-toggle', 'trail-filter-h-toggle'])
+      expect(await ui.find({ key, type: 'Button' })).toBeDefined()
+    expect(await ui.find({ key: 'trail-view-menu', type: 'Button' })).toBeUndefined()
     await ui.press({ key: 'bar-legend' })
     expect(await drawn(ui)).not.toContain('did not load')
     await ui.unmount()

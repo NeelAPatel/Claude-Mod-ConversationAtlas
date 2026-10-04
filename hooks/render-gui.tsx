@@ -92,7 +92,6 @@ export type Ctx = {
   width: number
   rows: number
   bodyViewport?: number
-  inPopup?: boolean
   now: number
   mode: AtlasMode
   setupDefault: AtlasMode
@@ -108,7 +107,6 @@ export type Ctx = {
 type PaneCtx = Ctx
 
 const OBSERVER_NOTE = 'Needs the Claude observer · /atlas observer claude'
-const POPUP_BG = '#16161e'
 const SCAN_RESULT_MS = 4_000
 
 function childrenOf(node: { children?: unknown; props?: Record<string, unknown> } | null | undefined): unknown {
@@ -297,7 +295,7 @@ function inlineMeta(ctx: Ctx, row: ScreenRow, layout: ReturnType<typeof layoutRo
 
 function renderRow(ctx: Ctx, row: ScreenRow): RenderElement {
   const content = renderRowContent(ctx, row)
-  if (ctx.inPopup || !row.expandable || ctx.view.expanded !== row.id) return content
+  if (!row.expandable || ctx.view.expanded !== row.id) return content
   const { Box, Text } = ctx.el
   return (
     <Box key={`expansion-${row.key}`} flexDirection="column">
@@ -325,9 +323,7 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
         ctx.act(
           row.kind === 'event'
             ? { type: 'expand', id: row.id }
-            : row.overflowPopup
-              ? { type: 'popup', popup: { kind: 'item', id: row.id } }
-              : { type: 'expand', id: row.id },
+            : { type: 'expand', id: row.id },
         )
     : undefined
   const icon = sourceMark ?? g?.char ?? (row.fresh ? GLYPH.fresh.char : open ? GLYPH.expanded.char : '')
@@ -573,6 +569,7 @@ function sectionHelp(ctx: Ctx, section: ScreenSection): RenderElement | null {
 
 function renderSection(ctx: Ctx, section: ScreenSection): RenderElement {
   const { Box, Text, Input } = ctx.el
+  const trailControls = section.key === 'events' ? trailToolbar(ctx) : null
   const rows = section.rows.length
     ? section.rows.map(row => renderRow(ctx, row))
     : section.empty
@@ -583,7 +580,7 @@ function renderSection(ctx: Ctx, section: ScreenSection): RenderElement {
         ]
       : []
   const note = ctx.view.legend ? section.explain : undefined
-  const right = section.actions?.length ? (
+  const right = section.key === 'events' ? null : section.actions?.length ? (
     actions(ctx, section.actions, { marginLeft: 0, gap: 0, flexWrap: 'nowrap' })
   ) : section.right ? (
     <Text dimColor wrap="truncate-end">
@@ -610,6 +607,7 @@ function renderSection(ctx: Ctx, section: ScreenSection): RenderElement {
           {OBSERVER_NOTE}
         </Text>
       ) : null}
+      {trailControls}
       {rows}
       {showInput && section.input && Input ? (
         <Input
@@ -747,33 +745,6 @@ function setupScreen(ctx: Ctx): RenderElement {
   )
 }
 
-function popupWidth(ctx: Ctx, popup?: ScreenPopup): number {
-  const max = popup?.kind === 'trail-view' ? 64 : 52
-  return Math.max(8, Math.min(max, ctx.width - 4))
-}
-function popupMaxHeight(ctx: Ctx, popup?: ScreenPopup): number {
-  const available = Math.max(1, ctx.bodyViewport ?? ctx.rows)
-  const max = popup?.kind === 'trail-view' ? 18 : 10
-  const ratio = popup?.kind === 'trail-view' ? 0.6 : 0.4
-  return Math.max(1, Math.min(max, available, Math.floor(available * ratio)))
-}
-function popupContext(ctx: Ctx, popup?: ScreenPopup): Ctx {
-  return { ...ctx, width: Math.max(8, popupWidth(ctx, popup) - 4), inPopup: true }
-}
-function popupGeometry(ctx: Ctx, items: RenderElement[], popup?: ScreenPopup) {
-  const trailSettings = popup?.kind === 'trail-view'
-  const itemRows = items.flatMap((item, index) => [
-    ...(trailSettings && index > 0 && popup?.rows[index]?.checkbox === undefined ? [1] : []),
-    Math.max(1, rowsOf(item, popupContext(ctx, popup).width)),
-  ])
-  const total = itemRows.reduce((sum, value) => sum + value, 0)
-  const maxHeight = popupMaxHeight(ctx, popup)
-  const base = trailSettings ? 3 : 2
-  const overflows = total + base > maxHeight
-  const height = Math.min(maxHeight, Math.max(base + 1, total + base))
-  const bodyRows = Math.max(1, height - base - (trailSettings && overflows ? 1 : 0))
-  return { height, bodyRows, maxScroll: Math.max(0, total - bodyRows), itemRows, total }
-}
 function rowWindow(items: RenderElement[], itemRows: number[], at: number, bodyRows: number) {
   let start = 0
   let skipped = 0
@@ -789,217 +760,64 @@ function rowWindow(items: RenderElement[], itemRows: number[], at: number, bodyR
   }
   return { items: items.slice(start, end), start, offset: at - skipped }
 }
-export function popupShell(ctx: Ctx, popup: ScreenPopup, placement: { top?: number; bottom?: number; left?: number }): RenderElement {
-  const { Box, Button, Text } = ctx.el
-  const pctx = popupContext(ctx, popup)
-  const items = popup.rows.map(row => renderRow(pctx, row))
-  const geometry = popupGeometry(ctx, items, popup)
-  const at = Math.min(Math.max(0, ctx.view.popupScroll), geometry.maxScroll)
-  const { left: requestedLeft = 0, ...placementProps } = placement
-  const left = Math.max(0, Math.min(requestedLeft, ctx.width - popupWidth(ctx, popup)))
-  const trailSettings = popup.kind === 'trail-view'
-  const visibleItems = trailSettings
-    ? items.flatMap((item, index) => index > 0 && popup.rows[index]?.checkbox === undefined
-      ? [<Box key={`trail-settings-gap-${index}`} height={1} overflow="hidden" flexShrink={0}><Text>{''}</Text></Box>, item]
-      : [item])
-    : items
-  const window = rowWindow(visibleItems, geometry.itemRows, at, geometry.bodyRows)
-  const position = popup.rows.length ? Math.min(popup.rows.length, window.start + 1) : 0
-  const scrollControls = geometry.maxScroll > 0
-  const closeAction = {
-    key: 'popup-close',
-    label: 'Close',
-    role: 'dismiss' as const,
-    action: { type: 'popup' as const, popup: { kind: popup.kind, ...(popup.id ? { id: popup.id } : {}) } },
-  }
-  const header = (
-    <Box
-      flexDirection="row"
-      justifyContent={trailSettings ? 'flex-start' : 'space-between'}
-      flexShrink={0}
-      backgroundColor={POPUP_BG}
-    >
-      <Box flexDirection="row" gap={1}>
-        <Text bold>{popup.title}</Text>
-        {popup.titleCount ? <Text dimColor>{popup.titleCount}</Text> : null}
-      </Box>
-      {trailSettings && popup.page ? (
-        <Box flexDirection="row" gap={1}>
-          <Button
-            key="settings-page-prev"
-            plain
-            dimColor={popup.page.current <= 0}
-            label="‹"
-            onPress={() => ctx.act({ type: 'trail-settings-page', page: popup.page!.current - 1 })}
-          />
-          <Text dimColor>{`${popup.page.current + 1}/${popup.page.total}`}</Text>
-          <Button
-            key="settings-page-next"
-            plain
-            dimColor={popup.page.current >= popup.page.total - 1}
-            label="›"
-            onPress={() => ctx.act({ type: 'trail-settings-page', page: popup.page!.current + 1 })}
-          />
-        </Box>
-      ) : null}
-      {!trailSettings && popup.page ? (
-        <Box flexDirection="row" gap={1}>
-          <Button
-            key="settings-page-prev"
-            plain
-            dimColor={popup.page.current <= 0}
-            label="‹"
-            onPress={() => ctx.act({ type: 'trail-settings-page', page: popup.page!.current - 1 })}
-          />
-          <Text dimColor>{`${popup.page.current + 1}/${popup.page.total}`}</Text>
-          <Button
-            key="settings-page-next"
-            plain
-            dimColor={popup.page.current >= popup.page.total - 1}
-            label="›"
-            onPress={() => ctx.act({ type: 'trail-settings-page', page: popup.page!.current + 1 })}
-          />
-        </Box>
-      ) : null}
-      {trailSettings ? <Box flexGrow={1} /> : null}
-      {trailSettings ? (
-        <Button key={closeAction.key} role="dismiss" label={closeAction.label} onPress={() => ctx.act(closeAction.action)} />
-      ) : actions(ctx, [closeAction], { marginLeft: 0, gap: 0, flexWrap: 'nowrap' })}
-    </Box>
-  )
-  const pager = !trailSettings && popup.page ? (
-    <Box flexDirection="row" gap={1} flexShrink={0} backgroundColor={POPUP_BG}>
-      <Button
-        key="settings-page-prev"
-        plain
-        dimColor={popup.page.current <= 0}
-        label="‹"
-        onPress={() => ctx.act({ type: 'trail-settings-page', page: popup.page!.current - 1 })}
-      />
-      <Text dimColor>{`${popup.page.current + 1}/${popup.page.total}`}</Text>
-      <Button
-        key="settings-page-next"
-        plain
-        dimColor={popup.page.current >= popup.page.total - 1}
-        label="›"
-        onPress={() => ctx.act({ type: 'trail-settings-page', page: popup.page!.current + 1 })}
-      />
-      <Text dimColor>{popup.page.name}</Text>
-    </Box>
-  ) : null
-  const popupChildren: RenderElement[] = [header]
-  if (trailSettings && popup.page) {
-    popupChildren.push(
-      <Text key="trail-settings-page-name" bold>{`» ${popup.page.name}`}</Text>,
-      <Box key="trail-settings-header-gap" height={1} overflow="hidden" flexShrink={0}>
-        <Text>{''}</Text>
-      </Box>,
-    )
-  }
-  popupChildren.push(ScrollBox(ctx, [
-    <Box key="popup-window" flexDirection="column" marginTop={-window.offset} flexShrink={0}>
-      {window.items}
-    </Box>,
-  ], { height: geometry.bodyRows, backgroundColor: POPUP_BG }))
-  if (scrollControls || !trailSettings) {
-    popupChildren.push(
-      <Box
-        key="popup-footer"
-        flexDirection="row"
-        justifyContent="space-between"
-        flexShrink={0}
-        backgroundColor={POPUP_BG}
-      >
-        {popup.footerActions?.length ? actions(ctx, popup.footerActions, { marginLeft: 0 }) : <Text dimColor>{popup.footer ?? ''}</Text>}
-        {scrollControls ? <Box flexDirection="row" gap={1}>
-          <Button key="popup-up" dimColor={at === 0} label="Previous" onPress={() => ctx.act({ type: 'popup-scroll', by: -1 })} />
-          <Text dimColor>{`${position}/${popup.rows.length}`}</Text>
-          <Button
-            key="popup-down"
-            dimColor={at >= geometry.maxScroll}
-            label="Next"
-            onPress={() => ctx.act({ type: 'popup-scroll', by: 1 })}
-          />
-        </Box> : null}
-      </Box>,
-    )
-  }
-  return Popup(
-    ctx,
-    popupChildren,
-    { width: popupWidth(ctx, popup), height: geometry.height, backgroundColor: POPUP_BG, borderColor: C.path, left, ...placementProps },
-  )
-}
-
-function popupPlacement(ctx: Ctx, popup: ScreenPopup, rowTop: number): { top: number; left: number } {
-  const items = popup.rows.map(row => renderRow(popupContext(ctx, popup), row))
-  const height = popupGeometry(ctx, items, popup).height
-  const bodyRows = Math.max(1, ctx.bodyViewport ?? ctx.rows)
-  const below = rowTop + 1
-  const top = below + height <= bodyRows ? below : Math.max(0, rowTop - height - 1)
-  return { top: Math.max(0, Math.min(top, Math.max(0, bodyRows - height))), left: 2 }
-}
-
-function itemPopup(row: ScreenRow): ScreenPopup {
-  return {
-    kind: 'item',
-    id: row.id,
-    title: row.kind === 'item' ? 'ITEM' : row.kind.toUpperCase(),
-    rows: [
-      { id: `${row.id}-summary`, key: `${row.key}-summary`, kind: 'text', text: row.text, bold: true },
-      ...(row.detail ?? []).map((text, index) => ({
-        id: `${row.id}-detail-${index}`,
-        key: `${row.key}-detail-${index}`,
-        kind: 'text' as const,
-        text,
-        dim: true,
-      })),
-    ],
-    footerActions: [
-      {
-        key: `add-${row.key}`,
-        label: 'Add to message',
-        action: { type: 'attach', ref: { kind: row.kind, id: row.id, text: row.text } },
-      },
-      { key: `close-${row.key}`, label: 'Close', action: { type: 'popup', popup: { kind: 'item', id: row.id } } },
-    ],
-  }
-}
-function activePopup(ctx: Ctx, model: ScreenModel): ScreenPopup | undefined {
-  if (ctx.view.popup?.kind === 'trail-view') return trailViewPopup(ctx.view.trailView, ctx.view.trailNewest, ctx.view.hidden ?? [], ctx.view.settingsPage ?? 0)
-  if (ctx.view.popup?.kind === 'item') {
-    const row = model.sections.flatMap(section => section.rows).find(candidate => candidate.id === ctx.view.popup?.id)
-    return row ? itemPopup(row) : undefined
-  }
-  return undefined
-}
-function renderBody(ctx: Ctx, model: ScreenModel): RenderElement {
+export function popupShell(ctx: Ctx, popup: ScreenPopup, _placement: { top?: number; bottom?: number; left?: number }): RenderElement {
   const { Box } = ctx.el
-  let sectionTop = 0
+  return <Box flexDirection="column">{popup.rows.map(row => renderRow(ctx, row))}</Box>
+}
+
+function trailToolbar(ctx: Ctx): RenderElement {
+  const { Box, Button, Text } = ctx.el
+  const pages = [0, 1, 2].map(page => trailViewPopup(ctx.view.trailView, ctx.view.trailNewest, ctx.view.hidden ?? [], page))
+  const viewRows = pages[0]?.rows ?? []
+  const orderRow = pages[1]?.rows.find(row => row.actions?.some(item => item.key === 'trail-sort'))
+  const filterRows = pages[2]?.rows ?? []
+  const setting = (rows: ScreenRow[], key: string) => rows.find(row => row.actions?.some(item => item.key === key))
+  const story = setting(viewRows, 'trail-view-story')
+  const log = setting(viewRows, 'trail-view-log')
+  const reports = setting(filterRows, 'trail-filter-b-toggle')
+  const handoffs = setting(filterRows, 'trail-filter-h-toggle')
+  const button = (row: ScreenRow | undefined, key: string, label: string, primary = false, dimColor?: boolean) => {
+    const action = row?.actions?.[0]?.action
+    return <Button key={key} label={label} variant={primary ? 'primary' : 'secondary'} dimColor={dimColor ?? false} onPress={() => action && ctx.act(action)} />
+  }
+  const stateLabel = (row: ScreenRow | undefined) => `${row?.text ?? ''} · ${row?.meta ?? ''}`
   return (
-    <Box flexDirection="column" position="relative">
-      {model.sections.map(section => {
-        const selectedIndex = section.rows.findIndex(row => row.overflowPopup && ctx.view.popup?.kind === 'item' && ctx.view.popup.id === row.id)
-        const sectionTree = renderSection(ctx, section)
-        const prefix = selectedIndex >= 0
-          ? renderSection(ctx, { ...section, rows: section.rows.slice(0, selectedIndex), empty: undefined, input: undefined })
-          : null
-        const sectionPopup = section.key === 'events' && ctx.view.popup?.kind === 'trail-view'
-        const popup = selectedIndex >= 0 || sectionPopup ? activePopup(ctx, model) : undefined
-        const rowTop = sectionPopup ? sectionTop : sectionTop + (prefix ? rowsOf(prefix, ctx.width) : 0)
-        sectionTop += rowsOf(sectionTree, ctx.width)
-        const placement = popup ? popupPlacement(ctx, popup, rowTop) : undefined
-        return (
-          <Box key={`screen-${section.key}`} flexDirection="column" flexGrow={1} minWidth={0}>
-            {sectionTree}
-            {popup && placement ? popupShell(ctx, popup, placement) : null}
-          </Box>
-        )
-      })}
+    <Box key="trail-toolbar" flexDirection="row" flexWrap="wrap" gap={1} flexShrink={0}>
+      <Text dimColor>View</Text>
+      {button(story, 'trail-view-story', 'Story', story?.checkbox === true)}
+      {button(log, 'trail-view-log', 'Log', log?.checkbox === true)}
+      <Text dimColor>Order</Text>
+      {button(orderRow, 'trail-sort', orderRow?.meta === 'oldest first' ? 'Oldest first' : 'Newest first')}
+      <Text dimColor>Show</Text>
+      {button(reports, 'trail-filter-b-toggle', stateLabel(reports), false, reports?.meta === 'hidden')}
+      {button(handoffs, 'trail-filter-h-toggle', stateLabel(handoffs), false, handoffs?.meta === 'hidden')}
     </Box>
   )
 }
 
+function renderBody(ctx: Ctx, model: ScreenModel): RenderElement {
+  const { Box, Button, Text } = ctx.el
+  const popup = ctx.view.popup
+  return (
+    <Box flexDirection="column">
+      {popup ? (
+        <Box key="terminal-popup-notice" flexDirection="row" flexWrap="wrap" gap={1} flexShrink={0}>
+          <Text dimColor>A panel from the terminal view is open</Text>
+          <Button
+            key="popup-close"
+            label="Close it"
+            onPress={() => ctx.act({ type: 'popup', popup: { kind: popup.kind, ...(popup.id ? { id: popup.id } : {}) } })}
+          />
+        </Box>
+      ) : null}
+      {model.sections.map(section => (
+        <Box key={`screen-${section.key}`} flexDirection="column" flexGrow={1} minWidth={0}>
+          {renderSection(ctx, section)}
+        </Box>
+      ))}
+    </Box>
+  )
+}
 function tabItems(ctx: Ctx, snapshot: AtlasSnapshot): BarItem[] {
   const pending =
     snapshot.suggestions.length + snapshot.decisions.filter(item => item.status === 'observed').length + openQuestions(snapshot).length
@@ -1116,7 +934,7 @@ function scrollbarCells(ctx: Ctx, viewport: number, content: number, at: number,
   const size = Math.min(viewport, Math.max(1, Math.round((viewport * viewport) / content)))
   const top = maxScroll ? Math.round((at / maxScroll) * (viewport - size)) : 0
   return (
-    <Box key="scrollbar" flexDirection="column" position="relative" width={2} flexShrink={0} height={viewport} overflow="hidden">
+    <Box key="scrollbar" flexDirection="column" width={2} flexShrink={0} height={viewport} overflow="hidden">
       {Svg ? <Svg
         key="scrollbar-track"
         source={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 ${viewport * 16}" preserveAspectRatio="none"><rect x="1" y="0" width="2" height="${viewport * 16}" rx="1" fill="#41414a"/><rect x="0" y="${top * 16}" width="4" height="${Math.max(16, size * 16)}" rx="2" fill="#7aa2f7"/></svg>`}
@@ -1124,14 +942,12 @@ function scrollbarCells(ctx: Ctx, viewport: number, content: number, at: number,
         width={8}
         height={viewport * 16}
       /> : null}
-      <Box position="absolute" top={top} left={0}>
-        <Button
-          key="sb-thumb"
-          plain
-          label="●"
-          onPress={() => ctx.act({ type: 'scroll-to', at: Math.round((top / Math.max(1, viewport - size)) * maxScroll) })}
-        />
-      </Box>
+      <Button
+        key="sb-thumb"
+        plain
+        label={`● ${top + 1}/${viewport}`}
+        onPress={() => ctx.act({ type: 'scroll-to', at: Math.round((top / Math.max(1, viewport - size)) * maxScroll) })}
+      />
     </Box>
   )
 }
@@ -1203,11 +1019,9 @@ export function pane(input: PaneCtx, snapshot: AtlasSnapshot): {
   const maxScroll = pinned ? Math.max(0, content - viewport) : 0
   const at = Math.min(Math.max(0, ctx.view.scroll), maxScroll)
   const scrollbar = bar && maxScroll > 0 ? scrollbarCells(ctx, viewport, content, at, maxScroll) : null
-  const popup = activePopup(ctx, model)
-  const popupItems = popup ? popup.rows.map(row => renderRow(popupContext(drawCtx, popup), row)) : []
-  const maxPopupScroll = popup ? popupGeometry(drawCtx, popupItems, popup).maxScroll : 0
+  const maxPopupScroll = 0
   const bodyTree = pinned ? (
-    <Box flexDirection="row" flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden" position="relative">
+    <Box flexDirection="row" flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
       <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
         <Box flexDirection="column" flexShrink={0} minWidth={0} marginTop={-at}>
           {body}
@@ -1216,7 +1030,7 @@ export function pane(input: PaneCtx, snapshot: AtlasSnapshot): {
       {scrollbar}
     </Box>
   ) : (
-    <Box flexDirection="column" position="relative">
+    <Box flexDirection="column">
       {body}
     </Box>
   )
@@ -1288,53 +1102,6 @@ function Section(ctx: UiContext, section: UiSection, children: RenderElement): R
     </Box>
   )
 }
-
-function ScrollBox(
-  ctx: UiContext,
-  children: RenderElement[],
-  options: { height: number; backgroundColor?: string },
-): RenderElement {
-  const { Box } = ctx.el
-  return (
-    <Box key="popup-body" flexDirection="column" height={options.height} overflow="hidden" backgroundColor={options.backgroundColor}>
-      {children.map((child, i) => (
-        <Box key={`popup-row-${i}`} backgroundColor={options.backgroundColor} flexShrink={0}>{child}</Box>
-      ))}
-    </Box>
-  )
-}
-
-function Popup(
-  ctx: UiContext,
-  children: RenderElement[],
-  options: { width: number; height: number; backgroundColor: string; borderColor?: string; top?: number; left?: number; bottom?: number },
-): RenderElement {
-  const { Box } = ctx.el
-  // The shell and each flow region carry the fill. This is intentional: an
-  // absolute panel must paint every cell, including gaps beside short rows.
-  return (
-    <Box
-        key="atlas-popup"
-        position="absolute"
-        top={options.top}
-        left={options.left}
-        bottom={options.bottom}
-        width={options.width}
-        height={options.height}
-        overflow="hidden"
-        backgroundColor={options.backgroundColor}
-        borderStyle="round"
-        borderColor={options.borderColor ?? C.path}
-        paddingX={1}
-        flexDirection="column"
-      >
-      {children.map((child, i) => (
-        <Box key={`popup-fill-${i}`} backgroundColor={options.backgroundColor} flexShrink={0}>{child}</Box>
-      ))}
-    </Box>
-  )
-}
-
 
 const surfaceGlyphs: GlyphSet = {
   goal: '◎', suggestion: '○', currentTopic: '●', detour: '↳', returned: '↩',

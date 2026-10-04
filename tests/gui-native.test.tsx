@@ -48,6 +48,9 @@ test('desktop renderer uses flexible native controls and clean pane chrome', { t
       await ui.press({ key })
       if ((await ui.find({ key, type: 'Button' }))?.props.variant !== 'primary') throw new Error(`tab ${key} did not use the primary variant`)
       expect((await text(ui)).toLowerCase()).not.toContain('did not load')
+      const tree = elements(await ui.drawn())
+      expect(tree.some(node => node.type === 'Box' && node.props?.position === 'absolute')).toBe(false)
+      expect(tree.some(node => node.props?.key === 'atlas-popup')).toBe(false)
       expect(tab).toBeDefined()
       expect(await text(ui)).toContain('…')
       if (tab === 'open') {
@@ -91,24 +94,13 @@ test('desktop renderer uses flexible native controls and clean pane chrome', { t
     if ((await ui.find({ key: 'mark', type: 'Button' }))?.props.width !== undefined) throw new Error('Mark button has a fixed width')
 
     await ui.press({ key: 'tab-trail' })
-    if (!(await ui.find({ key: 'trail-view-menu', type: 'Button' }))) throw new Error('Trail tab is missing its Settings control')
+    for (const key of ['trail-view-story', 'trail-view-log', 'trail-sort', 'trail-filter-b-toggle', 'trail-filter-h-toggle']) {
+      if (!(await ui.find({ key, type: 'Button' }))) throw new Error(`Trail toolbar is missing ${key} at ${bodyColumns} columns`)
+    }
+    expect(await ui.find({ key: 'trail-view-menu', type: 'Button' })).toBeUndefined()
     expect((await ui.find({ key: 'events-heading', type: 'Button' }))?.props.label).toBe('?')
-    await ui.press({ key: 'trail-view-menu' })
-    const close = await ui.find({ key: 'popup-close', type: 'Button' })
-    if (!close) throw new Error('Trail Settings popup did not expose its native close button')
-    expect(close.props.role).toBe('dismiss')
-    expect(await text(ui)).toContain('» VIEW')
-    for (const key of ['settings-page-prev', 'settings-page-next']) {
-      if (!(await ui.find({ key, type: 'Button' }))) throw new Error(`Trail Settings pager is missing ${key} at ${bodyColumns} columns`)
-    }
-    if (!(await ui.find({ key: 'trail-view-story', type: 'Button' }))) throw new Error(`Trail Settings rows are missing at ${bodyColumns} columns`)
-    expect(await text(ui)).toContain('1/')
-    const popup = elements(await ui.drawn()).find(node => node.type === 'Box' && node.props?.key === 'atlas-popup')
-    expect(popup?.props?.borderStyle).toBe('round')
-    if (bodyColumns >= 46) {
-      await ui.press({ key: 'settings-page-next' })
-      if (!(await ui.find({ key: 'trail-sort', type: 'Button' }))) throw new Error(`Trail Settings pager did not reveal its next setting page at ${bodyColumns} columns`)
-    }
+    expect((await ui.find({ key: 'trail-view-story', type: 'Button' }))?.props.variant).toBe('primary')
+    expect((await ui.find({ key: 'trail-view-log', type: 'Button' }))?.props.variant).toBe('secondary')
     await ui.unmount()
   }
   const setupUi = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: { ...PANE, bodyColumns: 46 } })
@@ -118,6 +110,79 @@ test('desktop renderer uses flexible native controls and clean pane chrome', { t
   if (!(await setupUi.find({ key: 'setup-engine', type: 'Button' }))) throw new Error('Setup is missing its secondary button')
   expect((await text(setupUi)).toLowerCase()).not.toContain('did not load')
   await setupUi.unmount()
+})
+
+test('desktop Trail toolbar controls update the displayed view, order, and filters', { timeoutMs: 20_000 }, async ($, on) => {
+  const clock = setup(on)
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true } as any)
+  await $.tool.call({ tool: 'mcp__conversation-atlas__observe', topic: 'Trail toolbar fixture' } as any)
+  await clock.settle()
+  for (const bodyColumns of [46, 80]) {
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: { ...PANE, bodyColumns } })
+    await ui.press({ key: 'tab-trail' })
+    const labels = async () => Object.fromEntries((await ui.findAll({ type: 'Button' })).map((button: any) => [button.props.key, button.props.label]))
+    expect((await labels())['trail-sort']).toBe('Newest first')
+    await ui.press({ key: 'trail-view-log' })
+    expect(await text(ui)).toContain('TRAIL · Log')
+    await ui.press({ key: 'trail-sort' })
+    expect((await labels())['trail-sort']).toBe('Oldest first')
+    await ui.press({ key: 'trail-sort' })
+    expect((await labels())['trail-sort']).toBe('Newest first')
+    expect((await labels())['trail-filter-b-toggle']).toContain('Report-backs · shown')
+    await ui.press({ key: 'trail-filter-b-toggle' })
+    expect((await labels())['trail-filter-b-toggle']).toContain('Report-backs · hidden')
+    expect((await ui.find({ key: 'trail-filter-b-toggle', type: 'Button' }))?.props.dimColor).toBe(true)
+    await ui.press({ key: 'trail-filter-b-toggle' })
+    await ui.press({ key: 'trail-view-story' })
+    await ui.unmount()
+  }
+})
+
+test('desktop overflow items expand inline and close without popup actions', { timeoutMs: 20_000 }, async ($, on) => {
+  const clock = setup(on)
+  const longQuestion = `Should this resolved question expand inline with its complete detail and actions on the desktop surface? ${'Additional context for the inline expansion. '.repeat(3)}`
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true } as any)
+  await $.tool.call({ tool: 'mcp__conversation-atlas__observe', questions: [longQuestion] } as any)
+  await clock.settle()
+  const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: PANE })
+  await ui.press({ key: 'tab-open' })
+  const row = (await ui.findAll({ type: 'Button' })).find((button: any) => String(button.props.label ?? '').startsWith('Should this resolved question'))
+  if (!row?.props.key) throw new Error('Open tab fixture did not create the long question row')
+  await ui.press({ key: String(row.props.key) })
+  const expanded = await text(ui)
+  expect(expanded).toContain('Additional context for the inline expansion.')
+  const buttons = await ui.findAll({ type: 'Button' })
+  expect(buttons.some((button: any) => button.props.label === 'Add to message')).toBe(true)
+  const close = buttons.find((button: any) => button.props.label === 'Close')
+  if (!close?.props.key) throw new Error('Expanded Open item is missing its Close action')
+  await ui.press({ key: String(close.props.key) })
+  expect(await text(ui)).not.toContain('Additional context for the inline expansion.')
+  const tree = elements(await ui.drawn())
+  expect(tree.some(node => node.props?.key === 'atlas-popup')).toBe(false)
+  expect(tree.some(node => node.type === 'Box' && node.props?.position === 'absolute')).toBe(false)
+  await ui.unmount()
+})
+
+test('desktop shows an inline notice for stale terminal popup state', { timeoutMs: 20_000 }, async ($, on) => {
+  const clock = setup(on)
+  const viewKey = { plugin: 'conversation-atlas', key: 'view' } as const
+  const fixture = { view: { setup: false, tab: 'map', refs: {}, nextRef: 1, editingGoal: false, legend: false, popup: { kind: 'trail-view' }, popupScroll: 0, legendScroll: 0, scroll: 0, trailNewest: true, trailView: 'story', expanded: null, expandedScroll: 0, fullConfirm: null } as any }
+  on('state.get', viewKey, async (_$, e, next) => {
+    const held = await next(e)
+    return held.value ? { value: { ...held.value, value: fixture.view } } : held
+  })
+  on('state.set', viewKey, async (_$, e, next) => {
+    fixture.view = e.value
+    return next(e)
+  })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true } as any)
+  const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: PANE })
+  expect(await text(ui)).toContain('A panel from the terminal view is open')
+  expect((await ui.find({ key: 'popup-close', type: 'Button' }))?.props.label).toBe('Close it')
+  await ui.press({ key: 'popup-close' })
+  expect(fixture.view.popup).toBeNull()
+  expect(await text(ui)).not.toContain('A panel from the terminal view is open')
+  await ui.unmount()
 })
 
 test('desktop native rows still expose scrolling when content overflows', { timeoutMs: 20_000 }, async ($, on) => {

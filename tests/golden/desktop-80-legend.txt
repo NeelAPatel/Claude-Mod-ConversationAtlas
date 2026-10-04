@@ -1,7 +1,7 @@
 Map Trail Open 4 Evidence Up Down  {26:dim}
 ━━━━━  {0:color:yellowBright,bold}
 
-GOAL ? Edit●  {0:color:#7dcfff,bold}
+GOAL ? Edit● 1/5  {0:color:#7dcfff,bold}
 What you are trying to do. Only you set it: confirm a suggestion, type one, or explicitly adopt Atlas’s detected aim.  {0:italic,dim}
 ◎ Build a dependable Conversation Atlas pane for long… · 3 suggestions  {0:color:#7dcfff|55:dim}
 CURRENT PATH ? 3 earlier  {0:color:#bb9af7,bold|15:dim}
