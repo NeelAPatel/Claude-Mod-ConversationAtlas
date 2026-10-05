@@ -1,6 +1,6 @@
   Map     Trail    Open 4  Evidence Up Down  {36:dim}
 
-GOAL ? Edit● 1/13  {0:color:#7dcfff,bold}
+GOAL ? Edit● 1/17  {0:color:#7dcfff,bold}
 What you are trying to do. Only you set it. auto means Atlas picked it; ✦ after the icon marks this turn’s focus.  {0:italic,dim}
 ◎ ✦ Build a dependable Conversation Atlas pane for long sessio… · 3 suggestions  {0:color:#7dcfff|2:color:#7dcfff,bold|64:dim}
 CURRENT PATH ? 3 earlier  {0:color:#bb9af7,bold|15:dim}
@@ -31,13 +31,10 @@ Newest decisions and questions. Confirm decisions in the Open tab. ! = major, ·
 RESUME NEXT ? pinned  {0:color:#7dcfff,bold|14:dim}
 Where to pick up. Pinned is yours; suggested is Claude’s guess.  {0:italic,dim}
 ▸  Review the fixed pane sample and approve the visual boundary.  {0:color:#7dcfff}
-▸ HOW TO USE
-Marks: › you · ✻ Claude · ⌬ Codex · □ other  {7:color:#7dcfff|15:color:#d97757|26:color:#7c8cff|36:color:#9aa5b1}
-OBSERVER  {0:bold}
-Claude
 LEGEND  {0:bold}
+Marks: › you · ✻ Claude · ⌬ Codex · □ other  {7:color:#7dcfff|15:color:#d97757|26:color:#7c8cff|36:color:#9aa5b1}
+▸ How to use
 ✦ suggested / goal detected
-counts: e edits r reads t topics d decisions q questions h hand-offs b report-backs  {8:color:#ff9e64|16:color:#bb9af7|24:color:#bb9af7|33:color:#9ece6a|45:color:#f7768e|57:color:#7aa2f7|69:color:#7aa2f7}
 ◎ your goal (confirmed)✓ done  {0:color:#7dcfff,bold|23:color:#9ece6a,bold}
 ○ suggestion, needs you  {0:bold}
 ● current topic  {0:color:#bb9af7,bold}

@@ -36,7 +36,7 @@ way, and their keys stay present at 26, 34, 48 and 72 body columns.
   action group has one primary action where it makes sense, and the other actions are cyan
   `[ label ]` controls whose label lights up on hover.
 - **Toggles.** Flip state in place.
-  - **Legend** shows a panel pinned above the bottom bar, with collapsible **HOW TO USE** (closed by default) first and then
+  - **Legend** shows a panel pinned above the bottom bar, with **LEGEND**, source marks and **How to use** (closed by default) above
     the **LEGEND** glyph table. Under section headings, `EXPLAIN` notes describe each part. The
     panel also holds the **Observer: Claude / Engine only** toggle.
   - **Trail sort** flips the order of the timeline.

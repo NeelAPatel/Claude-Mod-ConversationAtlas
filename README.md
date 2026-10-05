@@ -94,7 +94,7 @@ Change it any time with `/atlas observer [claude|engine]`.
 | **Evidence** | `e` | Checkpoints, settled-decision ledger, past detours, files, earlier sessions |
 
 The bottom bar holds **Legend** (`l`), **decisions** (`d`), **open questions** (`q`) and **+ Mark**
-(`k`). Legend’s **HOW TO USE** opens on press and starts collapsed.
+(`k`). Legend’s **How to use** starts collapsed; expand it for instructions, Observer mode and count meanings.
 **Chat ⇒** on any item puts an `[Atlas #n: …]` chip in your draft; only chips still
 there when you send reach Claude. Details: [docs/REFERENCE.md](docs/REFERENCE.md).
 

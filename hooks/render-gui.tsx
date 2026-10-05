@@ -699,43 +699,43 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
         width={Math.max(1, ctx.width * 8)}
         height={1}
       /> : null}
-      <Box flexShrink={0}><Button key="legend-howto" plain
-        label={`${ctx.view.legendHowTo ? '▾' : '▸'} HOW TO USE`}
-        onPress={() => ctx.act({ type: 'legend-howto' })} /></Box>
-      {ctx.view.legendHowTo ? <Box flexDirection="column" flexShrink={0}>
-        <Box flexShrink={0}><Text dimColor wrap="wrap">1. Each row is one thing Atlas saw: an icon, a title, counts and age.</Text></Box>
-        <Box flexShrink={0}><Text dimColor wrap="wrap">2. Press a row to open its details; press it again to close.</Text></Box>
-        <Box flexShrink={0}><Text dimColor wrap="wrap">3. Buttons do something when pressed.</Text></Box>
-        <Box flexShrink={0}><Text dimColor wrap="wrap">4. Nothing is confirmed until you press Confirm; observed items stay auto.</Text></Box>
-      </Box> : null}
+      <Box flexShrink={0}><Text bold>LEGEND</Text></Box>
       <Box flexShrink={0}><Text wrap="wrap">
         Marks: <Text color={SOURCE_MARK.person.color}>›</Text> you ·{' '}
         <Text color={SOURCE_MARK.claude.color}>✻</Text> Claude · <Text color={SOURCE_MARK.codex.color}>⌬</Text> Codex ·{' '}
         <Text color={SOURCE_MARK.other.color}>□</Text> other
       </Text></Box>
-      <Box flexShrink={0}><Text bold>OBSERVER</Text></Box>
-      <Box flexDirection="row" flexShrink={0}>
-        {actions(
-          ctx,
-          [
-            {
-              key: 'observer-toggle',
-              label: ctx.mode === 'claude' ? 'Claude' : 'Engine only',
-              primary: ctx.mode === 'claude',
-              action: { type: 'toggle-observer' },
-            },
-          ],
-          { marginLeft: 0, gap: 0 },
-        )}
-      </Box>
-      <Box flexShrink={0}><Text bold>LEGEND</Text></Box>
+      <Box flexShrink={0}><Button key="legend-howto" plain
+        label={`${ctx.view.legendHowTo ? '▾' : '▸'} How to use`}
+        onPress={() => ctx.act({ type: 'legend-howto' })} /></Box>
+      {ctx.view.legendHowTo ? <Box flexDirection="column" marginLeft={2} flexShrink={0}>
+        <Box flexShrink={0}><Text dimColor wrap="wrap">1. Each row is one thing Atlas saw: an icon, a title, counts and age.</Text></Box>
+        <Box flexShrink={0}><Text dimColor wrap="wrap">2. Press a row to open its details; press it again to close.</Text></Box>
+        <Box flexShrink={0}><Text dimColor wrap="wrap">3. Buttons do something when pressed.</Text></Box>
+        <Box flexShrink={0}><Text dimColor wrap="wrap">4. Nothing is confirmed until you press Confirm; observed items stay auto.</Text></Box>
+        <Box flexDirection="row" gap={1} flexShrink={0}>
+          <Text dimColor>Observer mode:</Text>
+          {actions(
+            ctx,
+            [
+              {
+                key: 'observer-toggle',
+                label: ctx.mode === 'claude' ? 'Claude' : 'Engine only',
+                primary: ctx.mode === 'claude',
+                action: { type: 'toggle-observer' },
+              },
+            ],
+            { marginLeft: 0, gap: 0 },
+          )}
+        </Box>
+        <Box flexShrink={0}><Text wrap="wrap">
+          counts: <Text color={C.write}>e</Text> edits <Text color={C.read}>r</Text> reads{' '}
+          <Text color={C.path}>t</Text> topics <Text color={C.decision}>d</Text> decisions{' '}
+          <Text color={C.question}>q</Text> questions <Text color={C.checkpoint}>h</Text> hand-offs{' '}
+          <Text color={C.checkpoint}>b</Text> report-backs
+        </Text></Box>
+      </Box> : null}
       <Box flexShrink={0}><Text wrap="wrap">✦ suggested / goal detected</Text></Box>
-      <Box flexShrink={0}><Text wrap="wrap">
-        counts: <Text color={C.write}>e</Text> edits <Text color={C.read}>r</Text> reads{' '}
-        <Text color={C.path}>t</Text> topics <Text color={C.decision}>d</Text> decisions{' '}
-        <Text color={C.question}>q</Text> questions <Text color={C.checkpoint}>h</Text> hand-offs{' '}
-        <Text color={C.checkpoint}>b</Text> report-backs
-      </Text></Box>
       <Box flexDirection="row" flexGrow={1} flexShrink={1}>
       {(ctx.width >= 64 ? [LEGEND.slice(0, Math.ceil(LEGEND.length / 2)), LEGEND.slice(Math.ceil(LEGEND.length / 2))] : [LEGEND]).map((column, columnIndex) => (
         <Box key={`legend-columns-${columnIndex}`} flexDirection="column" flexGrow={1} flexShrink={1}>

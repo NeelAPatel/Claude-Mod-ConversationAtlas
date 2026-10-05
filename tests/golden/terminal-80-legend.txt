@@ -35,6 +35,9 @@ Where to pick up. Pinned is yours; suggested is Claude’s guess.  {0:italic,dim
 ┃
 ┃
 ┃
+┃
+┃
+│  {0:dim}
 │  {0:dim}
 │  {0:dim}
 │  {0:dim}
@@ -45,12 +48,10 @@ Where to pick up. Pinned is yours; suggested is Claude’s guess.  {0:italic,dim
 │  {0:dim}
 │  {0:dim}
 ──────────────────────────────────────────────────────────────────────────────  {0:dim}
-▸ HOW TO USE
-Marks: › you · ✻ Claude · ⌬ Codex · □ other  {7:color:#7dcfff|15:color:#d97757|26:color:#7c8cff|36:color:#9aa5b1}
-Observer mode: [Observer: Claude]  {0:dim|15:color:#7dcfff|32:color:#7dcfff}
 LEGEND  {0:bold}
+Marks: › you · ✻ Claude · ⌬ Codex · □ other  {7:color:#7dcfff|15:color:#d97757|26:color:#7c8cff|36:color:#9aa5b1}
+▸ How to use
 ✦ suggested / goal detected
-counts: e edits r reads t topics d decisions q questions h hand-offs b report-backs  {8:color:#ff9e64|16:color:#bb9af7|24:color:#bb9af7|33:color:#9ece6a|45:color:#f7768e|57:color:#7aa2f7|69:color:#7aa2f7}
 ◎ your goal (confirmed)○ suggestion, needs you  {0:color:#7dcfff,bold|23:bold}
 ● current topic↳ detour / possible detour  {0:color:#bb9af7,bold|15:color:#e0af68,bold}
 ↩ returned◇ decision, not settled  {0:color:#e0af68,bold|10:color:#9ece6a,bold}
