@@ -5,7 +5,7 @@
 **A live map of your Claude Code session: where you started, where you are, and how to get back.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/badge/prerelease-0.01.0-blue)
 ![Claude Code](https://img.shields.io/badge/Claude%20Code-2.1.287%2B-d97757)
 ![Telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)
 ![Status](https://img.shields.io/badge/status-early%20release-orange)
@@ -33,6 +33,7 @@ that detects and helps you manage your goals, decisions and even detours while y
 ## Installation
 
 > **Marketplace: coming soon.** For now, install from source.
+> Please Note that as it stands, this project is hardly v0.1.0 yet
 
 Requires **Claude Code 2.1.287+** (terminal or desktop Code tab). To dock the pane beside the
 transcript, use `/tui fullscreen` in a terminal at least 144 columns wide; otherwise open it from
