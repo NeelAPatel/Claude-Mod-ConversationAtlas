@@ -30,3 +30,5 @@
 - **GUI sessions (user 2026-10-04).** A GUI-only session follows `docs/GUI-TAKEOVER.md`: it may change only `hooks/render-gui.tsx`, new `tests/gui-*.test.tsx`, `desktop-*` goldens (and their manifest entries) and `docs/gui/**`. `scripts/check-gui-scope.ps1` (diff against the `tui-freeze-2026-10-04` tag) and `scripts/check-seam.ps1` must pass. Shared files (`register.tsx`, `live.tsx`, `screens/*`, `view.tsx`) need an explicit owner-approved job.
 
 - **Releases (user 2026-10-05).** Version lives only in `.claude-plugin/plugin.json`; marketplace is `neel-cc-mods` (`.claude-plugin/marketplace.json`). The first push to `main`, for any reason, must be a complete push of v0.1.0 (tagged `v0.1.0`), made only after the user's final validation. See `docs/RELEASING.md` and `CHANGELOG.md`.
+
+- Expansions end with a right-justified `✕`; popups use the header `✕`.

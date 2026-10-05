@@ -39,6 +39,7 @@ test('surface dispatcher selects the GUI only for desktop', () => {
 })
 import { buildEvidence } from '../hooks/screens/evidence'
 import { buildMap } from '../hooks/screens/map'
+import { itemRow } from '../hooks/screens/shared'
 import { buildOpen } from '../hooks/screens/open'
 import { buildTrail, eventText, trailViewPopup } from '../hooks/screens/trail'
 import type { On } from 'claude-code'
@@ -100,6 +101,42 @@ function nodeByKey(value: unknown, key: string): DrawnNode | undefined {
   }
   return undefined
 }
+
+describe('open cleanup guards', () => {
+  test('suggestions reject empty, punctuation, ellipsis and single alphanumeric text', () => {
+    for (const text of ['', ' ', '…', '...', '!?—', 'a…', '1...']) {
+      const s = observe(emptySnapshot('guard', ROOT, 0), { goal: text, next: text }, 1)
+      expect(s.suggestions).toHaveLength(0)
+    }
+    const s = observe(emptySnapshot('guard', ROOT, 0), { goal: 'ab', next: 'é2' }, 1)
+    expect(s.suggestions.map(item => item.text).sort()).toEqual(['ab', 'é2'])
+  })
+
+  test('first request needs a real first sentence without a whole-body fallback', () => {
+    for (const text of ['', '…', '...', 'ok', 'thanks', 'yes do it', 'okay thank you please',
+      'Hi. Build the atlas pane for long sessions.', 'Review release documentation.', 'a b c d']) {
+      expect(startTurn(emptySnapshot('guard', ROOT, 0), text, 1).suggestions).toHaveLength(0)
+    }
+    const s = startTurn(emptySnapshot('guard', ROOT, 0), 'Build the atlas pane for long sessions. Then run tests.', 1)
+    expect(s.suggestions.map(item => [item.text, item.why])).toEqual([
+      ['Build the atlas pane for long sessions.', 'From your first request'],
+    ])
+    expect(s.goal).toBeNull()
+  })
+
+  test('questions resolve through observation and retain Reopen; decisions use Confirm', () => {
+    let s = observe(emptySnapshot('guard', ROOT, 0), { questions: ['Does this work?'], decisions: ['Keep this behavior'] }, 1)
+    const question = s.questions[0]!
+    const view = { ...scrollTestView(), mode: 'claude' as const }
+    expect(itemRow(s, question, 2, view, true).actions).toEqual([])
+    expect(itemRow(s, s.decisions[0]!, 2, view, true).actions?.map(item => [item.label, item.action.type]))
+      .toEqual([['Confirm', 'settle'], ['Drop', 'drop']])
+    s = observe(s, { resolved: [question.text] }, 3)
+    expect(s.questions[0]?.status).toBe('resolved')
+    expect(itemRow(s, s.questions[0]!, 4, view, true).actions?.map(item => [item.label, item.action.type]))
+      .toEqual([['Reopen', 'reopen']])
+  })
+})
 
 describe('model: observation never writes intent', () => {
   test('Claude can propose a goal and a detour but not set them', async () => {
@@ -571,13 +608,26 @@ describe('hooks', () => {
         'exclusions:',
         'Return',
         'Make it the goal',
-        'Close',
+        '✕',
       ]) {
         expect(expanded).toContain(text)
       }
       await ui.unmount()
     }
   )
+})
+
+describe('suggestion text guards', () => {
+  test('empty, punctuation, ellipsis and single alphanumeric observations never suggest', () => {
+    const initial = observe(emptySnapshot('guard', ROOT, 0), { next: 'Keep the existing valid suggestion' }, 1)
+    for (const text of ['', ' ', '…', '...', '?!—', 'a…', '…1']) {
+      const result = observe(initial, { goal: text, next: text }, 2)
+      expect(result.suggestions).toEqual(initial.suggestions)
+    }
+    expect(observe(emptySnapshot('valid', ROOT, 0), { next: '修复' }, 1).suggestions).toHaveLength(1)
+  })
+
+
 })
 
 describe('Atlas detour findings', () => {
@@ -778,7 +828,7 @@ describe('readability: app bar, legend, resizing', () => {
     const decisionKey = collapsed.match(/"key":"(dsel-[^"]+)"/)?.[1]
     expect(suggestionKey).toBeDefined()
     expect(decisionKey).toBeDefined()
-    for (const label of ['Pin next', 'Dismiss', 'Take detour', 'Not a detour', 'Settle', 'Drop']) expect(collapsed).not.toContain(label)
+    for (const label of ['Pin next', 'Dismiss', 'Take detour', 'Not a detour', 'Confirm', 'Drop']) expect(collapsed).not.toContain(label)
 
     await ui.press({ key: suggestionKey ?? '' })
     let expanded = await drawn(ui)
@@ -787,15 +837,15 @@ describe('readability: app bar, legend, resizing', () => {
     expect(expanded).toContain('topic: Action layout')
     expect(expanded).toContain('Pin next')
     expect(expanded).toContain('Dismiss')
-    expect(expanded).toContain('Close')
-    expect(expanded).not.toContain('Settle')
+    expect(expanded).toContain('✕')
+    expect(expanded).not.toContain('Confirm')
 
     await ui.press({ key: decisionKey ?? '' })
     expanded = await drawn(ui)
     expect(expanded).toContain('kind: observed decision')
     expect(expanded).toContain('source: Claude')
     expect(expanded).toContain('topic: Action layout')
-    expect(expanded).toContain('Settle')
+    expect(expanded).toContain('Confirm')
     expect(expanded).toContain('Drop')
     expect(expanded).not.toContain('kind: next suggestion')
 
@@ -809,11 +859,11 @@ describe('readability: app bar, legend, resizing', () => {
     const evidenceExpanded = await drawn(ui)
     expect(evidenceExpanded).toContain('kind: earlier session')
     expect(evidenceExpanded).toContain('Resume this')
-    expect(evidenceExpanded).toContain('Close')
+    expect(evidenceExpanded).toContain('✕')
     await ui.unmount()
   })
 
-  test('the expanded goal Close control uses the bracketed action style', { timeoutMs: 20_000 }, async ($, on) => {
+  test('the expanded goal close control reserves the right edge', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await $.command.run({ command: 'atlas', args: 'goal Ship the pane', origin: { kind: 'composer' } } as any)
@@ -822,10 +872,10 @@ describe('readability: app bar, legend, resizing', () => {
     await ui.press({ key: 'goal-row' })
     const close = await ui.find({ key: 'close-goal', type: 'Button' })
     expect(close?.props.plain).toBe(true)
-    expect(close?.props.label).toBe('Close')
-    const t = await drawn(ui)
-    expect(t).toContain(`"color":"${C.action}"`)
-    expect(t).toContain('"children":["["]')
+    expect(close?.props.label).toBe('✕')
+    const cell = nodeByKey(await ui.drawn(), 'expansion-close-cell-goal-row')
+    expect(cell?.props?.width).toBe(1)
+    expect(cell?.props?.flexShrink).toBe(0)
     await ui.unmount()
   })
 
@@ -899,7 +949,7 @@ describe('readability: app bar, legend, resizing', () => {
     const open = await drawn(ui)
     expect(open).toContain('Observed decision')
     expect(open).toContain('"key":"dsel-')
-    expect(open).toContain('Settle')
+    expect(open).toContain('Confirm')
     await ui.press({ key: 'tab-evidence' })
     const evidence = await drawn(ui)
     expect(evidence).toContain('Settled decision')
@@ -2337,7 +2387,7 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     await ui.unmount()
   })
 
-  test('Add to message puts a chip in the draft; only a chip left in the text sends the full item', { timeoutMs: 20_000 }, async ($, on) => {
+  test('Chat ⇒ puts a chip in the draft; only a chip left in the text sends the full item', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock, seen } = world(on)
     const fills: string[] = []
     on('prompt.fill', (_$: any, e: any) => {
@@ -2469,11 +2519,11 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     await ui.press({ key: sel ?? '' })
     expect(await drawn(ui)).toContain('ENDMARK')
     const after = await drawn(ui)
-    expect(after).toContain('Add to message')
+    expect(after).toContain('Chat ⇒')
     expect(after).not.toContain('Send to Claude')
     const close = (after.match(/"key":"(close-[^"]+)"/)?.[1]) ?? ''
     await ui.press({ key: close })
-    expect(await drawn(ui)).not.toContain('Add to message')
+    expect(await drawn(ui)).not.toContain('Chat ⇒')
     await ui.unmount()
   })
 

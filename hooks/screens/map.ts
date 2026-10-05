@@ -53,12 +53,12 @@ const help: Record<string, string[]> = {
     'Files touched lately, with edited and read counts.',
     '✎ means edited; · means read; the counts show e/r activity.',
     'Press a file to inspect its path, operation and timing.',
-    'Add to message points Claude at a file only when you keep its chip.',
+    'Chat ⇒ points Claude at a file only when you keep its chip.',
   ],
   LATEST: [
     'The newest observed decisions and questions.',
     '◇ is heard but unsettled; ? is an open question.',
-    'Use the Open tab to confirm or resolve them.',
+    'Use the Open tab to confirm decisions or review questions.',
     'These rows are observations until you take an action.',
   ],
   'RESUME NEXT': [
@@ -119,7 +119,7 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
           : detected
             ? [action('use-detected-goal', 'Use this as my goal', { type: 'goal', text: detected.text }, true)]
             : []),
-        action('close-goal', 'Close', { type: 'expand', id: 'goal' }),
+        action('close-goal', '✕', { type: 'expand', id: 'goal' }),
       ],
     })
   }
