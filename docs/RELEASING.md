@@ -35,7 +35,7 @@ turns it on under Marketplaces in `/plugin`.
 ## Test the marketplace locally
 
 ```bash
-claude plugin marketplace add .
+claude plugin marketplace add ./
 claude plugin install conversation-atlas@neel-cc-mods
 claude plugin marketplace remove neel-cc-mods   # clean up
 ```
