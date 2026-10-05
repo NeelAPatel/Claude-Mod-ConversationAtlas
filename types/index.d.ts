@@ -212,7 +212,9 @@ export type AtlasView = {
   refs: Record<string, AtlasSelection>
   nextRef: number
   editingGoal: boolean
+  dismissedGoalAlts?: string[]
   legend: boolean
+  legendHowTo?: boolean
   popup: AtlasPopup | null
   // First row within the open popup's own content window.
   popupScroll: number

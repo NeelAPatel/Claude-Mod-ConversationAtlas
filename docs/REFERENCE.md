@@ -36,7 +36,7 @@ way, and their keys stay present at 26, 34, 48 and 72 body columns.
   action group has one primary action where it makes sense, and the other actions are cyan
   `[ label ]` controls whose label lights up on hover.
 - **Toggles.** Flip state in place.
-  - **Legend** shows a panel pinned above the bottom bar, with **HOW TO USE** first and then
+  - **Legend** shows a panel pinned above the bottom bar, with collapsible **HOW TO USE** (closed by default) first and then
     the **LEGEND** glyph table. Under section headings, `EXPLAIN` notes describe each part. The
     panel also holds the **Observer: Claude / Engine only** toggle.
   - **Trail sort** flips the order of the timeline.
@@ -61,6 +61,10 @@ Goal suggestions and derived alternatives show **auto**. Their expansion explain
 `auto: picked by Atlas until you confirm or drop it`. **Set as goal** confirms an
 unconfirmed suggestion; **Use this as my goal** adopts the detected aim; **Switch to this**
 confirms a derived alternative through the same explicit goal action.
+**Dismiss** hides an alternative in session view state without changing the goal or snapshot.
+Dismissals survive observation and goal changes; Atlas keeps the last 20 dismissed texts.
+Expanded alternatives hang under the goal guide with a blank row after each action line.
+Legend uses **✦ suggested / goal detected**; its icon list still explains just-changed marks.
 During an active detour, focus remains visible; Return or Make it the goal is required
 before Switch to this can change the confirmed goal, as with every goal-setting action.
 

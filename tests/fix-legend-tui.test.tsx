@@ -35,15 +35,14 @@ for (const bodyColumns of [46, 80]) {
       },
     })
     await ui.press({ key: 'bar-legend' })
+    await ui.press({ key: 'legend-howto' })
     const drawn = JSON.stringify(await ui.drawn())
     for (const line of [
       '1. Each row is one thing Atlas saw: an icon, a title, counts and age.',
       '2. Press a row to open its details; press it again to close.',
       '3. [Bracketed] buttons do something when pressed.',
       '4. Nothing is confirmed until you press Confirm; observed items stay auto.',
-      'auto: picked by Atlas until you confirm or drop it',
-      '✦ before an icon: just changed',
-      '✦ after the goal icon: the goal this turn is about',
+      '✦ suggested / goal detected',
       `pane: ${bodyColumns} columns`,
     ]) expect(drawn).toContain(line)
     await ui.unmount()

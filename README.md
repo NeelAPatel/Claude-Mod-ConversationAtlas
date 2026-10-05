@@ -76,7 +76,8 @@ Change it any time with `/atlas observer [claude|engine]`.
   or drop it. **✦** after a goal icon marks what this turn is about. It stays on your confirmed
   goal for one diverging turn and moves to an alternative after two consecutive observed turns
   on that topic; a matching topic returns it to your goal. **Switch to this** confirms an
-  alternative. Observation never changes your goal or adds a focus event to Trail.
+  alternative. **Dismiss** hides it for this session view, including after observation or goal changes.
+  Observation never changes your goal or adds a focus event to Trail.
   **✦** before an icon still means just changed.
 - `/atlas detour check the flaky test` snapshots where you left off and starts a side trip.
   Decisions made during it are kept as its outcomes.
@@ -93,7 +94,8 @@ Change it any time with `/atlas observer [claude|engine]`.
 | **Evidence** | `e` | Checkpoints, settled-decision ledger, past detours, files, earlier sessions |
 
 The bottom bar holds **Legend** (`l`), **decisions** (`d`), **open questions** (`q`) and **+ Mark**
-(`k`). **Chat ⇒** on any item puts an `[Atlas #n: …]` chip in your draft; only chips still
+(`k`). Legend’s **HOW TO USE** opens on press and starts collapsed.
+**Chat ⇒** on any item puts an `[Atlas #n: …]` chip in your draft; only chips still
 there when you send reach Claude. Details: [docs/REFERENCE.md](docs/REFERENCE.md).
 
 Open decisions use **Confirm** / **Drop** (detour findings keep **Keep** / **Exclude**).

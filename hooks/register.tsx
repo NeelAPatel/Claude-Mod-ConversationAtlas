@@ -92,6 +92,7 @@ const DEFAULT_VIEW: AtlasViewState = {
   nextRef: 1,
   editingGoal: false,
   legend: false,
+  legendHowTo: false,
   popup: null,
   popupScroll: 0,
   legendScroll: 0,
@@ -501,6 +502,16 @@ async function act($: EngineInterface, a: Action, surface: Surface): Promise<voi
       return setView($, v => ({ ...v, tab: a.tab, scroll: 0, legend: false, popup: null, popupScroll: 0, expanded: null, expandedScroll: 0 }))
     case 'legend':
       return setView($, v => ({ ...v, legend: !v.legend, legendScroll: 0, popup: null, popupScroll: 0 }))
+    case 'legend-howto':
+      return setView($, v => ({ ...v, legendHowTo: !v.legendHowTo, legendScroll: 0, popup: null, popupScroll: 0 }))
+    case 'dismiss-goal-alt':
+      // Dismissals belong to the session view and survive changes to the confirmed goal.
+      return setView($, v => ({
+        ...v,
+        dismissedGoalAlts: [...(v.dismissedGoalAlts ?? []).filter(text => text !== clip(a.text, 140)), clip(a.text, 140)].slice(-20),
+        popup: null,
+        popupScroll: 0,
+      }))
     case 'open-setup':
       return setView($, v => ({ ...v, setup: true, legend: false, popup: null, popupScroll: 0, scroll: 0 }))
     case 'set-observer':

@@ -5,6 +5,7 @@ import type { AtlasMode, AtlasPopup, AtlasSelection, AtlasSnapshot, AtlasTab, At
 export type Action =
   | { type: 'tab'; tab: AtlasTab }
   | { type: 'legend' }
+  | { type: 'legend-howto' }
   | { type: 'popup'; popup: AtlasPopup }
   | { type: 'popup-scroll'; by: number }
   | { type: 'expanded-scroll'; by: number }
@@ -18,6 +19,7 @@ export type Action =
   | { type: 'expand'; id: string }
   | { type: 'confirm'; id: string }
   | { type: 'dismiss'; id: string }
+  | { type: 'dismiss-goal-alt'; text: string }
   | { type: 'settle'; id: string }
   | { type: 'weight'; id: string }
   | { type: 'exclude'; id: string }

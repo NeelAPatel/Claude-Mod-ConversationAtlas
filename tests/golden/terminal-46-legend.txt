@@ -32,17 +32,11 @@ RESUME NEXT ⓘpinned  {0:color:#7dcfff,bold|13:dim}
 Where to pick up. Pinned is yours; suggested is Claude’s guess.  {0:italic,dim}
 ▸ Review the fixed pane sample and approve …  {0:color:#7dcfff}
 ────────────────────────────────────────────  {0:dim}
-HOW TO USE  {0:bold}
-1. Each row is one thing Atlas saw: an icon, a title, counts and age.  {0:dim}
-2. Press a row to open its details; press it again to close.  {0:dim}
-3. [Bracketed] buttons do something when pressed.  {0:dim}
-4. Nothing is confirmed until you press Confirm; observed items stay auto.  {0:dim}
+▸ HOW TO USE
 Marks: › you · ✻ Claude · ⌬ Codex · □ other  {7:color:#7dcfff|15:color:#d97757|26:color:#7c8cff|36:color:#9aa5b1}
 Observer mode: [Observer: Claude]  {0:dim|15:color:#7dcfff|32:color:#7dcfff}
 LEGEND  {0:bold}
-auto: picked by Atlas until you confirm or drop it
-✦ before an icon: just changed
-✦ after the goal icon: the goal this turn is about
+✦ suggested / goal detected
 counts: e edits r reads t topics d decisions q questions h hand-offs b report-backs  {8:color:#ff9e64|16:color:#bb9af7|24:color:#bb9af7|33:color:#9ece6a|45:color:#f7768e|57:color:#7aa2f7|69:color:#7aa2f7}
 ◎ your goal (confirmed)  {0:color:#7dcfff,bold}
 ○ suggestion, needs you  {0:bold}

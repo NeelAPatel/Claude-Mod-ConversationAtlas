@@ -79,7 +79,8 @@ function section(key: string, heading: string, rows: ScreenRow[], extra: Partial
 
 function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSection {
   const suggestion = [...snapshot.suggestions].reverse().find(item => item.kind === 'goal' || item.kind === 'resume')
-  const alternatives = goalSuggestions(snapshot)
+  const dismissed = view.dismissedGoalAlts ?? []
+  const alternatives = goalSuggestions(snapshot).filter(text => !dismissed.includes(text))
   const focus = focusedGoal(snapshot)
   const detected =
     snapshot.detectedGoal && (!snapshot.goal || snapshot.detectedGoal.text !== snapshot.goal.text) ? snapshot.detectedGoal : null
@@ -109,7 +110,10 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
       meta: 'auto',
       tone: 'goal',
       detail: ['auto: picked by Atlas until you confirm or drop it'],
-      actions: [action(`switch-goal-${index}`, 'Switch to this', { type: 'goal', text }, true)],
+      actions: [
+        action(`switch-goal-${index}`, 'Switch to this', { type: 'goal', text }, true),
+        action(`dismiss-goal-${index}`, 'Dismiss', { type: 'dismiss-goal-alt', text }),
+      ],
     }))
     rows.push({
       id: 'goal',

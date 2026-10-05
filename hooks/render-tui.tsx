@@ -457,13 +457,32 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
     <Box key={row.key} flexDirection="column">
       {head}
       {row.kind === 'event' ? <EventDetail ctx={ctx} row={row} /> : <Detail ctx={ctx} row={row} />}
-      {row.suggestedGoals?.length ? (
-        <Box flexDirection="column" marginLeft={2}>
-          <Text dimColor>Suggested goals:</Text>
-          {row.suggestedGoals.map(suggestion => renderRow(ctx, suggestion))}
+      {row.suggestedGoals?.length
+        ? suggestedGoalBlock(ctx, row, extra)
+        : expansionActions(ctx, row, extra)}
+    </Box>
+  )
+}
+
+function suggestedGoalBlock(ctx: Ctx, row: ScreenRow, extra: ScreenAction[]): RenderElement {
+  const { Box, Text } = ctx.el
+  const inner = { ...ctx, width: Math.max(8, ctx.width - 6) }
+  return (
+    <Box key="suggested-goals" flexDirection="column" marginLeft={2}>
+      {guideRow(ctx, 'suggested-goals-heading', <Text dimColor>Suggested goals:</Text>)}
+      {(row.suggestedGoals ?? []).map(suggestion => (
+        <Box key={`suggested-${suggestion.key}`} flexDirection="column">
+          {guideRow(ctx, `suggested-guide-${suggestion.key}`, <Box marginLeft={2}>
+            {renderRow(inner, { ...suggestion, actions: [] })}
+          </Box>)}
+          {guideRow(ctx, `suggested-actions-${suggestion.key}`, <Box marginLeft={2}>
+            {actions(inner, suggestion.actions ?? [])}
+          </Box>)}
+          {guideRow(ctx, `suggested-spacer-guide-${suggestion.key}`,
+            <Box key={`suggested-spacer-${suggestion.key}`} height={1} />)}
         </Box>
-      ) : null}
-      {expansionActions(ctx, row, extra)}
+      ))}
+      {guideRow(ctx, 'suggested-goals-use', <Box>{expansionActions(ctx, row, extra)}</Box>)}
     </Box>
   )
 }
@@ -679,18 +698,22 @@ export const LEGEND: [GlyphKey | '!' | '·', string][] = [
   ['reportBack', 'report back'],
 ]
 export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
-  const { Box, Text } = ctx.el
+  const { Box, Text, Button } = ctx.el
   const columns = ctx.width >= 64 ? 2 : 1
   const width = Math.max(8, Math.floor((ctx.width - 4) / columns))
   const legendRows: [GlyphKey | '!' | '·', string][][] = []
   for (let index = 0; index < LEGEND.length; index += columns) legendRows.push(LEGEND.slice(index, index + columns))
   const content = (
     <Box key="legend-content" flexDirection="column" flexShrink={0}>
-      <Box flexShrink={0}><Text bold>HOW TO USE</Text></Box>
-      <Box flexShrink={0}><Text dimColor wrap="wrap">1. Each row is one thing Atlas saw: an icon, a title, counts and age.</Text></Box>
-      <Box flexShrink={0}><Text dimColor wrap="wrap">2. Press a row to open its details; press it again to close.</Text></Box>
-      <Box flexShrink={0}><Text dimColor wrap="wrap">3. [Bracketed] buttons do something when pressed.</Text></Box>
-      <Box flexShrink={0}><Text dimColor wrap="wrap">4. Nothing is confirmed until you press Confirm; observed items stay auto.</Text></Box>
+      <Box flexShrink={0}><Button key="legend-howto" plain
+        label={`${ctx.view.legendHowTo ? '▾' : '▸'} HOW TO USE`}
+        onPress={() => ctx.act({ type: 'legend-howto' })} /></Box>
+      {ctx.view.legendHowTo ? <Box flexDirection="column" flexShrink={0}>
+        <Box flexShrink={0}><Text dimColor wrap="wrap">1. Each row is one thing Atlas saw: an icon, a title, counts and age.</Text></Box>
+        <Box flexShrink={0}><Text dimColor wrap="wrap">2. Press a row to open its details; press it again to close.</Text></Box>
+        <Box flexShrink={0}><Text dimColor wrap="wrap">3. [Bracketed] buttons do something when pressed.</Text></Box>
+        <Box flexShrink={0}><Text dimColor wrap="wrap">4. Nothing is confirmed until you press Confirm; observed items stay auto.</Text></Box>
+      </Box> : null}
       <Box flexShrink={0}><Text wrap="wrap">
         Marks: <Text color={SOURCE_MARK.person.color}>›</Text> you ·{' '}
         <Text color={SOURCE_MARK.claude.color}>✻</Text> Claude · <Text color={SOURCE_MARK.codex.color}>⌬</Text> Codex ·{' '}
@@ -711,9 +734,7 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
         )}
       </Box>
       <Box flexShrink={0}><Text bold>LEGEND</Text></Box>
-      <Box flexShrink={0}><Text wrap="wrap">auto: picked by Atlas until you confirm or drop it</Text></Box>
-      <Box flexShrink={0}><Text wrap="wrap">✦ before an icon: just changed</Text></Box>
-      <Box flexShrink={0}><Text wrap="wrap">✦ after the goal icon: the goal this turn is about</Text></Box>
+      <Box flexShrink={0}><Text wrap="wrap">✦ suggested / goal detected</Text></Box>
       <Box flexShrink={0}><Text wrap="wrap">
         counts: <Text color={C.write}>e</Text> edits <Text color={C.read}>r</Text> reads{' '}
         <Text color={C.path}>t</Text> topics <Text color={C.decision}>d</Text> decisions{' '}
