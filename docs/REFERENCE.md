@@ -19,7 +19,7 @@ pane stops pinning and lets Claude Code scroll it.
 |---|---|---|---|
 | **Map** | `m` | light yellow (`yellowBright`) | ◎ goal, current topic path (the current node pulses when new), ↳ possible or active detour, live activity (spinner and shimmer while a tool runs, ✓ or ✗ after), working set, latest decisions and questions, ▸ resume next |
 | **Trail** | `t` | light green | The full topic tree, then a timeline of prompts, topic shifts, decisions, detours, returns and checkpoints |
-| **Open** | `o` | pink | Everything waiting on you: suggestions (goal, detour, return, next step, resume), observed decisions (**Confirm** / **Drop**; ones observed during a detour get **Keep** / **Exclude**) and open questions (Claude reports answered questions as resolved) |
+| **Open** | `o` | pink | Everything waiting on you: suggestions (goal, detour, return, next step, resume), observed decisions (**Confirm** / **Drop**; ones observed during a detour get **Keep** / **Exclude**) and open questions (**Confirm** = answered / **Drop**; Claude can also report them answered) |
 | **Evidence** | `e` | blue | Checkpoints (click one to see the goal, topic and files at that moment), the settled-decision ledger, resolved questions, past detours, files and earlier sessions (**Resume this**) |
 
 The active tab is bold coloured text and does not press. Inactive tabs are dim plain buttons.

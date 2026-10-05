@@ -645,6 +645,10 @@ async function act($: EngineInterface, a: Action, surface: Surface): Promise<voi
       await edit($, (s, now) => setItemStatus(s, a.id, 'observed', now))
       await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
       return
+    case 'resolve':
+      await edit($, (s, now) => setItemStatus(s, a.id, 'resolved', now))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
+      return
     case 'reopen':
       await edit($, (s, now) => setItemStatus(s, a.id, 'open', now))
       await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
