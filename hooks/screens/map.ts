@@ -90,7 +90,8 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
         ...(detected ? [`Atlas currently reads your aim as: ${detected.text}`] : ['Atlas has not detected an overall aim yet.']),
       ]
   const rows: ScreenRow[] = []
-  if (!view.editingGoal) {
+  // No confirmed goal means no goal row: an unset goal must not read as one set to "not confirmed yet".
+  if (snapshot.goal && !view.editingGoal) {
     const suggestedGoals: ScreenRow[] = alternatives.map((text, index) => ({
       id: `goal-alternative-${index}`,
       key: `goal-alternative-${index}`,
@@ -106,7 +107,7 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
       key: 'goal-row',
       kind: 'goal',
       glyph: 'goal',
-      text: snapshot.goal?.text ?? 'not confirmed yet',
+      text: snapshot.goal.text,
       tone: 'goal',
       expandable: true,
       detail,
@@ -126,6 +127,7 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
   if (!snapshot.goal && suggestion) rows.push(suggestionRow(snapshot, suggestion, view))
   return section('goal', 'GOAL', rows, {
     tone: 'goal',
+    empty: 'No goal yet. Type one below, or use a suggestion.',
     actions: snapshot.goal && !snapshot.detour && !view.editingGoal ? [action('edit-goal', 'Edit', { type: 'edit-goal' })] : [],
     input:
       view.editingGoal || (!snapshot.goal && !suggestion)
