@@ -19,7 +19,7 @@ One **Stage** column follows the task lifecycle: inserted → discussion → nee
 - **Where it is committed:** `●` alone means on `dev`. `● ⎇ feat/xyz` means committed on that feature branch only, which is earlier than `●` on `dev`.
 - **Risk:** `⚠` sits next to the task number (e.g. `22 ⚠`) and can go with any stage.
 - Release: 0.1 / 0.2 / 0.3 / later.
-- Surface = `Tab.SECTION: specific thing`; several places are listed. Tabs: Map, Trail, Open, Evidence. Global = tab bar, bottom bar (Legend, decisions, open questions, + Mark), Legend panel, popups (Trail Settings, Decisions, Open Questions), Setup. Map sections: GOAL, CURRENT PATH, POSSIBLE DETOUR, ACTIVITY, WORKING SET, RESUME NEXT, LATEST. Open: NEEDS YOUR CALL, OBSERVED DECISIONS, DETOUR FINDINGS, OPEN QUESTIONS. Trail: MAP OF TOPICS, timeline. Evidence: CHECKPOINTS, FILES, EARLIER SESSIONS, settled-decisions ledger. (LATEST and ledger names unverified.)
+- Surface = `Tab.SECTION: specific thing`; several places are listed. Tabs: Map, Trail, Open, Evidence. Global = tab bar, bottom bar (Legend, decisions, open questions, + Mark), Legend panel, popups (Trail Settings, Decisions, Open Questions), Setup. Map sections: GOAL, CURRENT PATH, DETOUR (the active one), POSSIBLE DETOUR, ACTIVITY, WORKING SET, RESUME NEXT, LATEST. Open: NEEDS YOUR CALL, OBSERVED DECISIONS, DETOUR FINDINGS, OPEN QUESTIONS. Trail: MAP OF TOPICS, timeline. Evidence: CHECKPOINTS, SETTLED (LEDGER), RESOLVED, DETOURS (only once a detour has ended), FILES, EARLIER SESSIONS.
 - Needs: `Prereq:[#x,#y]` = must exist first (hard dependency). "Decide:" = an open decision to settle first.
 
 ## A. Decisions
