@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
+import type { AtlasView } from '../types'
 
 const ROOT = 'F:/work/atlas'
 const PANE_PROPS = { title: 'Atlas', isFocused: true, bodyColumns: 80, placement: 'dock', scroll: { offset: 0, bodyRows: 60 }, view: {} } as any
@@ -109,30 +110,43 @@ test('desktop text exposes observed topics, decisions, and questions', { timeout
   await ui.unmount()
 })
 
-test('desktop overflow has usable wheel scrolling and clamps at zero', { timeoutMs: 20_000 }, async ($, on) => {
+test('desktop wheel passes through to the engine without a view write', { timeoutMs: 20_000 }, async ($, on) => {
   const { clock } = world(on)
   const viewKey = { plugin: 'conversation-atlas', key: 'view' } as const
-  const fixture = { view: { setup: false, tab: 'map', refs: {}, nextRef: 1, editingGoal: false, legend: false, popup: null, popupScroll: 0, legendScroll: 0, scroll: 0, trailNewest: true, trailView: 'story', expanded: null, expandedScroll: 0, fullConfirm: null } as any }
-  on('state.get', viewKey, async (_$, e, next) => {
-    const held = await next(e)
-    return held.value ? { value: { ...held.value, value: fixture.view } } : held
-  })
+  let view: AtlasView | undefined
+  let writes = 0
   on('state.set', viewKey, async (_$, e, next) => {
-    fixture.view = e.value
+    view = e.value
+    writes += 1
     return next(e)
   })
-  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true } as any)
-  for (let i = 0; i < 24; i++) {
-    await $.tool.call({ tool: 'mcp__conversation-atlas__observe', topic: `Overflow topic ${i} ${'details '.repeat(8)}` } as any)
-  }
+  const engineResult = { deny: 'test engine result' }
+  let reachedEngine = 0
+  on('ui.scroll', { component: 'Pane', requestId: 'atlas' }, (_$, e) => {
+    expect(e.by).toBe(1)
+    reachedEngine += 1
+    return engineResult
+  })
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
   await clock.settle()
   const bodyRows = 12
-  const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: { ...PANE_PROPS, bodyColumns: 80, scroll: { offset: 0, bodyRows } } })
-  expect(await ui.find({ key: 'scroll-down', type: 'Button' })).toBeDefined()
-  await $.ui.scroll({ component: 'Pane', requestId: 'atlas', offset: 1, by: 1, bodyRows, contentRows: 1_000, origin: { kind: 'person' } })
-  expect(fixture.view.scroll).toBeGreaterThan(0)
-  await $.ui.scroll({ component: 'Pane', requestId: 'atlas', offset: -1_000, by: -1_000, bodyRows, contentRows: 1_000, origin: { kind: 'person' } })
-  expect(fixture.view.scroll).toBe(0)
+  const ui = await $.ui.mount({
+    plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas',
+    props: { ...PANE_PROPS, scroll: { offset: 0, bodyRows } },
+  })
+  await ui.press({ key: 'tab-map' })
+  expect(view?.scroll).toBe(0)
+  const beforeWrites = writes
+  const beforeView = view
+  const result = await $.ui.scroll({
+    component: 'Pane', requestId: 'atlas', offset: 1, by: 1,
+    bodyRows, contentRows: 1_000, origin: { kind: 'person' },
+  })
+  expect(reachedEngine).toBe(1)
+  expect(result).toEqual(engineResult)
+  expect(writes).toBe(beforeWrites)
+  expect(view).toEqual(beforeView)
+  expect(view?.scroll).toBe(0)
   await ui.unmount()
 })
 

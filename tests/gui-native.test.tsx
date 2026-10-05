@@ -244,19 +244,35 @@ test('desktop shows an inline notice for stale terminal popup state', { timeoutM
   await ui.unmount()
 })
 
-test('desktop native rows still expose scrolling when content overflows', { timeoutMs: 20_000 }, async ($, on) => {
+test('desktop overflow draws every file row for native scrolling', { timeoutMs: 20_000 }, async ($, on) => {
   const clock = setup(on)
-  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true } as any)
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
   for (let i = 0; i < 20; i++) {
-    await $.tool.call({ tool: 'Read', file_path: `${ROOT}/src/overflow-${i}.ts` } as any)
+    await $.tool.call({ tool: 'Read', file_path: `${ROOT}/src/overflow-${i}.ts` })
   }
   await clock.settle()
-  const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas', props: { ...PANE, scroll: { offset: 0, bodyRows: 12 } } })
-  const scrollDown = await ui.find({ key: 'scroll-down', type: 'Button' })
-  if (!scrollDown) throw new Error(`desktop overflow has no scroll-down button: ${await text(ui)}`)
-  expect(scrollDown.props.dimColor).toBe(false)
-  const thumb = await ui.find({ key: 'sb-thumb', type: 'Button' })
-  if (!thumb) throw new Error('desktop overflow has no visible, pressable SVG thumb')
-  await ui.press({ key: 'sb-thumb' })
+  const ui = await $.ui.mount({
+    plugin: 'conversation-atlas', surface: 'desktop', component: 'Pane', requestId: 'atlas',
+    props: { ...PANE, scroll: { offset: 0, bodyRows: 12 } },
+  })
+  await ui.press({ key: 'tab-evidence' })
+  expect(await ui.find({ key: 'scroll-up', type: 'Button' })).toBeUndefined()
+  expect(await ui.find({ key: 'scroll-down', type: 'Button' })).toBeUndefined()
+  expect(await ui.find({ key: 'sb-thumb' })).toBeUndefined()
+  const tree = elements(await ui.drawn())
+  const root = tree.find(node => node.props?.key === 'pane-root')
+  expect(root).toBeDefined()
+  expect(root?.props.height).toBeUndefined()
+  expect(tree.some(node => node.type === 'Box' && Number(node.props?.marginTop) < 0)).toBe(false)
+  // Evidence lists at most 12 files (the cap), all drawn without a window. Title cells may clip text; body and Legend containers must never clip a scroll window.
+  const windows = tree.filter(node => node.type === 'Box' && node.props?.overflow === 'hidden')
+  for (const window of windows) {
+    expect(window.props.height).toBeUndefined()
+    expect(elements(window.children).some(node => node.type === 'Box')).toBe(false)
+  }
+  const files = await ui.findAll({ type: 'Button' })
+  expect(files.filter(button => String(button.props.key).startsWith('ef-')).length).toBe(12)
+  const drawn = await text(ui)
+  expect(new Set(drawn.match(/overflow-\d+\.ts/g)).size).toBe(12)
   await ui.unmount()
 })

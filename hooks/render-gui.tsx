@@ -687,7 +687,8 @@ export const LEGEND: [GlyphKey | '!' | '·', string][] = [
   ['handoff', 'hand-off running'],
   ['reportBack', 'report back'],
 ]
-export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
+// Optional window arguments keep the shared dispatcher compatible; GUI always draws the full Legend.
+export function legendPanel(ctx: Ctx, _height?: number, _at?: number): RenderElement {
   const { Box, Text, Button, Svg } = ctx.el
   const content = (
     <Box key="legend-content" flexDirection="column" flexShrink={0}>
@@ -759,10 +760,8 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
       key="legend-panel"
       flexDirection="column"
       flexShrink={0}
-      height={height ?? rowsOf(content, Math.max(8, ctx.width - 2))}
-      overflow="hidden"
     >
-      {height === undefined ? content : <Box flexDirection="column" marginTop={-at} flexShrink={0}>{content}</Box>}
+      {content}
     </Box>
   )
   return frame
@@ -916,7 +915,7 @@ function tabItems(ctx: Ctx, snapshot: AtlasSnapshot): BarItem[] {
     },
   ]
 }
-function tabBar(ctx: Ctx, snapshot: AtlasSnapshot, scroll: { max: number; at: number; page: number }): RenderElement {
+function tabBar(ctx: Ctx, snapshot: AtlasSnapshot): RenderElement {
   const { Box, Button, Text, Svg } = ctx.el
   const items = tabItems(ctx, snapshot)
   const labels = items.map(item => (ctx.width < 40 ? item.short : undefined) ?? item.label)
@@ -929,22 +928,6 @@ function tabBar(ctx: Ctx, snapshot: AtlasSnapshot, scroll: { max: number; at: nu
             <Button key={item.key} label={`${'\u00a0'.repeat(Math.floor((labelWidth - labels[index]!.length) / 2))}${labels[index]!}${'\u00a0'.repeat(Math.ceil((labelWidth - labels[index]!.length) / 2))}`} hotkey={item.hotkey} variant={item.active ? 'primary' : 'secondary'} onPress={item.onPress} />
           </Box>
         ))}
-        {scroll.max > 0 || scroll.page <= 10 ? (
-          <Box flexDirection="row" gap={1} flexShrink={0}>
-          <Button
-            key="scroll-up"
-            dimColor={scroll.max === 0 || scroll.at === 0}
-            label="Up"
-            onPress={() => ctx.act({ type: 'scroll', by: -scroll.page })}
-          />
-          <Button
-            key="scroll-down"
-            dimColor={scroll.max === 0 || scroll.at >= scroll.max}
-            label="Down"
-            onPress={() => ctx.act({ type: 'scroll', by: scroll.page })}
-          />
-          </Box>
-        ) : null}
       </Box>
       {Svg ? <Svg
         key="tab-baseline"
@@ -955,9 +938,6 @@ function tabBar(ctx: Ctx, snapshot: AtlasSnapshot, scroll: { max: number; at: nu
       /> : <Text dimColor>{'_'.repeat(Math.max(1, ctx.width - 2))}</Text>}
     </Box>
   )
-}
-function tabBarRows(ctx: Ctx, snapshot: AtlasSnapshot, max: number): number {
-  return rowsOf(tabBar(ctx, snapshot, { at: 0, max: 0, page: Math.max(11, ctx.width) }), ctx.width) + 1
 }
 function appBarItems(ctx: Ctx, snapshot: AtlasSnapshot): BarItem[] {
   return [
@@ -979,31 +959,6 @@ function appBar(ctx: Ctx, snapshot: AtlasSnapshot): RenderElement {
     </Box>
   )
 }
-function appBarRows(ctx: Ctx, snapshot: AtlasSnapshot): number {
-  return ctx.view.legend ? 3 : 2
-}
-function scrollbarCells(ctx: Ctx, viewport: number, content: number, at: number, maxScroll: number): RenderElement {
-  const { Box, Button, Svg } = ctx.el
-  const size = Math.min(viewport, Math.max(1, Math.round((viewport * viewport) / content)))
-  const top = maxScroll ? Math.round((at / maxScroll) * (viewport - size)) : 0
-  return (
-    <Box key="scrollbar" flexDirection="column" width={2} flexShrink={0} height={viewport} overflow="hidden">
-      {Svg ? <Svg
-        key="scrollbar-track"
-        source={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 ${viewport * 16}" preserveAspectRatio="none"><rect x="1" y="0" width="2" height="${viewport * 16}" rx="1" fill="#41414a"/><rect x="0" y="${top * 16}" width="4" height="${Math.max(16, size * 16)}" rx="2" fill="#7aa2f7"/></svg>`}
-        alt={`Scroll position ${at + 1} of ${maxScroll + 1}`}
-        width={8}
-        height={viewport * 16}
-      /> : null}
-      <Button
-        key="sb-thumb"
-        plain
-        label={`● ${top + 1}/${viewport}`}
-        onPress={() => ctx.act({ type: 'scroll-to', at: Math.round((top / Math.max(1, viewport - size)) * maxScroll) })}
-      />
-    </Box>
-  )
-}
 function scanBanner(ctx: Ctx): RenderElement | null {
   const visible = ctx.scan.active || (Boolean(ctx.scan.result) && ctx.now - ctx.scan.resultAt < SCAN_RESULT_MS)
   if (!visible) return null
@@ -1012,11 +967,6 @@ function scanBanner(ctx: Ctx): RenderElement | null {
     result: ctx.scan.active ? null : ctx.scan.result,
     now: ctx.now,
   })
-}
-
-function expandedEvent(ctx: Ctx, model: ScreenModel): ScreenRow | undefined {
-  if (!ctx.view.expanded) return undefined
-  return model.sections.flatMap(section => section.rows).find(row => row.id === ctx.view.expanded && row.kind === 'event')
 }
 
 export function pane(input: PaneCtx, snapshot: AtlasSnapshot): {
@@ -1041,63 +991,22 @@ export function pane(input: PaneCtx, snapshot: AtlasSnapshot): {
       maxLegendScroll: 0,
     }
   const model = screenFor(snapshot, { ...ctx.view, mode: ctx.mode }, ctx.now)
-  const appRows = appBarRows(ctx, snapshot)
   const scan = scanBanner(ctx)
-  const scanRows = scan ? rowsOf(scan, ctx.width) : 0
   const legend = ctx.view.legend ? legendPanel(ctx) : null
-  const fixedWithoutLegend = tabBarRows(ctx, snapshot, 1) + scanRows + appRows
-  const legendContentRows = legend ? rowsOf(legend, ctx.width) : 0
-  const legendRows = legend ? Math.min(legendContentRows, Math.max(1, ctx.rows - fixedWithoutLegend)) : 0
-  const maxLegendScroll = Math.max(0, legendContentRows - legendRows)
-  const legendAt = Math.min(Math.max(0, ctx.view.legendScroll), maxLegendScroll)
-  const fixed = fixedWithoutLegend + legendRows
-  const viewport = ctx.rows - fixed
-  const pinned = viewport >= 4
-  const bodyCtx: Ctx = { ...ctx, bodyViewport: viewport }
-  const expandedSection = model.sections.find(section => sectionExpansionId(section) === ctx.view.expanded)
-  const expanded = expandedEvent(bodyCtx, model)
-  let body = renderBody(bodyCtx, model)
-  let content = rowsOf(body, ctx.width)
-  const bar = pinned && content > viewport
-  const drawCtx = bar ? { ...bodyCtx, width: ctx.width - 2 } : bodyCtx
-  if (bar) {
-    body = renderBody(drawCtx, model)
-    content = rowsOf(body, ctx.width - 2)
-  }
-  const maxExpandedScroll = 0
-  const maxScroll = pinned ? Math.max(0, content - viewport) : 0
-  const at = Math.min(Math.max(0, ctx.view.scroll), maxScroll)
-  const scrollbar = bar && maxScroll > 0 ? scrollbarCells(ctx, viewport, content, at, maxScroll) : null
-  const maxPopupScroll = 0
-  const bodyTree = pinned ? (
-    <Box flexDirection="row" flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
-      <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
-        <Box flexDirection="column" flexShrink={0} minWidth={0} marginTop={-at}>
-          {body}
-        </Box>
-      </Box>
-      {scrollbar}
-    </Box>
-  ) : (
-    <Box flexDirection="column">
-      {body}
-    </Box>
-  )
+  const body = renderBody(ctx, model)
   const tree = (
-    <Box key="pane-root" flexDirection="column" minWidth={0} overflow="hidden" paddingX={1} {...(pinned ? { height: ctx.rows } : {})}>
-      {tabBar(ctx, snapshot, { at, max: maxScroll, page: Math.max(1, viewport - 2) })}
-      <Box height={1} flexShrink={0}><Text>{''}</Text></Box>
-      {bodyTree}
-      {legend ? (
-        <Box flexDirection="column" flexShrink={0} height={legendRows} overflow="hidden">
-          {legendPanel(ctx, legendRows, legendAt)}
-        </Box>
-      ) : null}
+    <Box key="pane-root" flexDirection="column" minWidth={0} paddingX={1}>
+      {tabBar(ctx, snapshot)}
+      <Box height={1} flexShrink={0}>
+        <Text>{''}</Text>
+      </Box>
+      <Box flexDirection="column">{body}</Box>
+      {legend}
       {scan}
       {appBar(ctx, snapshot)}
     </Box>
   )
-  return { tree, maxScroll, maxPopupScroll, maxLegendScroll, maxExpandedScroll }
+  return { tree, maxScroll: 0, maxPopupScroll: 0, maxLegendScroll: 0, maxExpandedScroll: 0 }
 }
 
 export function oneLine(snapshot: AtlasSnapshot): string {

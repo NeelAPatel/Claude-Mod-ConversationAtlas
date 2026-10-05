@@ -12,7 +12,14 @@ Suggested goals have Switch to this and Dismiss actions with one blank row after
 A thin static 1px guide in `#41414a` runs from the expanded goal through the alternatives
 to Use this as my goal; alternatives sit one level inside it.
 
-The desktop renderer must mount and validate on every tab, with Legend open and the Setup screen at `bodyColumns` 46 and 80. A mount may not show a hook failure or engine fallback. No desktop tree may contain an absolute-positioned Box or an `atlas-popup`; Trail controls stay inline and overflow items expand beneath their row. Presses by `Button` key must reach the corresponding shared `Action` and update state. A stale terminal popup is represented by an inline notice and its `popup-close` action. Drawn text must contain the underlying goal, topic, decision, question, file, and section-help content. With overflow, desktop scroll bounds are nonnegative, `maxScroll` is positive, and wheel scrolling changes the view; `maxPopupScroll` is always 0. The live `Client` element must remain present during a desktop scan.
+The desktop renderer must mount and validate on every tab, with Legend open and the Setup screen at `bodyColumns` 46 and 80. A mount may not show a hook failure
+or engine fallback. No desktop tree may contain an absolute-positioned Box or an `atlas-popup`; Trail controls stay inline and overflow items expand beneath
+their row. Presses by `Button` key must reach the corresponding shared `Action` and update state. A stale terminal popup is represented by an inline notice and
+its `popup-close` action. Drawn text must contain the underlying goal, topic, decision, question, file, and section-help content.
+The desktop draws the full tree; the engine scrolls it as a whole, including tabs, Legend and the bottom bar.
+All four renderer scroll maxima are 0.
+Desktop-only wheel hooks pass through without writing view state.
+The live `Client` element must remain present during a desktop scan.
 
 | Control key (including dynamic forms) | Shared Action |
 |---|---|
@@ -28,8 +35,6 @@ The desktop renderer must mount and validate on every tab, with Legend open and 
 | `trail-filter-b-toggle`, `trail-filter-h-toggle` | `trail-filter` |
 | `popup-close` (stale terminal notice only) | `popup` |
 | `help-up-*`, `help-down-*` | `expanded-scroll` |
-| `scroll-up`, `scroll-down` | `scroll` |
-| `sb-thumb` | `scroll-to` |
 | `close-*`, `add-*`, `sg-*`, `qsel-*`, `dsel-*`, `tsel-*`, `goal-alternative-*`, `path-*`, `sel-*`, `ef-*`, `csel-*`, `dh-*`, `rc-*`, `evb-*`, `evb-story-*` | The `Action` attached to that screen action or row (expand, attach, confirm, dismiss, settle, exclude, drop, restore, reopen, return, promote, adopt, or adopt-full as applicable) |
 
 The Trail toolbar is visible on the Trail tab at widths 46 and 80. A native `trail-view-select` chooses Story or Log and dispatches `trail-view-set`;
@@ -40,7 +45,14 @@ filled top-to-bottom; narrower layouts use one. The tab strip has no per-tab und
 (Map yellow, Trail green, Open red, Evidence blue). Contract tests select `trail-view-select`, press Trail toolbar buttons and other controls, and
 verify the corresponding `trail-view-set`, `trail-sort`, and `trail-filter` actions.
 
-Tab cells grow equally but never shrink below their padded label width; there is no zero-width basis. Labels use NBSP padding to equalize their character lengths (the short label is used below 40 columns). The Up/Down scroll controls remain at the end of the row, and narrow widths may wrap without horizontal overflow. A one-cell spacer separates the buttons from the colored baseline. Expansion details are all rendered inline with no internal window or Previous/Next controls. Each detail line sits on its own row at every width. Press an expanded row to collapse it; its other actions wrap on the left. Expansion `✕` buttons are disabled behind one renderer switch. Chat ⇒ keeps the full `[Atlas #n: full title]` chip text. Decision Confirm uses the `settle` Action; resolved questions keep Reopen, and open questions have no Resolved button. The normal pane body scroll bounds cover expansion content; `maxExpandedScroll` is always 0.
+Tab cells grow equally but never shrink below their padded label width; there is no zero-width basis. Labels use NBSP padding to equalize their character
+lengths (the short label is used below 40 columns).
+The tab strip has no Up/Down scroll buttons or custom scrollbar; narrow widths may wrap without horizontal overflow.
+A one-cell spacer separates the buttons from the colored baseline. Expansion details are all rendered inline with no internal window or Previous/Next controls.
+Each detail line sits on its own row at every width. Press an expanded row to collapse it; its other actions wrap on the left. Expansion `✕` buttons are
+disabled behind one renderer switch. Chat ⇒ keeps the full `[Atlas #n: full title]` chip text. Decision Confirm uses the `settle` Action; resolved questions
+keep Reopen, and open questions have no Resolved button.
+The engine scrolls the full inline expansion and Legend content; `maxExpandedScroll` is always 0.
 
 Decision rows draw the shared marker immediately after their icon: `!` in the
 decision tone for major, `·` dim for minor. Expansion details include

@@ -159,6 +159,7 @@ const EMPTY_BOUNDS: ScrollBounds = {
 }
 // Each surface owns the bounds measured by its last draw.
 const surfaceBounds = new Map<Surface, ScrollBounds>()
+const drawnSurfaces = new Set<Surface>()
 
 function wheelBounds(bodyRows: number): ScrollBounds {
   const bounds = [...surfaceBounds.values()]
@@ -1118,6 +1119,7 @@ export const register: Register = (on, options) => {
       el, surface, width, rows, now, mode, setupDefault: configuredMode, scan, view: renderView, live,
       act: a => void act($, a, surface).catch(err => $.ui.toast(`atlas: ${err instanceof Error ? err.message : String(err)}`)),
     }, s)
+    drawnSurfaces.add(surface)
     surfaceBounds.set(surface, {
       bodyRows: rows,
       maxScroll: drawn.maxScroll,
@@ -1128,9 +1130,13 @@ export const register: Register = (on, options) => {
     return drawn.tree
   })
 
-  // The pane scrolls its own body (the app bar stays pinned), unless a popup or
+  // The terminal pane scrolls its own body (the app bar stays pinned), unless a popup or
   // expanded help or a Trail event is using the same wheel gesture.
-  on('ui.scroll', { component: 'Pane', requestId: PANE }, async ($, e) => {
+  on('ui.scroll', { component: 'Pane', requestId: PANE }, async ($, e, next) => {
+    // Desktop moves before this hook fires (#99449); blocking would snap it back.
+    // With both surfaces drawn, keep the old branches; desktop wheel is swallowed for 0.1.
+    // Only a non-terminal (GUI) surface has drawn: the host scrolls its full-length tree itself. The seam keeps the GUI's name out of this file.
+    if (drawnSurfaces.size > 0 && !drawnSurfaces.has('terminal')) return next(e)
     const { maxScroll, maxPopupScroll, maxExpandedScroll, maxLegendScroll } = wheelBounds(e.bodyRows)
     const view = (await $.state.get(VIEW)).value as AtlasView | undefined
     if (view?.popup) {

@@ -1,8 +1,8 @@
-  Map     Trail    Open 4  Evidence Up Down  {36:dim}
+  Map     Trail    Open 4  Evidence
 
-GOAL ? Edit● 1/17  {0:color:#7dcfff,bold}
+GOAL ? Edit  {0:color:#7dcfff,bold}
 What you are trying to do. Only you set it. auto means Atlas picked it; ✦ after the icon marks this turn’s focus.  {0:italic,dim}
-◎ ✦ Build a dependable Conversation Atlas pane for long sessio… · 3 suggestions  {0:color:#7dcfff|2:color:#7dcfff,bold|64:dim}
+◎ ✦ Build a dependable Conversation Atlas pane for long sessions. · 3 suggestions  {0:color:#7dcfff|2:color:#7dcfff,bold|66:dim}
 CURRENT PATH ? 3 earlier  {0:color:#bb9af7,bold|15:dim}
 Topics from the start of the work to now; detour branches show where the main path paused. Claude keeps it current.  {0:italic,dim}
   Atlas foundations
