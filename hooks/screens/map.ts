@@ -210,7 +210,6 @@ function detour(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenS
   const active = snapshot.detour
   const possible = [...snapshot.suggestions].reverse().find(item => item.kind === 'detour')
   const returned = [...snapshot.suggestions].reverse().find(item => item.kind === 'return')
-  if (!active && !possible) return null
   if (active) {
     const checkpoint = snapshot.checkpoints.find(item => item.id === active.departure.checkpointId)
     const chain = pathOf(snapshot)
@@ -344,9 +343,9 @@ function fileRow(snapshot: AtlasSnapshot, file: AtlasSnapshot['files'][number], 
   }
 }
 
-function next(snapshot: AtlasSnapshot, view: ScreenView): ScreenSection | null {
+function next(snapshot: AtlasSnapshot, view: ScreenView): ScreenSection {
   const hint = resumeHint(snapshot)
-  if (!hint) return null
+  if (!hint) return section('next', 'RESUME NEXT', [], { tone: 'goal', empty: 'Nothing to pick up yet.' })
   const suggestion = hint.suggestionId
     ? snapshot.suggestions.find(item => item.id === hint.suggestionId)
     : undefined
@@ -388,29 +387,35 @@ export const buildMap: ScreenBuilder = (snapshot, view, now): ScreenModel => {
   const questions = openQuestions(snapshot).slice(-2)
   const sections = [goal(snapshot, view, now), path(snapshot, view), detour(snapshot, view, now), activity(snapshot, now)]
   const recentFiles = [...snapshot.files].sort((a, b) => b.at - a.at).slice(0, 5)
-  if (recentFiles.length)
-    sections.push(
-      section(
-        'files',
-        'WORKING SET',
-        recentFiles.map(file => fileRow(snapshot, file, now, false)),
-        { tone: 'write', count: `${snapshot.files.length} files` },
-      ),
-    )
-  if (decisions.length || questions.length)
-    sections.push(
-      section(
-        'latest',
-        'LATEST',
-        [
-          ...decisions.map(item => itemRow(snapshot, item, now, view, false)),
-          ...questions.map(item => itemRow(snapshot, item, now, view, false)),
-        ],
-        { tone: 'checkpoint', right: 'confirm in Open' },
-      ),
-    )
+  sections.push(
+    section(
+      'files',
+      'WORKING SET',
+      recentFiles.map(file => fileRow(snapshot, file, now, false)),
+      {
+        tone: 'write',
+        count: `${snapshot.files.length} files`,
+        empty: snapshot.files.length ? undefined : 'No files touched yet.',
+      },
+    ),
+  )
+  sections.push(
+    section(
+      'latest',
+      'LATEST',
+      [
+        ...decisions.map(item => itemRow(snapshot, item, now, view, false)),
+        ...questions.map(item => itemRow(snapshot, item, now, view, false)),
+      ],
+      {
+        tone: 'checkpoint',
+        right: 'confirm in Open',
+        empty: decisions.length || questions.length ? undefined : 'No decisions or questions yet.',
+      },
+    ),
+  )
   const resume = next(snapshot, view)
-  if (resume) sections.push(resume)
+  sections.push(resume)
   return filterHiddenRows({
     tab: 'map',
     sections: sections.filter((value): value is ScreenSection => Boolean(value)),

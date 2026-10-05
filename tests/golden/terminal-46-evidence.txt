@@ -10,6 +10,10 @@ SETTLED (LEDGER) ⓘ1  {0:color:#9ece6a,bold|18:dim}
 ◆ · Keep renderers pure  {0:color:#9ece6a|2:dim}
 RESOLVED ⓘ  {0:color:#f7768e,bold}
 ✓ Should the popup keep its compact width?  {0:color:#9ece6a}
+DETOURS ⓘ0  {0:color:#e0af68,bold|9:dim}
+No past detours.  {0:dim}
+EARLIER SESSIONS ⓘ0  {0:color:#7dcfff,bold|18:dim}
+No earlier sessions found.  {0:dim}
 FILES ⓘ3  {0:color:#ff9e64,bold|7:dim}
 ✎ tests/golden.test.tsx 1 0 1m  {0:color:#ff9e64|24:color:#ff9e64|26:color:#bb9af7|28:dim}
 ✎ hooks/view.tsx 1 1 1m  {0:color:#ff9e64|17:color:#ff9e64|19:color:#bb9af7|21:dim}

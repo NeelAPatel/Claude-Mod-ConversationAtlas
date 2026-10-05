@@ -148,86 +148,95 @@ export const buildEvidence: ScreenBuilder = (snapshot, view, now): ScreenModel =
       },
     ),
   ]
-  if (resolved.length)
-    sections.push(
-      section(
-        'resolved',
-        'RESOLVED',
-        resolved.map(item => itemRow(snapshot, item, now, view, true)),
-        { tone: 'question' },
-      ),
-    )
-  if (snapshot.detourHistory.length)
-    sections.push(
-      section(
-        'detours',
-        'DETOURS',
-        snapshot.detourHistory
-          .slice(-5)
-          .map(detour => ({
-            id: detour.id,
-            key: `dh-${detour.id}`,
-            kind: 'detour' as const,
-            glyph: detour.status === 'promoted' ? ('goal' as const) : ('returned' as const),
-            text: detour.reason,
-            meta: `${detour.outcomes.length} kept · ${detour.exclusions.length} excluded`,
-            tone: 'detour' as const,
-            right: ago(now - detour.at),
-            interactive: false,
-          })),
-        { tone: 'detour', count: `${snapshot.detourHistory.length}` },
-      ),
-    )
-  if (snapshot.recall.length)
-    sections.push(
-      section(
-        'recall',
-        'EARLIER SESSIONS',
-        snapshot.recall
-          .slice(0, 6)
-          .map(recall => ({
-            id: recall.id,
-            key: `rc-${recall.id}`,
-            kind: 'recall' as const,
-            glyph: snapshot.adopted.includes(recall.id) ? ('ok' as const) : ('resume' as const),
-            text: recall.goal ?? 'no goal recorded',
-            meta: `Atlas · ${recall.sessionId.slice(0, 8)} · ${ago(now - recall.at)}`,
-            dim: snapshot.adopted.includes(recall.id),
-            actions: snapshot.adopted.includes(recall.id)
-              ? []
-              : [
-                  action(`adopt-${recall.id}`, 'Resume this', { type: 'adopt', id: recall.id }, true),
-                  ...(recall.source === 'atlas'
-                    ? [
-                        action(
-                          `adopt-full-${recall.id}`,
-                          view.fullConfirm === recall.id ? 'Confirm full resume' : 'Resume full',
-                          { type: 'adopt-full', id: recall.id },
-                        ),
-                      ]
-                    : []),
-                ],
-            expandable: true,
-            detail: [
-              `goal: ${recall.goal ?? 'no goal recorded'}`,
-              'kind: earlier session',
-              'source: Atlas',
-              `when: ${ago(now - recall.at)}`,
-              `topic: ${recall.topic ?? 'not recorded'}`,
-              ...(recall.nextStep ? [`next step: ${recall.nextStep}`] : []),
-              ...(view.fullConfirm === recall.id ? ['this replaces your current map; press Confirm full resume to proceed'] : []),
-            ],
-            interactive: true,
-          })),
-        { tone: 'goal', count: `${snapshot.recall.length}` },
-      ),
-    )
+  sections.push(
+    section(
+      'resolved',
+      'RESOLVED',
+      resolved.map(item => itemRow(snapshot, item, now, view, true)),
+      { tone: 'question', empty: resolved.length ? undefined : 'No answered questions yet.' },
+    ),
+  )
+  sections.push(
+    section(
+      'detours',
+      'DETOURS',
+      snapshot.detourHistory
+        .slice(-5)
+        .map(detour => ({
+          id: detour.id,
+          key: `dh-${detour.id}`,
+          kind: 'detour' as const,
+          glyph: detour.status === 'promoted' ? ('goal' as const) : ('returned' as const),
+          text: detour.reason,
+          meta: `${detour.outcomes.length} kept · ${detour.exclusions.length} excluded`,
+          tone: 'detour' as const,
+          right: ago(now - detour.at),
+          interactive: false,
+        })),
+      {
+        tone: 'detour',
+        count: `${snapshot.detourHistory.length}`,
+        empty: snapshot.detourHistory.length ? undefined : 'No past detours.',
+      },
+    ),
+  )
+  sections.push(
+    section(
+      'recall',
+      'EARLIER SESSIONS',
+      snapshot.recall
+        .slice(0, 6)
+        .map(recall => ({
+          id: recall.id,
+          key: `rc-${recall.id}`,
+          kind: 'recall' as const,
+          glyph: snapshot.adopted.includes(recall.id) ? ('ok' as const) : ('resume' as const),
+          text: recall.goal ?? 'no goal recorded',
+          meta: `Atlas · ${recall.sessionId.slice(0, 8)} · ${ago(now - recall.at)}`,
+          dim: snapshot.adopted.includes(recall.id),
+          actions: snapshot.adopted.includes(recall.id)
+            ? []
+            : [
+                action(`adopt-${recall.id}`, 'Resume this', { type: 'adopt', id: recall.id }, true),
+                ...(recall.source === 'atlas'
+                  ? [
+                      action(
+                        `adopt-full-${recall.id}`,
+                        view.fullConfirm === recall.id ? 'Confirm full resume' : 'Resume full',
+                        { type: 'adopt-full', id: recall.id },
+                      ),
+                    ]
+                  : []),
+              ],
+          expandable: true,
+          detail: [
+            `goal: ${recall.goal ?? 'no goal recorded'}`,
+            'kind: earlier session',
+            'source: Atlas',
+            `when: ${ago(now - recall.at)}`,
+            `topic: ${recall.topic ?? 'not recorded'}`,
+            ...(recall.nextStep ? [`next step: ${recall.nextStep}`] : []),
+            ...(view.fullConfirm === recall.id ? ['this replaces your current map; press Confirm full resume to proceed'] : []),
+          ],
+          interactive: true,
+        })),
+      {
+        tone: 'goal',
+        count: `${snapshot.recall.length}`,
+        empty: snapshot.recall.length ? undefined : 'No earlier sessions found.',
+      },
+    ),
+  )
   sections.push(
     section(
       'files',
       'FILES',
       files.map(file => fileRow(snapshot, file, now)),
-      { tone: 'write', count: `${snapshot.files.length}` },
+      {
+        tone: 'write',
+        count: `${snapshot.files.length}`,
+        empty: snapshot.files.length ? undefined : 'No files touched yet.',
+      },
     ),
   )
   return filterHiddenRows({ tab: 'evidence', sections }, view.hidden ?? [])

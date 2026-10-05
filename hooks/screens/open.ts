@@ -50,55 +50,59 @@ function section(key: string, heading: string, rows: ScreenRow[], extra: Partial
 
 export const buildOpen: ScreenBuilder = (snapshot, view, now): ScreenModel => {
   const observed = snapshot.decisions.filter(item => item.status === 'observed')
+  const detourFindings = Boolean(
+    snapshot.detour && (!observed.length || observed.some(item => item.at >= (snapshot.detour?.at ?? 0))),
+  )
   const questions = openQuestions(snapshot)
   const sections: ScreenSection[] = []
-  if (snapshot.suggestions.length)
-    sections.push(
-      section(
-        'suggestions',
-        'NEEDS YOUR CALL',
-        snapshot.suggestions
-          .slice()
-          .reverse()
-          .map(item => suggestionRow(snapshot, item, view, now, true)),
-        { tone: 'goal', count: `${snapshot.suggestions.length}` },
-      ),
-    )
-  if (observed.length)
-    sections.push(
-      section(
-        'observed',
-        snapshot.detour && observed.some(item => item.at >= (snapshot.detour?.at ?? 0)) ? 'DETOUR FINDINGS' : 'OBSERVED DECISIONS',
-        observed
-          .slice()
-          .reverse()
-          .map(item => itemRow(snapshot, item, now, view, true)),
-        { tone: 'decision', count: `${observed.length}` },
-      ),
-    )
-  if (questions.length)
-    sections.push(
-      section(
-        'questions',
-        'OPEN QUESTIONS',
-        questions
-          .slice()
-          .reverse()
-          .map(item => itemRow(snapshot, item, now, view, true)),
-        { tone: 'question', count: `${questions.length}` },
-      ),
-    )
-  if (!sections.length)
-    sections.push(
-      section('empty', 'OPEN', [
-        {
-          id: 'empty',
-          key: 'empty-open',
-          kind: 'text',
-          text: 'Nothing waiting for you. Observations that need a yes or no land here.',
-          dim: true,
-        },
-      ]),
-    )
+  sections.push(
+    section(
+      'suggestions',
+      'NEEDS YOUR CALL',
+      snapshot.suggestions
+        .slice()
+        .reverse()
+        .map(item => suggestionRow(snapshot, item, view, now, true)),
+      {
+        tone: 'goal',
+        count: `${snapshot.suggestions.length}`,
+        empty: snapshot.suggestions.length ? undefined : 'Nothing waiting for your call.',
+      },
+    ),
+  )
+  sections.push(
+    section(
+      'observed',
+      detourFindings ? 'DETOUR FINDINGS' : 'OBSERVED DECISIONS',
+      observed
+        .slice()
+        .reverse()
+        .map(item => itemRow(snapshot, item, now, view, true)),
+      {
+        tone: 'decision',
+        count: `${observed.length}`,
+        empty: observed.length
+          ? undefined
+          : detourFindings
+            ? 'No findings from this detour yet.'
+            : 'No decisions heard yet.',
+      },
+    ),
+  )
+  sections.push(
+    section(
+      'questions',
+      'OPEN QUESTIONS',
+      questions
+        .slice()
+        .reverse()
+        .map(item => itemRow(snapshot, item, now, view, true)),
+      {
+        tone: 'question',
+        count: `${questions.length}`,
+        empty: questions.length ? undefined : 'No open questions.',
+      },
+    ),
+  )
   return filterHiddenRows({ tab: 'open', sections }, view.hidden ?? [])
 }
