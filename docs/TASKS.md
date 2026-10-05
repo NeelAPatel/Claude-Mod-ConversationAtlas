@@ -1,4 +1,4 @@
-# Atlas task table (single source of truth for tasks; owner-approved format, 2026-10-05). Snapshot: dev @ 4b1e4ae. The Task Master chat keeps it current.
+# Atlas task table (single source of truth for tasks; owner-approved format, 2026-10-05). The Task Master chat keeps it current.
 
 ## Legend
 One **Stage** column follows the task lifecycle: inserted → discussion → needs clarity / parked → confirmed and queued for a release → building → code complete → test complete → committed. A row's symbol changes only when the row's evidence changes.
@@ -17,6 +17,7 @@ One **Stage** column follows the task lifecycle: inserted → discussion → nee
 | – | Dropped | `✕` | ❌ |
 
 - **Where it is committed:** `●` alone means on `dev`. `● ⎇ feat/xyz` means committed on that feature branch only, which is earlier than `●` on `dev`.
+- **Per-surface tags (T = terminal, G = desktop):** a Stage cell shows `T`/`G` tags only when the two surfaces differ, e.g. `◔ T◑ G◔`. The leading symbol is the lowest of the two. When both surfaces are at the same stage there is no tag. Applies from step 5 (building) through step 7 (test complete); real-pane checks are tracked per surface.
 - **Risk:** `⚠` sits next to the task number (e.g. `22 ⚠`) and can go with any stage.
 - Release: 0.1 / 0.2 / 0.3 / later.
 - Surface = `Tab.SECTION: specific thing`; several places are listed. Tabs: Map, Trail, Open, Evidence. Global = tab bar, bottom bar (Legend, decisions, open questions, + Mark), Legend panel, popups (Trail Settings, Decisions, Open Questions), Setup. Map sections: GOAL, CURRENT PATH, DETOUR (the active one), POSSIBLE DETOUR, ACTIVITY, WORKING SET, RESUME NEXT, LATEST. Open: NEEDS YOUR CALL, OBSERVED DECISIONS, DETOUR FINDINGS, OPEN QUESTIONS. Trail: MAP OF TOPICS, timeline. Evidence: CHECKPOINTS, SETTLED (LEDGER), RESOLVED, DETOURS (only once a detour has ended), FILES, EARLIER SESSIONS.
