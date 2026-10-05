@@ -546,7 +546,8 @@ describe('hooks', () => {
     await $.tool.call({ tool: OBSERVE, topic: 'Plugin architecture', goal: 'Build Conversation Atlas' } as any)
     await clock.settle()
     const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
-    expect(await drawn(ui)).toContain('not confirmed yet')
+    expect(await drawn(ui)).not.toContain('not confirmed yet')
+    expect(await drawn(ui)).toContain('goal suggestion')
     const ok = (await drawn(ui)).match(/"key":"(ok-s\d+)"/)?.[1]
     expect(ok).toBeDefined()
     await ui.press({ key: ok ?? '' })
