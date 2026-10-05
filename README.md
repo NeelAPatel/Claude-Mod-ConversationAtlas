@@ -100,6 +100,12 @@ Open decisions use **Confirm** / **Drop** (detour findings keep **Keep** / **Exc
 Open questions take **Confirm** (answered) and **Drop**; resolved questions keep **Reopen**. Claude can also report them answered.
 Inline expansions end with a right-justified **✕**; their other actions wrap on the left.
 
+Decisions show `!` for major choices and a dim `·` for minor ones after their icon.
+Atlas assigns weight from deterministic text cues; expand a decision and press
+**Make minor** or **Make major** to override it. The detail shows `auto` or `you`.
+Weight changes preserve confirmation status and add no Trail event or intent.
+
+
 ### 4. Recovering and scanning earlier conversations
 
 Atlas can pick up a chat it wasn't watching, or one you left yesterday.

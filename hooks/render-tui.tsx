@@ -350,7 +350,7 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
       {g ? (
         <Text color={g.color} bold={row.bold || open}>{`${g.char} `}</Text>
       ) : null}
-      {row.marker ? <Text color={C.goal} bold>{`${row.marker} `}</Text> : null}
+      {row.marker ? <Text color={row.marker === '!' ? C.decision : row.marker === '✦' ? C.goal : undefined} dimColor={row.marker === '·'} bold={row.marker !== '·'}>{`${row.marker} `}</Text> : null}
       {open ? <Text color={GLYPH.expanded.color}>{`${GLYPH.expanded.char} `}</Text> : null}
       <Box flexShrink={1} minWidth={0} overflow="hidden">
         {headPress ? (
@@ -647,7 +647,7 @@ function screenFor(snapshot: AtlasSnapshot, view: ScreenView, now: number): Scre
   return builders[view.tab](snapshot, view, now)
 }
 
-export const LEGEND: [GlyphKey, string][] = [
+export const LEGEND: [GlyphKey | '!' | '·', string][] = [
   ['goal', 'your goal (confirmed)'],
   ['suggestion', 'suggestion, needs you'],
   ['currentTopic', 'current topic'],
@@ -655,6 +655,8 @@ export const LEGEND: [GlyphKey, string][] = [
   ['returned', 'returned'],
   ['observedDecision', 'decision, not settled'],
   ['settledDecision', 'settled decision'],
+  ['!', 'major decision'],
+  ['·', 'minor decision'],
   ['checkpoint', 'checkpoint / evidence'],
   ['openQuestion', 'open question'],
   ['ok', 'done'],
@@ -672,7 +674,7 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
   const { Box, Text } = ctx.el
   const columns = ctx.width >= 64 ? 2 : 1
   const width = Math.max(8, Math.floor((ctx.width - 4) / columns))
-  const legendRows: [GlyphKey, string][][] = []
+  const legendRows: [GlyphKey | '!' | '·', string][][] = []
   for (let index = 0; index < LEGEND.length; index += columns) legendRows.push(LEGEND.slice(index, index + columns))
   const content = (
     <Box key="legend-content" flexDirection="column" flexShrink={0}>
@@ -714,10 +716,10 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
       {legendRows.map((line, index) => (
         <Box key={`lg-${index}`} flexDirection="row" flexShrink={0}>
           {line.map(([name, meaning]) => {
-            const g = glyph(ctx, name)
+            const g = name === '!' || name === '·' ? { char: name, color: name === '!' ? C.decision : undefined } : glyph(ctx, name)
             return (
               <Box key={`lg-${name}`} width={width} flexDirection="row" flexShrink={0}>
-                <Text color={g.color} bold>{`${g.char} `}</Text>
+                <Text color={g.color} dimColor={name === '·'} bold={name !== '·'}>{`${g.char} `}</Text>
                 <Text wrap="truncate-end">{meaning}</Text>
               </Box>
             )

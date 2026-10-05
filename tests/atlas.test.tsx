@@ -2,6 +2,11 @@ import { describe, expect, mock, test, type Engine } from 'claude-code/testing'
 
 import {
   addCheckpoint,
+  addDecision,
+  addQuestion,
+  autoDecisionWeight,
+  decisionWeight,
+  toggleDecisionWeight,
   adoptRecall,
   closeUnverifiedHandoffs,
   collapseEvents,
@@ -134,7 +139,7 @@ describe('open cleanup guards', () => {
     expect(itemRow(s, question, 2, view, true).actions?.map(item => [item.label, item.action.type]))
       .toEqual([['Confirm', 'resolve'], ['Drop', 'drop']])
     expect(itemRow(s, s.decisions[0]!, 2, view, true).actions?.map(item => [item.label, item.action.type]))
-      .toEqual([['Confirm', 'settle'], ['Drop', 'drop']])
+      .toEqual([['Confirm', 'settle'], ['Drop', 'drop'], ['Make major', 'weight']])
     s = observe(s, { resolved: [question.text] }, 3)
     expect(s.questions[0]?.status).toBe('resolved')
     expect(itemRow(s, s.questions[0]!, 4, view, true).actions?.map(item => [item.label, item.action.type]))
@@ -2833,13 +2838,14 @@ function iconText(value: unknown): string {
 
 describe('b5: icon colors, source marks and complete Legend', () => {
   test('Legend keys match every tab row across the sample and all event, file and activity kinds', () => {
-    const used = new Set<GlyphKey>()
-    for (const snapshot of [sampleSnapshot(), iconFixture()]) {
+    const used = new Set<GlyphKey | '!' | '·'>()
+    for (const snapshot of [sampleSnapshot(), addDecision(iconFixture(), 'Use the public API', 'claude', SAMPLE_NOW)]) {
       for (const build of [buildMap, buildTrail, buildOpen, buildEvidence]) {
         for (const trailView of ['story', 'log'] as const) {
           const model = build(snapshot, { ...scrollTestView(), mode: 'claude', trailView }, SAMPLE_NOW)
           for (const row of model.sections.flatMap(section => section.rows)) {
             if (row.glyph) used.add(row.glyph)
+            if (row.marker === '!' || row.marker === '·') used.add(row.marker)
             if (row.fresh) used.add('fresh')
           }
         }
@@ -2975,6 +2981,94 @@ describe('b5: icon colors, source marks and complete Legend', () => {
         expect(JSON.stringify(nodeByKey(lastTree, 'legend-content'))).toContain('resume earlier session')
         await ui.unmount()
       }
+    }
+  })
+})
+
+
+describe('decision weight', () => {
+  test('deterministic consequential cues and minor text; questions get no weight', () => {
+    for (const cue of ['architecture', 'schema', 'API', 'security', 'release', 'publish', 'delete', 'migrate', 'replace', 'rename', 'breaking', 'public', 'data', 'must', 'never', 'always', 'default', 'go with']) {
+      expect(autoDecisionWeight(`We choose ${cue} today`)).toBe('major')
+      const s = addDecision(emptySnapshot('weight', ROOT, 0), `We choose ${cue} today`, 'claude', 1)
+      expect(s.decisions[0]?.weight).toBe('major')
+      expect(s.decisions[0]?.weightBy).toBe('auto')
+    }
+    expect(autoDecisionWeight('Use a blue heading')).toBe('minor')
+    expect(autoDecisionWeight('The database label')).toBe('minor')
+    const s = addQuestion(emptySnapshot('weight', ROOT, 0), 'Which API?', 'claude', 1)
+    expect(s.questions[0]?.weight).toBeUndefined()
+    expect(s.questions[0]?.weightBy).toBeUndefined()
+    expect(toggleDecisionWeight(s, s.questions[0]!.id)).toBe(s)
+  })
+
+  test('old saves derive on read; toggles preserve all other state and survive re-observation', () => {
+    let s = observe(setGoal(emptySnapshot('weight', ROOT, 0), 'Ship it', 'person', 1), { decisions: ['Use the public API'], questions: ['Which API?'] }, 2)
+    delete s.decisions[0]!.weight
+    delete s.decisions[0]!.weightBy
+    s = hydrate(s, 'weight', ROOT, 3)
+    const before = s
+    const item = s.decisions[0]!
+    const view = { ...scrollTestView(), mode: 'claude' as const }
+    const row = itemRow(s, item, 4, view, true)
+    expect(row.marker).toBe('!')
+    expect(row.detail).toContain('weight: major (auto)')
+    expect(row.actions?.map(a => a.label)).toEqual(['Confirm', 'Drop', 'Make minor'])
+    expect(row.actions?.at(-1)?.action).toEqual({ type: 'weight', id: item.id })
+    expect(item.weight).toBeUndefined()
+    s = toggleDecisionWeight(s, item.id)
+    expect(s.decisions[0]?.weightBy).toBe('person')
+    expect(decisionWeight(s.decisions[0]!)).toBe('minor')
+    expect({ ...s, decisions: before.decisions }).toEqual(before)
+    expect(addDecision(s, 'Use the public API today', 'claude', 5)).toBe(s)
+    expect(itemRow(s, s.decisions[0]!, 6, view, false).marker).toBe('·')
+    expect(itemRow(s, s.decisions[0]!, 6, view, false).detail).toContain('weight: minor (you)')
+    for (const status of ['settled', 'excluded'] as const) {
+      const variant = setItemStatus(s, item.id, status, 7)
+      const actions = itemRow(variant, variant.decisions[0]!, 8, view, true).actions!
+      expect(actions.map(a => a.label)).toEqual([status === 'settled' ? 'Reopen' : 'Restore', 'Make major'])
+    }
+    const detour = startDetour(s, 'Check details', 'person', 1)
+    expect(itemRow(detour, detour.decisions[0]!, 9, view, true).actions?.map(a => a.label)).toEqual(['Keep', 'Exclude', 'Make major'])
+    expect(itemRow(s, s.questions[0]!, 9, view, true).marker).toBeUndefined()
+    expect(itemRow(s, s.questions[0]!, 9, view, true).detail?.some(line => line.startsWith('weight:'))).toBe(false)
+    expect(toggleDecisionWeight(toggleDecisionWeight(s, item.id), item.id).decisions[0]?.weight).toBe('minor')
+    expect(toggleDecisionWeight(s, 'missing')).toBe(s)
+  })
+
+  test('both surfaces toggle in an expansion and keep it open, without a Trail event', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.tool.call({ tool: OBSERVE, decisions: ['Use the public API'] } as any)
+    await clock.settle()
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+      await ui.press({ key: 'tab-open' })
+      const key = (await drawn(ui)).match(/"key":"(dsel-[^"]+)"/)?.[1] ?? ''
+      const id = key.slice('dsel-'.length)
+      if (!await ui.find({ key: `weight-${id}`, type: 'Button' })) await ui.press({ key })
+      expect(await drawn(ui)).toContain(surface === 'terminal' ? 'weight: major (auto)' : 'weight: major (you)')
+      const majorHead = nodeByKey(await ui.drawn(), `head-${key}`)
+      const majorText = rowText(majorHead)
+      expect(majorText.indexOf('◇')).toBeLessThan(majorText.indexOf('!'))
+      expect(majorText.indexOf('!')).toBeLessThan(majorText.indexOf('Use the public API'))
+      const majorMarker = iconNodes(majorHead).find(node => node.type === 'Text' && iconText(node).trim() === '!')
+      expect(majorMarker?.props?.color).toBe(C.decision)
+      await ui.press({ key: `weight-${id}` })
+      expect(await drawn(ui)).toContain('weight: minor (you)')
+      expect(await drawn(ui)).toContain('Make major')
+      const minorHead = nodeByKey(await ui.drawn(), `head-${key}`)
+      const minorMarker = iconNodes(minorHead).find(node => node.type === 'Text' && iconText(node).trim() === '·')
+      expect(minorMarker?.props?.dimColor).toBe(true)
+      const controls = (await ui.findAll({ type: 'Button' })).map((button: any) => button.props.key)
+      expect(controls.indexOf(`set-${id}`)).toBeLessThan(controls.indexOf(`weight-${id}`))
+      expect(controls.indexOf(`weight-${id}`)).toBeLessThan(controls.indexOf(`add-${key}`))
+      expect(controls.indexOf(`add-${key}`)).toBeLessThan(controls.indexOf(`close-${key}`))
+      await $.tool.call({ tool: OBSERVE, decisions: ['Use the public API today'] } as any)
+      expect(await drawn(ui)).toContain('weight: minor (you)')
+      await ui.press({ key: `weight-${id}` })
+      expect(await drawn(ui)).toContain('weight: major (you)')
+      await ui.unmount()
     }
   })
 })

@@ -19,8 +19,8 @@ WORKING SET ⓘ3 files  {0:color:#ff9e64,bold|13:dim}
 · atlas.test.tsx 0e 1r 1m  {0:color:#bb9af7|17:color:#ff9e64|20:color:#bb9af7|23:dim}
 ✎ view.tsx 1e 1r 1m  {0:color:#ff9e64|11:color:#ff9e64|14:color:#bb9af7|17:dim}
 LATEST ⓘ confirm in Open  {0:color:#7aa2f7,bold|9:dim}
-◆ Keep renderers pure  {0:color:#9ece6a}
-◇ Use text goldens for visual review  {0:color:#9ece6a}
+◆ · Keep renderers pure  {0:color:#9ece6a|2:dim}
+◇ · Use text goldens for visual review  {0:color:#9ece6a|2:dim}
 ? Which surface gets the first manual check?  {0:color:#f7768e}
 RESUME NEXT ⓘpinned  {0:color:#7dcfff,bold|13:dim}
 ▸ Review the fixed pane sample and approve the visual boundary.  {0:color:#7dcfff}

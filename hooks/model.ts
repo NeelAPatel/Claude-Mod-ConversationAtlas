@@ -441,12 +441,31 @@ export function dismissSuggestion(s: AtlasSnapshot, sid: string, now: number): A
 
 // ---------------------------------------------------------------- items
 
+// Deterministic consequential-choice cues, matched as words (case-insensitive).
+// Old decisions use exactly this rule on read; observation never writes intent.
+const MAJOR_DECISION_CUE = /\b(?:architecture|schema|api|security|release|publish|delete|migrate|replace|rename|breaking|public|data|must|never|always|default|go\s+with)\b/i
+
+export function autoDecisionWeight(text: string): 'major' | 'minor' {
+  return MAJOR_DECISION_CUE.test(text) ? 'major' : 'minor'
+}
+
+export function decisionWeight(item: AtlasItem): 'major' | 'minor' {
+  return item.weight ?? autoDecisionWeight(item.text)
+}
+
+export function toggleDecisionWeight(s: AtlasSnapshot, iid: string): AtlasSnapshot {
+  const hit = s.decisions.find(item => item.id === iid)
+  if (!hit) return s
+  const weight = decisionWeight(hit) === 'major' ? 'minor' : 'major'
+  return { ...s, decisions: s.decisions.map(item => item.id === iid ? { ...item, weight, weightBy: 'person' as const } : item) }
+}
+
 function addItem(s: AtlasSnapshot, list: 'decisions' | 'questions', text: string, source: AtlasSource, now: number): AtlasSnapshot {
   const body = clip(text, 160)
   if (!body) return s
   if (s[list].some(x => similar(x.text, body) && x.status !== 'resolved')) return s
   const [iid, next] = id(s, list === 'decisions' ? 'd' : 'q')
-  const item: AtlasItem = { id: iid, text: body, at: now, turn: s.turn, topicId: s.currentTopicId, source, status: list === 'decisions' ? 'observed' : 'open' }
+  const item: AtlasItem = { id: iid, text: body, at: now, turn: s.turn, topicId: s.currentTopicId, source, status: list === 'decisions' ? 'observed' : 'open', ...(list === 'decisions' ? { weight: autoDecisionWeight(body), weightBy: 'auto' as const } : {}) }
   const withItem = { ...next, [list]: keep([...next[list], item], LIMITS.items) } as AtlasSnapshot
   return flash(event(withItem, list === 'decisions' ? 'decision' : 'question', body, now), iid)
 }

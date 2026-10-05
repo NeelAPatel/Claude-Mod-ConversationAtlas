@@ -7,7 +7,7 @@ CHECKPOINTS ? 5  {0:color:#7aa2f7,bold|14:dim}
 ⚑ Review commit abc1234 commit · 1m  {0:color:#7aa2f7|24:dim|31:dim|33:dim}
 ⚑ Baseline captured mark · 1m  {0:color:#7aa2f7|20:dim|25:dim|27:dim}
 SETTLED (LEDGER) ? 1  {0:color:#9ece6a,bold|19:dim}
-◆ Keep renderers pure  {0:color:#9ece6a}
+◆ · Keep renderers pure  {0:color:#9ece6a|2:dim}
 RESOLVED ?  {0:color:#f7768e,bold}
 ✓ Should the popup keep its compact width?  {0:color:#9ece6a}
 FILES ? 3  {0:color:#ff9e64,bold|8:dim}

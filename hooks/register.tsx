@@ -38,6 +38,7 @@ import {
   sentences,
   setGoal,
   setItemStatus,
+  toggleDecisionWeight,
   setHandoffTaskId,
   setNextStep,
   startActivity,
@@ -631,6 +632,10 @@ async function act($: EngineInterface, a: Action, surface: Surface): Promise<voi
     }
     case 'dismiss':
       await edit($, (s, now) => dismissSuggestion(s, a.id, now))
+      await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
+      return
+    case 'weight':
+      await edit($, s => toggleDecisionWeight(s, a.id))
       await setView($, v => ({ ...v, popup: null, popupScroll: 0 }))
       return
     case 'settle':

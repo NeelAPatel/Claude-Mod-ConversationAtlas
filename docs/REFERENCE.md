@@ -73,6 +73,22 @@ restores its focus immediately. Focus changes never write intent, add a Trail ev
 send prompt context. The saved snapshot carries bounded focus text and a count capped at
 two; older snapshots load with null focus and display focus on the confirmed goal.
 
+### Decision weight
+
+Decision weight applies only to decisions: `◇ ! title` / `◇ · title` (also `◆`
+for settled decisions). `!` uses the decision tone; `·` is dim. Expand for
+`weight: major (auto)` or `weight: minor (you)` and **Make minor** / **Make major**.
+The toggle follows Confirm/Drop, Keep/Exclude, or Reopen/Restore, before Chat ⇒
+and ✕. It also appears on Map LATEST and the Evidence ledger. It changes only
+weight, with no sorting change, Trail event, intent change, or prompt context.
+
+The case-insensitive word cues are architecture, schema, API, security, release,
+publish, delete, migrate, replace, rename, breaking, public, data, must, never,
+always, default, and "go with"; a match is major, otherwise minor. New decisions
+store `weight` and `weightBy: auto`. Old decisions derive weight from the same
+rule on read without migration. Your toggle sets `weightBy: person`; similar
+re-observations preserve it. Questions, goals, and suggestions have no weight.
+
 ### Engine-only dimming
 
 In engine-only mode, the Claude-sourced sections are dimmed with a `/atlas observer claude`

@@ -7,7 +7,7 @@ import type { ScreenBuilder, ScreenModel, ScreenRow, ScreenSection } from './typ
 
 const explain: Record<string, string> = {
   CHECKPOINTS: 'Moments to come back to: commits, tests passing after edits, milestones and your marks.',
-  'SETTLED (LEDGER)': 'Decisions you settled. Treated as true until you reopen them.',
+  'SETTLED (LEDGER)': 'Decisions you settled. Treated as true until you reopen them. ! = major, · = minor decision; auto uses text cues, you means your weight toggle.',
   RESOLVED: 'Questions already answered.',
   DETOURS: 'Past detours: returned or made into the goal.',
   'EARLIER SESSIONS': 'Earlier sessions in this project. Resume brings back intent; Resume full replaces this map with the saved one.',
@@ -21,6 +21,7 @@ const help: Record<string, string[]> = {
     'A checkpoint is evidence, not a decision by itself.',
   ],
   'SETTLED (LEDGER)': [
+    '! after a decision icon means major; · means minor. Expand to Make major or Make minor; auto uses text cues, you means your choice.',
     'Decisions you explicitly settled.',
     '◆ means Atlas will treat the decision as true until you reopen it.',
     'Expand a decision for source, topic, time and the attach action.',

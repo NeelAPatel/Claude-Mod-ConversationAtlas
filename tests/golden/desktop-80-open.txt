@@ -4,7 +4,7 @@ NEEDS YOUR CALL ? 2  {0:color:#7dcfff,bold|18:dim}
 ○ Check whether the native controls stay legible. next suggestion · from Claude  {50:dim}
 ↳ Desktop parity  {0:color:#e0af68}
 OBSERVED DECISIONS ? 1  {0:color:#9ece6a,bold|21:dim}
-◇ Use text goldens for visual review  {0:color:#9ece6a}
+◇ · Use text goldens for visual review  {0:color:#9ece6a|2:dim}
 OPEN QUESTIONS ? 1  {0:color:#f7768e,bold|17:dim}
 ? Which surface gets the first manual check?  {0:color:#f7768e}
 Legend + Mark

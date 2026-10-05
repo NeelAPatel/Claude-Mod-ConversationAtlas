@@ -13,7 +13,7 @@ const explain: Record<string, string> = {
   'POSSIBLE DETOUR': 'Looks like a side trip. Take it to get a return point, or say it is not one.',
   ACTIVITY: 'What Claude is doing: spinner = running, done, or failed.',
   'WORKING SET': 'Files touched lately: edited and read counts. Click one to point Claude at it.',
-  LATEST: 'Newest decisions and questions. Confirm decisions in the Open tab.',
+  LATEST: 'Newest decisions and questions. Confirm decisions in the Open tab. ! = major, · = minor decision; auto uses text cues, you means your weight toggle.',
   'RESUME NEXT': 'Where to pick up. Pinned is yours; suggested is Claude’s guess.',
 }
 const help: Record<string, string[]> = {
@@ -59,6 +59,7 @@ const help: Record<string, string[]> = {
     'Chat ⇒ points Claude at a file only when you keep its chip.',
   ],
   LATEST: [
+    '! after a decision icon means major; · means minor. Expand to Make major or Make minor; auto uses text cues, you means your choice.',
     'The newest observed decisions and questions.',
     '◇ is heard but unsettled; ? is an open question.',
     'Use the Open tab to confirm decisions or review questions.',

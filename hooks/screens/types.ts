@@ -19,6 +19,7 @@ export type Action =
   | { type: 'confirm'; id: string }
   | { type: 'dismiss'; id: string }
   | { type: 'settle'; id: string }
+  | { type: 'weight'; id: string }
   | { type: 'exclude'; id: string }
   | { type: 'drop'; id: string }
   | { type: 'restore'; id: string }
@@ -77,7 +78,7 @@ export type ScreenRow = {
   kind: 'text' | 'goal' | 'suggestion' | 'topic' | 'item' | 'file' | 'activity' | 'detour' | 'next' | 'event' | 'checkpoint' | 'recall'
   glyph?: GlyphKey
   // A semantic modifier drawn after the leading icon by each renderer.
-  marker?: '✦'
+  marker?: '✦' | '!' | '·'
   sourceMark?: string
   sourceMarkColor?: string
   text: string

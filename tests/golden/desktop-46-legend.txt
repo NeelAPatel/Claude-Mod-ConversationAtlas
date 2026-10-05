@@ -24,9 +24,9 @@ Files touched lately: edited and read counts. Click one to point Claude at it.  
 · atlas.test.tsx 0e 1r 1m  {0:color:#bb9af7|17:color:#ff9e64|20:color:#bb9af7|23:dim}
 ✎ view.tsx 1e 1r 1m  {0:color:#ff9e64|11:color:#ff9e64|14:color:#bb9af7|17:dim}
 LATEST ? confirm in Open  {0:color:#7aa2f7,bold|9:dim}
-Newest decisions and questions. Confirm decisions in the Open tab.  {0:italic,dim}
-◆ Keep renderers pure  {0:color:#9ece6a}
-◇ Use text goldens for visual review  {0:color:#9ece6a}
+Newest decisions and questions. Confirm decisions in the Open tab. ! = major, · = minor decision; auto uses text cues, you means your weight toggle.  {0:italic,dim}
+◆ · Keep renderers pure  {0:color:#9ece6a|2:dim}
+◇ · Use text goldens for visual review  {0:color:#9ece6a|2:dim}
 ? Which surface gets the first manual check?  {0:color:#f7768e}
 RESUME NEXT ? pinned  {0:color:#7dcfff,bold|14:dim}
 Where to pick up. Pinned is yours; suggested is Claude’s guess.  {0:italic,dim}
@@ -48,6 +48,8 @@ counts: e edits r reads t topics d decisions q questions h hand-offs b report-ba
 ↩ returned  {0:color:#e0af68,bold}
 ◇ decision, not settled  {0:color:#9ece6a,bold}
 ◆ settled decision  {0:color:#9ece6a,bold}
+! major decision  {0:color:#9ece6a,bold}
+· minor decision  {0:dim}
 ⚑ checkpoint / evidence  {0:color:#7aa2f7,bold}
 ? open question  {0:color:#f7768e,bold}
 ✓ done  {0:color:#9ece6a,bold}

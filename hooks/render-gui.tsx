@@ -385,7 +385,7 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
       <Box width={3} flexShrink={0} alignItems="center" justifyContent="center">
         <Text color={sourceMark ? row.sourceMarkColor : g?.color ?? (row.fresh ? GLYPH.fresh.color : open ? GLYPH.expanded.color : undefined)} bold={row.bold || open} dimColor={!icon}>{icon}</Text>
       </Box>
-      {row.marker ? <Text color={C.goal} bold>{row.marker}</Text> : null}
+      {row.marker ? <Text color={row.marker === '!' ? C.decision : row.marker === '✦' ? C.goal : undefined} dimColor={row.marker === '·'} bold={row.marker !== '·'}>{row.marker}</Text> : null}
       <Box flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
         {headPress ? (
           <Button
@@ -654,7 +654,7 @@ function screenFor(snapshot: AtlasSnapshot, view: ScreenView, now: number): Scre
   return builders[view.tab](snapshot, view, now)
 }
 
-export const LEGEND: [GlyphKey, string][] = [
+export const LEGEND: [GlyphKey | '!' | '·', string][] = [
   ['goal', 'your goal (confirmed)'],
   ['suggestion', 'suggestion, needs you'],
   ['currentTopic', 'current topic'],
@@ -662,6 +662,8 @@ export const LEGEND: [GlyphKey, string][] = [
   ['returned', 'returned'],
   ['observedDecision', 'decision, not settled'],
   ['settledDecision', 'settled decision'],
+  ['!', 'major decision'],
+  ['·', 'minor decision'],
   ['checkpoint', 'checkpoint / evidence'],
   ['openQuestion', 'open question'],
   ['ok', 'done'],
@@ -719,10 +721,10 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
       {(ctx.width >= 64 ? [LEGEND.slice(0, Math.ceil(LEGEND.length / 2)), LEGEND.slice(Math.ceil(LEGEND.length / 2))] : [LEGEND]).map((column, columnIndex) => (
         <Box key={`legend-columns-${columnIndex}`} flexDirection="column" flexGrow={1} flexShrink={1}>
         {column.map(([name, meaning]) => {
-        const g = glyph(ctx, name)
+        const g = name === '!' || name === '·' ? { char: name, color: name === '!' ? C.decision : undefined } : glyph(ctx, name)
         return (
           <Box key={`lg-${name}`} flexDirection="row" gap={1} flexShrink={0}>
-            <Box width={3} flexShrink={0}><Text color={g.color} bold>{g.char}</Text></Box>
+            <Box width={3} flexShrink={0}><Text color={g.color} dimColor={name === '·'} bold={name !== '·'}>{g.char}</Text></Box>
             <Text wrap="truncate-end">{meaning}</Text>
           </Box>
         )
