@@ -56,7 +56,22 @@ Rows, the Legend and the pane share one glyph-colour table.
 ◎ goal (cyan) · ○ suggestion · ● current topic (violet) · ↳ detour / ↩ return (amber) ·
 ◇ observed decision (green) · ◆ settled decision / checkpoint (blue) · ? open question (pink) ·
 ✓ success (green) · ✗ failure (pink) · ✎ edited file (orange) · · read file (violet) ·
-✦ just changed
+✦ before an icon = just changed; ✦ after the goal icon = the goal this turn is about.
+
+Goal suggestions and derived alternatives show **auto**. Their expansion explains:
+`auto: picked by Atlas until you confirm or drop it`. **Set as goal** confirms an
+unconfirmed suggestion; **Use this as my goal** adopts the detected aim; **Switch to this**
+confirms a derived alternative through the same explicit goal action.
+During an active detour, focus remains visible; Return or Make it the goal is required
+before Switch to this can change the confirmed goal, as with every goal-setting action.
+
+Focus is observed separately from the confirmed goal. It starts on the goal, stays there
+for one diverging turn, and moves to the current topic's alternative after two consecutive
+turns observing a similar candidate. Multiple reports in one turn count once; a different
+candidate or a turn without a topic observation resets the run. A topic matching the goal
+restores its focus immediately. Focus changes never write intent, add a Trail event, or
+send prompt context. The saved snapshot carries bounded focus text and a count capped at
+two; older snapshots load with null focus and display focus on the confirmed goal.
 
 ### Engine-only dimming
 

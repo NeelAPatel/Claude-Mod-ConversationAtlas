@@ -1,7 +1,7 @@
 ───────────────────────────── Conversation Atlas ─────────────────────────────  {0:dim|29:color:#7dcfff,bold|49:dim}
 ▸Map Trail Open 4 Evidence  {0:color:yellowBright,bold}
 GOAL ⓘ [Edit]  {0:color:#7dcfff,bold|7:color:#7dcfff|12:color:#7dcfff}
-◎ Build a dependable Conversation Atlas pane for long session… · 3 suggestions  {0:color:#7dcfff|63:dim}
+◎ ✦ Build a dependable Conversation Atlas pane for long sessi… · 3 suggestions  {0:color:#7dcfff|2:color:#7dcfff,bold|63:dim}
 CURRENT PATH ⓘ3 earlier  {0:color:#bb9af7,bold|14:dim}
 Atlas foundations
   Map rendering ↳ left here  {0:dim|16:dim}

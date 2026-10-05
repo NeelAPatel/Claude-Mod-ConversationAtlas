@@ -95,7 +95,7 @@ export function suggestionRow(
     kind: 'suggestion',
     glyph,
     text: suggestion.text,
-    meta: `${suggestion.kind} suggestion · from ${who}${suggestion.why ? ` · ${suggestion.why}` : ''}`,
+    meta: suggestion.kind === 'goal' ? 'auto' : `${suggestion.kind} suggestion · from ${who}${suggestion.why ? ` · ${suggestion.why}` : ''}`,
     tone,
     fresh: snapshot.fresh.includes(suggestion.id),
     actions: [
@@ -106,6 +106,7 @@ export function suggestionRow(
     detail: [
       `text: ${suggestion.text}`,
       `kind: ${suggestion.kind} suggestion`,
+      ...(suggestion.kind === 'goal' ? ['auto: picked by Atlas until you confirm or drop it'] : []),
       `source: ${sourceName(suggestion.source)}`,
       whenLine(now ?? suggestion.at, suggestion.at, suggestion.turn),
       `topic: ${topic ?? 'not recorded'}`,

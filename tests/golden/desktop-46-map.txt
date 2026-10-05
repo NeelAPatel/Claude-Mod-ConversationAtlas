@@ -1,7 +1,7 @@
   Map     Trail    Open 4  Evidence
 
 GOAL ? Edit  {0:color:#7dcfff,bold}
-◎ Build a dependable Conve… · 3 suggestions  {0:color:#7dcfff|28:dim}
+◎ ✦ Build a dependable Con… · 3 suggestions  {0:color:#7dcfff|2:color:#7dcfff,bold|28:dim}
 CURRENT PATH ? 3 earlier  {0:color:#bb9af7,bold|15:dim}
   Atlas foundations
   Map rendering ↳ left here  {16:dim}

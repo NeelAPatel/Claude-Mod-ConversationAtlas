@@ -1,5 +1,14 @@
 # Desktop renderer contract
 
+Goal rows retain their Atlas icon and draw the semantic focus modifier immediately after
+it (`◎ ✦ title` for the confirmed goal, `○ ✦ title` for a focused alternative). The modifier
+reserves title space independently of the icon and right-side metadata. Goal suggestions
+and alternatives show `auto`; expansions explain `auto: picked by Atlas until you confirm
+or drop it`. Alternatives use the existing goal Action labeled **Switch to this**. The
+shared engine moves focus after two consecutive topic-observed turns and restores it on a
+goal-matching topic; renderer reads never change state. Legend distinguishes `✦` before
+an icon (just changed) from `✦` after the goal icon (the goal this turn is about).
+
 The desktop renderer must mount and validate on every tab, with Legend open and the Setup screen at `bodyColumns` 46 and 80. A mount may not show a hook failure or engine fallback. No desktop tree may contain an absolute-positioned Box or an `atlas-popup`; Trail controls stay inline and overflow items expand beneath their row. Presses by `Button` key must reach the corresponding shared `Action` and update state. A stale terminal popup is represented by an inline notice and its `popup-close` action. Drawn text must contain the underlying goal, topic, decision, question, file, and section-help content. With overflow, desktop scroll bounds are nonnegative, `maxScroll` is positive, and wheel scrolling changes the view; `maxPopupScroll` is always 0. The live `Client` element must remain present during a desktop scan.
 
 | Control key (including dynamic forms) | Shared Action |

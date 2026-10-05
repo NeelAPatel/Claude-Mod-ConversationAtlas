@@ -326,6 +326,7 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
     row.fresh ? `${GLYPH.fresh.char} ` : '',
     sourceMark ? `${sourceMark} ` : '',
     g ? `${g.char} ` : '',
+    row.marker ? `${row.marker} ` : '',
     open ? `${GLYPH.expanded.char} ` : '',
   ].join('')
   const layout = layoutRow({
@@ -349,6 +350,7 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
       {g ? (
         <Text color={g.color} bold={row.bold || open}>{`${g.char} `}</Text>
       ) : null}
+      {row.marker ? <Text color={C.goal} bold>{`${row.marker} `}</Text> : null}
       {open ? <Text color={GLYPH.expanded.color}>{`${GLYPH.expanded.char} `}</Text> : null}
       <Box flexShrink={1} minWidth={0} overflow="hidden">
         {headPress ? (
@@ -659,7 +661,7 @@ export const LEGEND: [GlyphKey, string][] = [
   ['fail', 'failed'],
   ['editedFile', 'file edited'],
   ['readFile', 'file read'],
-  ['fresh', 'just changed'],
+  ['fresh', 'before an icon: just changed'],
   ['resolved', 'resolved question'],
   ['next', 'next step'],
   ['resume', 'resume earlier session'],
@@ -701,6 +703,8 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
         )}
       </Box>
       <Box flexShrink={0}><Text bold>LEGEND</Text></Box>
+      <Box flexShrink={0}><Text wrap="wrap">auto: picked by Atlas until you confirm or drop it</Text></Box>
+      <Box flexShrink={0}><Text wrap="wrap">✦ before an icon = just changed; ✦ after the goal icon = the goal this turn is about.</Text></Box>
       <Box flexShrink={0}><Text wrap="wrap">
         counts: <Text color={C.write}>e</Text> edits <Text color={C.read}>r</Text> reads{' '}
         <Text color={C.path}>t</Text> topics <Text color={C.decision}>d</Text> decisions{' '}

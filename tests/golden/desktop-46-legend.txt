@@ -1,8 +1,8 @@
   Map     Trail    Open 4  Evidence Up Down  {36:dim|39:dim}
 
 GOAL ? Edit  {0:color:#7dcfff,bold}
-What you are trying to do. Only you set it: confirm a suggestion, type one, or explicitly adopt Atlas’s detected aim.  {0:italic,dim}
-◎ Build a dependable Conve… · 3 suggestions  {0:color:#7dcfff|28:dim}
+What you are trying to do. Only you set it. auto means Atlas picked it; ✦ after the icon marks this turn’s focus.  {0:italic,dim}
+◎ ✦ Build a dependable Con… · 3 suggestions  {0:color:#7dcfff|2:color:#7dcfff,bold|28:dim}
 CURRENT PATH ? 3 earlier  {0:color:#bb9af7,bold|15:dim}
 Topics from the start of the work to now; detour branches show where the main path paused. Claude keeps it current.  {0:italic,dim}
   Atlas foundations
@@ -38,6 +38,8 @@ Marks: › you · ✻ Claude · ⌬ Codex · □ other  {7:color:#7dcfff|15:colo
 OBSERVER  {0:bold}
 Claude
 LEGEND  {0:bold}
+auto: picked by Atlas until you confirm or drop it
+✦ before an icon = just changed; ✦ after the goal icon = the goal this turn is about.
 counts: e edits r reads t topics d decisions q questions h hand-offs b report-backs  {8:color:#ff9e64|16:color:#bb9af7|24:color:#bb9af7|33:color:#9ece6a|45:color:#f7768e|57:color:#7aa2f7|69:color:#7aa2f7}
 ◎ your goal (confirmed)  {0:color:#7dcfff,bold}
 ○ suggestion, needs you  {0:bold}
@@ -52,7 +54,7 @@ counts: e edits r reads t topics d decisions q questions h hand-offs b report-ba
 × failed  {0:color:#f7768e,bold}
 ✎ file edited  {0:color:#ff9e64,bold}
 · file read  {0:color:#bb9af7,bold}
-✦ just changed  {0:bold}
+✦ before an icon: just changed  {0:bold}
 ✓ resolved question  {0:color:#9ece6a,bold}
 ▸ next step  {0:color:#7dcfff,bold}
 ◎ resume earlier session  {0:color:#7dcfff,bold}

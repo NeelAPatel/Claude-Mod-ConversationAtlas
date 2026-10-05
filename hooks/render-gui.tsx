@@ -267,7 +267,7 @@ function rowMetaLayout(ctx: Ctx, row: ScreenRow, indent: number) {
   const keepCounts = Boolean(metaParts.length)
   let layout = layoutRow({ width: ctx.width, prefix: '', text: '', meta, metaParts: parts, right: row.right }, keepCounts)
   const titleCells = (value: typeof layout) => Math.max(0,
-    ctx.width - indent - ROW_ICON_CELLS - ROW_GAP_CELLS * 2 - ROW_MIN_GUTTER_CELLS
+    ctx.width - indent - ROW_ICON_CELLS - ROW_GAP_CELLS * 2 - ROW_MIN_GUTTER_CELLS - (row.marker ? 2 : 0)
     - [...value.metaParts.map(part => part.text), value.meta, value.right].filter(Boolean).reduce((sum, text, index) => sum + cellWidth(text!) + (index ? 1 : 0), 0))
   // Free attribution first, then zero counts; preserve age after all other metadata.
   if (titleCells(layout) < 24 && meta) {
@@ -385,6 +385,7 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
       <Box width={3} flexShrink={0} alignItems="center" justifyContent="center">
         <Text color={sourceMark ? row.sourceMarkColor : g?.color ?? (row.fresh ? GLYPH.fresh.color : open ? GLYPH.expanded.color : undefined)} bold={row.bold || open} dimColor={!icon}>{icon}</Text>
       </Box>
+      {row.marker ? <Text color={C.goal} bold>{row.marker}</Text> : null}
       <Box flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
         {headPress ? (
           <Button
@@ -667,7 +668,7 @@ export const LEGEND: [GlyphKey, string][] = [
   ['fail', 'failed'],
   ['editedFile', 'file edited'],
   ['readFile', 'file read'],
-  ['fresh', 'just changed'],
+  ['fresh', 'before an icon: just changed'],
   ['resolved', 'resolved question'],
   ['next', 'next step'],
   ['resume', 'resume earlier session'],
@@ -706,6 +707,8 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
         )}
       </Box>
       <Box flexShrink={0}><Text bold>LEGEND</Text></Box>
+      <Box flexShrink={0}><Text wrap="wrap">auto: picked by Atlas until you confirm or drop it</Text></Box>
+      <Box flexShrink={0}><Text wrap="wrap">✦ before an icon = just changed; ✦ after the goal icon = the goal this turn is about.</Text></Box>
       <Box flexShrink={0}><Text wrap="wrap">
         counts: <Text color={C.write}>e</Text> edits <Text color={C.read}>r</Text> reads{' '}
         <Text color={C.path}>t</Text> topics <Text color={C.decision}>d</Text> decisions{' '}
