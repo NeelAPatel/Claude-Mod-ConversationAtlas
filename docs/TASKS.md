@@ -25,15 +25,15 @@ One **Stage** column follows the task lifecycle: inserted → discussion → nee
 ## A. Decisions
 | # | Item (exact) | Stage | Release | Surface | Needs |
 |---|---|---|---|---|---|
-| 17 | Each decision becomes a stored record (id, statement, status, weight, short revision list); `observe` sends only changes (new, revise, revert, reaffirm), no extra calls | ✔ | 0.2 | Open.OBSERVED DECISIONS: rows; Map.LATEST: rows; Evidence.ledger: rows; Trail.timeline: revision events | Prereq:[#4, #15-16]. Decide: #5 |
-| 18 | Major/minor weight assigned automatically; shown as `!` (major) or `·` (minor) after the decision icon; a "Make major/minor" toggle in the expansion overrides it | ◑ | 0.1 | Open.OBSERVED DECISIONS: marker and expansion toggle; Map.LATEST: marker; Evidence.ledger: marker; Global: Legend panel | Prereq:[–] (shipped without #17). On `dev`. Real-pane check; Legend paging 46/80 |
+| 17 | Each decision becomes a stored record (id, statement, status, weight, short revision list); `observe` sends only changes (new, revise, revert, reaffirm), no extra calls | ✔ | 0.2 | Open.OBSERVED DECISIONS: rows; Map.LATEST: rows; Evidence.SETTLED (LEDGER): rows; Trail.timeline: revision events | Prereq:[#4, #15-16]. Decide: #5 |
+| 18 | Major/minor weight assigned automatically; shown as `!` (major) or `·` (minor) after the decision icon; a "Make major/minor" toggle in the expansion overrides it | ◑ | 0.1 | Open.OBSERVED DECISIONS: marker and expansion toggle; Map.LATEST: marker; Evidence.SETTLED (LEDGER): marker; Global: Legend panel | Prereq:[–] (shipped without #17). On `dev`. Real-pane check; Legend paging 46/80 |
 | 5 | The rule that decides major vs minor (scope, architecture, visible behavior, hard to undo?) and whether your override persists | ? | 0.2 | Open.OBSERVED DECISIONS: weight | Prereq:[#18]. Decide: is the rule right? do overrides persist? |
-| 19 | Observed-decision buttons are Confirm, Drop, Chat ⇒, ✕ (Confirm moves it to Evidence; Chat ⇒ puts `[Atlas #n: full title]` in your draft). Open questions get Confirm (= answered), Drop, Chat ⇒, ✕; a confirmed question shows Reopen | ◑ | 0.1 | Open.OBSERVED DECISIONS: expansion buttons; Open.OPEN QUESTIONS: expansion buttons; Global: Decisions and Open Questions popups (footers) | Prereq:[–]. Update button is #1. On `dev`. Real-pane check |
+| 19 | Observed-decision buttons are Confirm, Drop, Chat ⇒, ✕ (Confirm moves it to Evidence; Chat ⇒ puts `[Atlas #n: full title]` in your draft). Open questions get Confirm (= answered), Drop, Chat ⇒, ✕; a confirmed question shows Reopen | ◑ | 0.1 | Open.OBSERVED DECISIONS: expansion buttons; Open.OPEN QUESTIONS: expansion buttons; Evidence.RESOLVED: Reopen; Global: Decisions and Open Questions popups (footers) | Prereq:[–]. Update button is #1. On `dev`. Real-pane check |
 | 1 ⚠ | An Update button that edits a decision's title and adds a note, via an in-pane text input | ✔ | 0.2 | Open.OBSERVED DECISIONS: expansion button and input | Prereq:[#17, #19]. TUI feasibility |
 | 6 | "Confirm all minor" button, per turn group | ✕ | – | Open.OBSERVED DECISIONS | You are not a fan; remove from the mockbed |
 | 10 | Matching a reworded decision to its earlier one ("revise #4") | ? | 0.2 | Open.OBSERVED DECISIONS: matching | Prereq:[#17]. Untested |
-| 11 | `↻` badge on revised decisions | - | 0.2 | Open.OBSERVED DECISIONS: row badge; Evidence.ledger: row badge | Prereq:[#17]. Decide: keep or cut |
-| 12 | Sort order by weight | - | later | Open.OBSERVED DECISIONS; Evidence.ledger | Prereq:[#18] |
+| 11 | `↻` badge on revised decisions | - | 0.2 | Open.OBSERVED DECISIONS: row badge; Evidence.SETTLED (LEDGER): row badge | Prereq:[#17]. Decide: keep or cut |
+| 12 | Sort order by weight | - | later | Open.OBSERVED DECISIONS; Evidence.SETTLED (LEDGER) | Prereq:[#18] |
 | 13 | Decisions made across detours (how grouped and carried) | - | later | Open.DETOUR FINDINGS; Trail.timeline; Evidence.past detours | Prereq:[#17] |
 | 14 | Merging duplicate decisions | - | later | Open.OBSERVED DECISIONS | Prereq:[#17, #10] |
 
@@ -41,7 +41,7 @@ One **Stage** column follows the task lifecycle: inserted → discussion → nee
 | # | Item (exact) | Stage | Release | Surface | Needs |
 |---|---|---|---|---|---|
 | 20 | The "Resolved" button is removed | ◑ | 0.1 | Open.OPEN QUESTIONS: expansion buttons; Global: Open Questions popup | Prereq:[–]. On `dev`. Real-pane check |
-| 8 ⚠ | Claude proposes an answer. Accept records it as a confirmed decision. Edit only updates the answer | ✔ | 0.2 | Open.OPEN QUESTIONS: rows and expansion; Evidence.ledger: new decision | Prereq:[#17, #19, #20]. TUI feasibility |
+| 8 ⚠ | Claude proposes an answer. Accept records it as a confirmed decision. Edit only updates the answer | ✔ | 0.2 | Open.OPEN QUESTIONS: rows and expansion; Evidence.SETTLED (LEDGER): new decision | Prereq:[#17, #19, #20]. TUI feasibility |
 
 ## C. Goals
 | # | Item (exact) | Stage | Release | Surface | Needs |
@@ -49,7 +49,7 @@ One **Stage** column follows the task lifecycle: inserted → discussion → nee
 | 24 | No goal suggestion with empty text, `…` or a weak first prompt | ◑ | 0.1 | Open.NEEDS YOUR CALL: goal suggestion rows; Map.GOAL: suggestion row | Prereq:[–]. On `dev`. Try a few real first prompts |
 | – | No fake goal row when no goal is set; empty-state hint instead (added after the design chat) | ◑ | 0.1 | Map.GOAL: empty state | Prereq:[–]. On `dev`. Real-pane check, both surfaces |
 | 22 ⚠ | Goals become an ordered list (confirmed and suggested): reorder (easy to remove later), edit text, Drop, Set as goal | ✔ | 0.2 | Map.GOAL: list and buttons; Open.NEEDS YOUR CALL: suggestions | Prereq:[#9, #24]. TUI feasibility of edit |
-| 2 | An automatically suggested goal shows hollow `○`; the word `auto` only where needed | ◑ | 0.1 | Map.GOAL: icon and meta; Global: Legend panel | Prereq:[#28]. On `dev`. Check the `○` glyph is drawn |
+| 2 | An automatically suggested goal shows hollow `○`; the word `auto` only where needed | ◑ | 0.1 | Map.GOAL: icon and meta (only when no goal is set); Open.NEEDS YOUR CALL: icon; Global: Legend panel | Prereq:[#28]. On `dev`. `○` is golden-proven in Open only; check on Map in the no-goal state |
 | 3 | Suggested goals stay until you drop them; optional red tint when a decision counters the goal, only if free | ✔ | 0.2 | Map.GOAL: suggestion rows | Prereq:[#22] |
 | 9 | Option A: the top confirmed goal is the active one; promoting inserts at top and the old goal keeps its history | ? | 0.2 | Map.GOAL; Trail.timeline | Prereq:[–]. Decide: you were wary of Trail complexity. Blocks #22 |
 | – | Goal row right-side meta: short tag plus age only | ✔ | 0.2 | Map.GOAL: row meta | Prereq:[–]. Verify current wording |
