@@ -222,6 +222,24 @@ function actions(
   )
 }
 
+// Reserve the close cell before allowing the left-hand actions to wrap.
+function expansionActions(ctx: Ctx, row: ScreenRow, items: ScreenAction[]): RenderElement {
+  const { Box, Button } = ctx.el
+  const close = items.find(item => item.action.type === 'expand' && item.action.id === row.id)
+  const left = items.filter(item => item !== close)
+  return (
+    <Box key={`expansion-actions-${row.key}`} flexDirection="row" gap={1} marginLeft={2} flexShrink={0}>
+      <Box key={`expansion-actions-left-${row.key}`} flexGrow={1} flexShrink={1} minWidth={0}>
+        {actions({ ...ctx, width: Math.max(1, ctx.width - 4) }, left, { marginLeft: 0 })}
+      </Box>
+      <Box key={`expansion-close-cell-${row.key}`} width={1} flexShrink={0}>
+        <Button key={close?.key ?? `close-${row.key}`} plain label="✕"
+          onPress={() => ctx.act(close?.action ?? { type: 'expand', id: row.id })} />
+      </Box>
+    </Box>
+  )
+}
+
 function layoutRow(input: Parameters<typeof uiLayoutRow>[0], keepCounts = false): ReturnType<typeof uiLayoutRow> {
   const layout = uiLayoutRow(keepCounts ? { ...input, text: '' } : input)
   const parts = layout.metaParts.map(part => part.text)
@@ -369,13 +387,13 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
   if (row.kind === 'suggestion' || row.kind === 'recall') {
     const extra = [
       ...(row.actions ?? []),
-      { key: `close-${row.key}`, label: 'Close', action: { type: 'expand', id: row.id } as const },
+      { key: `close-${row.key}`, label: '✕', action: { type: 'expand', id: row.id } as const },
     ]
     return (
       <Box key={row.key} flexDirection="column">
         {head}
         {open ? <Detail ctx={ctx} row={row} /> : null}
-        {open ? actions(ctx, extra) : null}
+        {open ? expansionActions(ctx, row, extra) : null}
       </Box>
     )
   }
@@ -386,9 +404,9 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
         {head}
         {open ? <Detail ctx={ctx} row={row} /> : null}
         {open
-          ? actions(ctx, [
+          ? expansionActions(ctx, row, [
               ...(row.actions ?? []),
-              { key: `close-${row.key}`, label: 'Close', action: { type: 'expand', id: row.id } },
+              { key: `close-${row.key}`, label: '✕', action: { type: 'expand', id: row.id } },
             ])
           : null}
       </Box>
@@ -397,7 +415,7 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
     return (
       <Box key={row.key} flexDirection="column">
         {head}
-        {actions(ctx, row.actions ?? [])}
+        {open ? expansionActions(ctx, row, row.actions ?? []) : actions(ctx, row.actions ?? [])}
         {open ? <Detail ctx={ctx} row={row} /> : null}
       </Box>
     )
@@ -421,10 +439,10 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
           ...(row.actions ?? []),
           {
             key: `add-${row.key}`,
-            label: 'Add to message',
+            label: 'Chat ⇒',
             action: { type: 'attach', ref: { kind: row.kind, id: row.id, text: row.fullText ?? row.text } },
           },
-          { key: `close-${row.key}`, label: 'Close', action: { type: 'expand', id: row.id } },
+          { key: `close-${row.key}`, label: '✕', action: { type: 'expand', id: row.id } },
         ]
   return (
     <Box key={row.key} flexDirection="column">
@@ -436,7 +454,7 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
           {row.suggestedGoals.map(suggestion => renderRow(ctx, suggestion))}
         </Box>
       ) : null}
-      {actions(ctx, extra)}
+      {expansionActions(ctx, row, extra)}
     </Box>
   )
 }
@@ -967,7 +985,7 @@ function itemPopup(row: ScreenRow): ScreenPopup {
     footerActions: [
       {
         key: `add-${row.key}`,
-        label: 'Add to message',
+        label: 'Chat ⇒',
         action: { type: 'attach', ref: { kind: row.kind, id: row.id, text: row.text } },
       },
       { key: `close-${row.key}`, label: 'Close', action: { type: 'popup', popup: { kind: 'item', id: row.id } } },

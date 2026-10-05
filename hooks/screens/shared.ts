@@ -156,16 +156,11 @@ export function itemRow(snapshot: AtlasSnapshot, item: AtlasItem, now: number, v
               action(`exc-${item.id}`, 'Exclude', { type: 'exclude', id: item.id }),
             ]
           : [
-              action(`set-${item.id}`, 'Settle', { type: 'settle', id: item.id }, true),
+              action(`set-${item.id}`, 'Confirm', { type: 'settle', id: item.id }, true),
               action(`drp-${item.id}`, 'Drop', { type: 'drop', id: item.id }),
             ]
-  } else if (withActions && isQuestion) {
-    extra = [
-      action(`${item.status === 'open' ? 'res' : 'reo'}-${item.id}`, item.status === 'open' ? 'Resolved' : 'Reopen', {
-        type: item.status === 'open' ? 'resolve' : 'reopen',
-        id: item.id,
-      }),
-    ]
+  } else if (withActions && item.status === 'resolved') {
+    extra = [action(`reo-${item.id}`, 'Reopen', { type: 'reopen', id: item.id })]
   }
   return {
     id: item.id,

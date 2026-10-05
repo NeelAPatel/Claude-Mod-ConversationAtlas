@@ -358,7 +358,7 @@ function suggest(
   replaceKind = true,
 ): AtlasSnapshot {
   const body = clip(text, 140)
-  if (!body) return s
+  if ((body.replace(/…/g, '').match(/[\p{L}\p{N}]/gu)?.length ?? 0) < 2) return s
   if (s.suggestions.some(x => x.kind === kind && similar(x.text, body))) return s
   const [sid, next] = id(s, 's')
   const kept = replaceKind ? next.suggestions.filter(x => x.kind !== kind) : next.suggestions
@@ -602,9 +602,14 @@ export function startTurn(s: AtlasSnapshot, text: string, now: number): AtlasSna
   if (!body) return next
   next = event(next, 'prompt', body, now, promptBullets(body))
   if (body.startsWith('/') || body.startsWith('<')) return next
-  if (!next.goal && !next.suggestions.some(x => x.kind === 'goal') && body.length >= 16) {
-    const first = sentences(body)[0] ?? body
-    next = suggest(next, 'goal', first, 'From your first request', 'cue', now)
+  if (!next.goal && !next.suggestions.some(x => x.kind === 'goal')) {
+    const first = sentences(body)[0] ?? ''
+    // Only the first sentence qualifies: 4 words, 16 characters, and not a
+    // greeting/acknowledgment made solely of these words. Never fall back to body.
+    const phraseWords = first.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []
+    const ackWords = new Set(['hi', 'hello', 'hey', 'ok', 'okay', 'thanks', 'thank', 'you', 'yes', 'yep', 'sure', 'please', 'do', 'it', 'go', 'ahead'])
+    if (first.length >= 16 && phraseWords.length >= 4 && !phraseWords.every(word => ackWords.has(word)))
+      next = suggest(next, 'goal', first, 'From your first request', 'cue', now)
   }
   if (DETOUR_CUE.test(body) && !next.detour) next = suggest(next, 'detour', clip(sentenceWith(body, DETOUR_CUE), 90), 'Your wording suggests a side trip', 'cue', now)
   if (RETURN_CUE.test(body) && next.detour) next = suggest(next, 'return', `Return to ${next.detour.departure.topic ?? next.detour.departure.goal ?? 'the main path'}`, 'Your wording suggests going back', 'cue', now)

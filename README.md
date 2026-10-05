@@ -87,8 +87,12 @@ Change it any time with `/atlas observer [claude|engine]`.
 | **Evidence** | `e` | Checkpoints, settled-decision ledger, past detours, files, earlier sessions |
 
 The bottom bar holds **Legend** (`l`), **decisions** (`d`), **open questions** (`q`) and **+ Mark**
-(`k`). **Add to message** on any item puts an `[Atlas #n: …]` chip in your draft; only chips still
+(`k`). **Chat ⇒** on any item puts an `[Atlas #n: …]` chip in your draft; only chips still
 there when you send reach Claude. Details: [docs/REFERENCE.md](docs/REFERENCE.md).
+
+Open decisions use **Confirm** / **Drop** (detour findings keep **Keep** / **Exclude**).
+Claude reports answered questions as resolved; resolved questions keep **Reopen**.
+Inline expansions end with a right-justified **✕**; their other actions wrap on the left.
 
 ### 4. Recovering and scanning earlier conversations
 

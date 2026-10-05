@@ -21,7 +21,7 @@ Commit: Post-prompt commit
 - verify setup screen
 - record the final diff
 - do not broaden the scope
-Add to message Close
+Chat ⇒ ✕
 
 › Build a depe… 2e 2r ⚑ 4t 3d 2q 2h 1b 1m  {0:color:#7dcfff|16:color:#ff9e64|19:color:#bb9af7|22:color:#7aa2f7|24:color:#bb9af7|27:color:#9ece6a|30:color:#f7768e|33:color:#7aa2f7|36:color:#7aa2f7|39:dim}
 Legend + Mark

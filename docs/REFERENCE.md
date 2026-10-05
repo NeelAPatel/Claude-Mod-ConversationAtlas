@@ -19,7 +19,7 @@ pane stops pinning and lets Claude Code scroll it.
 |---|---|---|---|
 | **Map** | `m` | light yellow (`yellowBright`) | ◎ goal, current topic path (the current node pulses when new), ↳ possible or active detour, live activity (spinner and shimmer while a tool runs, ✓ or ✗ after), working set, latest decisions and questions, ▸ resume next |
 | **Trail** | `t` | light green | The full topic tree, then a timeline of prompts, topic shifts, decisions, detours, returns and checkpoints |
-| **Open** | `o` | pink | Everything waiting on you: suggestions (goal, detour, return, next step, resume), observed decisions (**Settle** / **Drop**; ones observed during a detour get **Keep** / **Exclude**) and open questions (**Resolved**) |
+| **Open** | `o` | pink | Everything waiting on you: suggestions (goal, detour, return, next step, resume), observed decisions (**Confirm** / **Drop**; ones observed during a detour get **Keep** / **Exclude**) and open questions (Claude reports answered questions as resolved) |
 | **Evidence** | `e` | blue | Checkpoints (click one to see the goal, topic and files at that moment), the settled-decision ledger, resolved questions, past detours, files and earlier sessions (**Resume this**) |
 
 The active tab is bold coloured text and does not press. Inactive tabs are dim plain buttons.
@@ -32,7 +32,8 @@ way, and their keys stay present at 26, 34, 48 and 72 body columns.
 ### Three interaction patterns
 
 - **Expansion.** Rows (goal, topics, decisions, questions, checkpoints, files) expand inline
-  with indented dim `│` detail lines. The details show metadata, not a repeat of the row. Each
+  with indented dim `│` detail lines. The details show metadata, not a repeat of the row. Expansions end with a right-justified **✕**, with other actions on the left
+  wrapping when needed. Each
   action group has one primary action where it makes sense, and the other actions are cyan
   `[ label ]` controls whose label lights up on hover.
 - **Toggles.** Flip state in place.
@@ -41,7 +42,7 @@ way, and their keys stay present at 26, 34, 48 and 72 body columns.
     panel also holds the **Observer: Claude / Engine only** toggle.
   - **Trail sort** flips the order of the timeline.
 - **Popups.** Every Trail event opens a small rounded popup anchored below or above its row.
-  Prompt events also show the full text, bullets and **Add to message**. ◇ decisions and
+  Prompt events also show the full text, bullets and **Chat ⇒**. ◇ decisions and
   ? open questions open one small popup above their bottom-bar button, with each row
   expandable and showing its actions. Popups are at most 52 columns wide and 10 rows tall,
   measure each row at the popup's inner width, and put the scroll controls together at the
