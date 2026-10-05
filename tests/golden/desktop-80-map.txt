@@ -1,4 +1,4 @@
-  Map     Trail    Open 4  Evidence
+  Map     Trail    Open 4  Evidence Legend + Mark
 
 GOAL ? Edit  {0:color:#7dcfff,bold}
 ◎ ✦ Build a dependable Conversation Atlas pane for long sessions. · 3 suggestions  {0:color:#7dcfff|2:color:#7dcfff,bold|66:dim}
@@ -24,4 +24,3 @@ LATEST ? confirm in Open  {0:color:#7aa2f7,bold|9:dim}
 ? Which surface gets the first manual check?  {0:color:#f7768e}
 RESUME NEXT ? pinned  {0:color:#7dcfff,bold|14:dim}
 ▸  Review the fixed pane sample and approve the visual boundary.  {0:color:#7dcfff}
-Legend + Mark

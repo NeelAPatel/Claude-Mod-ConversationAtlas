@@ -3,8 +3,9 @@
 - The pane starts with four equally growing native tab cells that never shrink below their padded content. Labels use NBSP padding to equalize pill widths, with
   short labels below 40 columns.
   The wrapping tab row has no Up/Down scroll controls. A one-cell gap separates the pills from the full-width, 2px SVG baseline. The baseline takes the active
-  tab's fixed accent (Map yellow, Trail green, Open red, Evidence blue); tabs have no individual underline. The bottom Legend action uses the same active
-  accent, while + Mark stays a regular action button.
+  tab's fixed accent (Map yellow, Trail green, Open red, Evidence blue); tabs have no individual underline.
+  Legend L and + Mark K follow the tabs in the same wrapping row at natural width, without equalizing padding or growth.
+  Legend uses the primary variant and a small underline in the active accent while open; + Mark stays secondary.
 - Rows use a fixed, centered icon slot, a flexible title cell, a two-cell minimum gutter, and trailing metadata that stays within the pane. The title budget uses pane cells with a conservative 1.15 proportional-font allowance for average title characters; the allowance never applies to metadata. When fewer than 24 title cells remain, attribution is removed first, then zero-valued counts, while non-zero counts and age keep priority. File paths use middle truncation. Prose wraps only in detail and help blocks. Settings are native pressable labels with their current state included in the label.
 - Section headings pair their tone and count with a small `?` button. Explanations stay inline under the heading.
 - Details indent beneath their row and render fully inline; the whole pane body scrolls when needed. At 64 columns and wider, short `label: value` lines form a two-column, left-to-right grid; long or unlabeled text stays full-width in sequence. Narrower layouts keep one column. Long Open and Evidence items expand inline with their detail lines, Add to message, and Close actions on the same row. Non-interactive title Text uses one leading NBSP to align with the native Button inset, and its title budget reserves that cell.
@@ -14,4 +15,5 @@
   64 columns or wider, the icon list is split into two equal columns filled down then across; narrow layouts use one column. Count meanings remain
   full-width above the list.
   Legend renders at full length without an internal scroll window. The live scan Client stays mounted.
-  The engine scrolls the whole tree, including tabs and the bottom bar; desktop has no custom scrollbar or scroll buttons.
+  The Legend panel follows the tab-strip spacer before the body, keeping its full content close to its control.
+  The engine scrolls the whole tree, including tabs and Legend; there is no bottom app bar or custom scrollbar or scroll buttons.

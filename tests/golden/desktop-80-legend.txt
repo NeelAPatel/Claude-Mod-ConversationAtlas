@@ -1,5 +1,31 @@
-  Map     Trail    Open 4  Evidence
+  Map     Trail    Open 4  Evidence Legend + Mark
+━━━━━━  {0:color:#e0af68,bold}
 
+LEGEND  {0:bold}
+Marks: › you · ✻ Claude · ⌬ Codex · □ other  {7:color:#7dcfff|15:color:#d97757|26:color:#7c8cff|36:color:#9aa5b1}
+▸ How to use
+✦ suggested / goal detected
+◎ your goal (confirmed)✓ done  {0:color:#7dcfff,bold|23:color:#9ece6a,bold}
+○ suggestion, needs you  {0:bold}
+● current topic  {0:color:#bb9af7,bold}
+↳ detour / possible detour  {0:color:#e0af68,bold}
+↩ returned  {0:color:#e0af68,bold}
+◇ decision, not settled  {0:color:#9ece6a,bold}
+◆ settled decision  {0:color:#9ece6a,bold}
+! major decision  {0:color:#9ece6a,bold}
+· minor decision  {0:dim}
+⚑ checkpoint / evidence  {0:color:#7aa2f7,bold}
+? open question  {0:color:#f7768e,bold}
+× failed  {0:color:#f7768e,bold}
+✎ file edited  {0:color:#ff9e64,bold}
+· file read  {0:color:#bb9af7,bold}
+✦ before an icon: just changed  {0:bold}
+✓ resolved question  {0:color:#9ece6a,bold}
+▸ next step  {0:color:#7dcfff,bold}
+◎ resume earlier session  {0:color:#7dcfff,bold}
+→ hand-off running  {0:color:#7aa2f7,bold}
+← report back  {0:color:#9ece6a,bold}
+pane: 80 columns  {0:dim}
 GOAL ? Edit  {0:color:#7dcfff,bold}
 What you are trying to do. Only you set it. auto means Atlas picked it; ✦ after the icon marks this turn’s focus.  {0:italic,dim}
 ◎ ✦ Build a dependable Conversation Atlas pane for long sessions. · 3 suggestions  {0:color:#7dcfff|2:color:#7dcfff,bold|66:dim}
@@ -31,30 +57,3 @@ Newest decisions and questions. Confirm decisions in the Open tab. ! = major, ·
 RESUME NEXT ? pinned  {0:color:#7dcfff,bold|14:dim}
 Where to pick up. Pinned is yours; suggested is Claude’s guess.  {0:italic,dim}
 ▸  Review the fixed pane sample and approve the visual boundary.  {0:color:#7dcfff}
-LEGEND  {0:bold}
-Marks: › you · ✻ Claude · ⌬ Codex · □ other  {7:color:#7dcfff|15:color:#d97757|26:color:#7c8cff|36:color:#9aa5b1}
-▸ How to use
-✦ suggested / goal detected
-◎ your goal (confirmed)✓ done  {0:color:#7dcfff,bold|23:color:#9ece6a,bold}
-○ suggestion, needs you  {0:bold}
-● current topic  {0:color:#bb9af7,bold}
-↳ detour / possible detour  {0:color:#e0af68,bold}
-↩ returned  {0:color:#e0af68,bold}
-◇ decision, not settled  {0:color:#9ece6a,bold}
-◆ settled decision  {0:color:#9ece6a,bold}
-! major decision  {0:color:#9ece6a,bold}
-· minor decision  {0:dim}
-⚑ checkpoint / evidence  {0:color:#7aa2f7,bold}
-? open question  {0:color:#f7768e,bold}
-× failed  {0:color:#f7768e,bold}
-✎ file edited  {0:color:#ff9e64,bold}
-· file read  {0:color:#bb9af7,bold}
-✦ before an icon: just changed  {0:bold}
-✓ resolved question  {0:color:#9ece6a,bold}
-▸ next step  {0:color:#7dcfff,bold}
-◎ resume earlier session  {0:color:#7dcfff,bold}
-→ hand-off running  {0:color:#7aa2f7,bold}
-← report back  {0:color:#9ece6a,bold}
-pane: 80 columns  {0:dim}
-Legend + Mark
-━━━━━━  {0:color:#e0af68,bold}

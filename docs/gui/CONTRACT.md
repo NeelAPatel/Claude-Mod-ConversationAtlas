@@ -16,7 +16,10 @@ The desktop renderer must mount and validate on every tab, with Legend open and 
 or engine fallback. No desktop tree may contain an absolute-positioned Box or an `atlas-popup`; Trail controls stay inline and overflow items expand beneath
 their row. Presses by `Button` key must reach the corresponding shared `Action` and update state. A stale terminal popup is represented by an inline notice and
 its `popup-close` action. Drawn text must contain the underlying goal, topic, decision, question, file, and section-help content.
-The desktop draws the full tree; the engine scrolls it as a whole, including tabs, Legend and the bottom bar.
+The desktop draws the full tree; the engine scrolls it as a whole, including the tab strip and Legend.
+Legend and + Mark follow the four tabs in the same wrapping row, at natural width with hotkeys L and K.
+Legend uses the primary variant and a small accent underline while open; + Mark stays secondary.
+The full inline Legend panel follows the strip spacer before the body; there is no bottom app bar.
 All four renderer scroll maxima are 0.
 Desktop-only wheel hooks pass through without writing view state.
 The live `Client` element must remain present during a desktop scan.

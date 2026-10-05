@@ -928,6 +928,19 @@ function tabBar(ctx: Ctx, snapshot: AtlasSnapshot): RenderElement {
             <Button key={item.key} label={`${'\u00a0'.repeat(Math.floor((labelWidth - labels[index]!.length) / 2))}${labels[index]!}${'\u00a0'.repeat(Math.ceil((labelWidth - labels[index]!.length) / 2))}`} hotkey={item.hotkey} variant={item.active ? 'primary' : 'secondary'} onPress={item.onPress} />
           </Box>
         ))}
+        <Box key="bar-legend" flexDirection="column" flexGrow={0} flexShrink={0}>
+          <Button
+            key="bar-legend"
+            label="Legend"
+            hotkey="l"
+            variant={ctx.view.legend ? 'primary' : 'secondary'}
+            onPress={() => ctx.act({ type: 'legend' })}
+          />
+          {ctx.view.legend ? <Text color={TAB_ACCENT[ctx.view.tab]} bold>━━━━━━</Text> : null}
+        </Box>
+        <Box key="bar-mark" flexDirection="column" flexGrow={0} flexShrink={0}>
+          <Button key="mark" label="+ Mark" hotkey="k" variant="secondary" onPress={() => ctx.act({ type: 'mark' })} />
+        </Box>
       </Box>
       {Svg ? <Svg
         key="tab-baseline"
@@ -936,26 +949,6 @@ function tabBar(ctx: Ctx, snapshot: AtlasSnapshot): RenderElement {
         width={Math.max(1, ctx.width * 8)}
         height={8}
       /> : <Text dimColor>{'_'.repeat(Math.max(1, ctx.width - 2))}</Text>}
-    </Box>
-  )
-}
-function appBarItems(ctx: Ctx, snapshot: AtlasSnapshot): BarItem[] {
-  return [
-    { key: 'legend', label: 'Legend', short: 'Legend', compact: '≡', hotkey: 'l', onPress: () => ctx.act({ type: 'legend' }) },
-    { key: 'mark', label: '+ Mark', short: '+ Mark', compact: '+', hotkey: 'k', onPress: () => ctx.act({ type: 'mark' }) },
-  ]
-}
-function appBar(ctx: Ctx, snapshot: AtlasSnapshot): RenderElement {
-  const { Box, Button, Text } = ctx.el
-  const items = appBarItems(ctx, snapshot)
-  return (
-    <Box key="app-bar" flexDirection="row" gap={1} flexWrap="wrap" flexShrink={0} marginTop={1}>
-      {items.map(item => (
-        <Box key={`bar-${item.key}`} flexDirection="column" flexShrink={0}>
-          <Button key={item.key === 'mark' ? 'mark' : 'bar-legend'} label={item.label} hotkey={item.hotkey} variant={item.key === 'legend' && ctx.view.legend ? 'primary' : 'secondary'} onPress={item.onPress} />
-          {item.key === 'legend' && ctx.view.legend ? <Text color={TAB_ACCENT[ctx.view.tab]} bold>━━━━━━</Text> : null}
-        </Box>
-      ))}
     </Box>
   )
 }
@@ -1000,10 +993,9 @@ export function pane(input: PaneCtx, snapshot: AtlasSnapshot): {
       <Box height={1} flexShrink={0}>
         <Text>{''}</Text>
       </Box>
-      <Box flexDirection="column">{body}</Box>
       {legend}
+      <Box flexDirection="column">{body}</Box>
       {scan}
-      {appBar(ctx, snapshot)}
     </Box>
   )
   return { tree, maxScroll: 0, maxPopupScroll: 0, maxLegendScroll: 0, maxExpandedScroll: 0 }
