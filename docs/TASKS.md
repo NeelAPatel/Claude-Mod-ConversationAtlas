@@ -34,7 +34,7 @@ One **Stage** column follows the task lifecycle: inserted → discussion → nee
 | 10 | Matching a reworded decision to its earlier one ("revise #4") | ? | 0.2 | Open.OBSERVED DECISIONS: matching | Prereq:[#17]. Untested |
 | 11 | `↻` badge on revised decisions | - | 0.2 | Open.OBSERVED DECISIONS: row badge; Evidence.SETTLED (LEDGER): row badge | Prereq:[#17]. Decide: keep or cut |
 | 12 | Sort order by weight | - | later | Open.OBSERVED DECISIONS; Evidence.SETTLED (LEDGER) | Prereq:[#18] |
-| 13 | Decisions made across detours (how grouped and carried) | - | later | Open.DETOUR FINDINGS; Trail.timeline; Evidence.past detours | Prereq:[#17] |
+| 13 | Decisions made across detours (how grouped and carried) | - | later | Open.DETOUR FINDINGS; Trail.timeline; Evidence.DETOURS | Prereq:[#17] |
 | 14 | Merging duplicate decisions | - | later | Open.OBSERVED DECISIONS | Prereq:[#17, #10] |
 
 ## B. Open questions
