@@ -616,9 +616,24 @@ function cleanMarkup(value: string): string {
 // remain visible as compact typed-language stand-ins; notification blocks are
 // consumed by delegation observation instead.
 export function stripPromptMarkers(text: string): string {
-  let body = text
+  const lines = text.split(/\r?\n/)
+  const kept: string[] = []
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index] ?? ''
+    if (/^\s*<!--\s*reply\b[^>]*?-->\s*$/i.test(line)) {
+      index++
+      while (index < lines.length && (lines[index] ?? '').startsWith('>')) index++
+      if ((lines[index] ?? '').trim() === '') index++
+      index--
+      continue
+    }
+    kept.push(line)
+  }
+  let body = kept.join('\n')
   body = body.replace(/<task-notification\b[^>]*>[\s\S]*?<\/task-notification>/gi, '')
   body = body.replace(/<agent-message\b[^>]*>[\s\S]*?<\/agent-message>/gi, '')
+  // Blocks the app injects around the person's own text: never part of the title or the cues.
+  body = body.replace(/<(system-reminder|local-command-caveat|cross-session-message)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
   body = body.replace(/<pasted_content\b[^>]*>([\s\S]*?)<\/pasted_content>/gi, (_whole, inner: string) => {
     const count = inner.trim() ? inner.trim().split(/\r?\n/).length : 0
     return `pasted ${count} lines`

@@ -58,7 +58,7 @@ Rows, the Legend and the pane share one glyph-colour table.
 ✦ before an icon = just changed; ✦ after the goal icon = the goal this turn is about.
 
 Goal suggestions and derived alternatives show **auto**. Their expansion explains:
-`auto: picked by Atlas until you confirm or drop it`. **Set as goal** confirms an
+`auto: Atlas's guess, not yet yours.` **Set as goal** confirms an
 unconfirmed suggestion; **Use this as my goal** adopts the detected aim; **Switch to this**
 confirms a derived alternative through the same explicit goal action.
 **Dismiss** hides an alternative in session view state without changing the goal or snapshot.

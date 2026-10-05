@@ -21,7 +21,7 @@ const help: Record<string, string[]> = {
     'Your confirmed destination for this session.',
     'Only you set it: confirm a suggestion, type one, or adopt a detected aim.',
     '◎ is confirmed; ○ is a suggestion waiting for your press.',
-    'auto: picked by Atlas until you confirm or drop it.',
+    "auto: Atlas's guess, not yet yours.",
     '✦ after the goal icon marks the goal this turn is about; it moves after two consecutive observed turns on another topic.',
     'Switch to this confirms an alternative as your goal.',
     'Expand the goal row for its source and the action to use a detected aim.',
@@ -90,7 +90,7 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
         `confirmed: ${snapshot.goal.text}`,
         `set by: ${sourceName(snapshot.goal.source)} · ${ago(now - snapshot.goal.at)} · turn ${snapshot.goal.turn}`,
         ...(detected ? [`Atlas currently reads your aim as: ${detected.text}`] : ['Atlas has no different detected aim.']),
-        ...(alternatives.length ? ['auto: picked by Atlas until you confirm or drop it'] : []),
+        ...(alternatives.length ? ["auto: Atlas's guess, not yet yours."] : []),
         ...(snapshot.detour && alternatives.length ? ['Return from the detour (or make it the goal) before changing the goal.'] : []),
       ]
     : [
@@ -109,7 +109,7 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
       text,
       meta: 'auto',
       tone: 'goal',
-      detail: ['auto: picked by Atlas until you confirm or drop it'],
+      detail: ["auto: Atlas's guess, not yet yours."],
       actions: [
         action(`switch-goal-${index}`, 'Switch to this', { type: 'goal', text }, true),
         action(`dismiss-goal-${index}`, 'Dismiss', { type: 'dismiss-goal-alt', text }),
@@ -132,7 +132,14 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
         ...(needsObserver
           ? [action('turn-on-goal-observer', 'Turn on', { type: 'open-setup' }, true)]
           : detected
-            ? [action('use-detected-goal', 'Use this as my goal', { type: 'goal', text: detected.text }, true)]
+            ? [action(
+                'use-detected-goal',
+                snapshot.goalHistory.some(goal => goal.text.trim().toLowerCase() === detected.text.trim().toLowerCase())
+                  ? 'Switch back'
+                  : 'Use this as my goal',
+                { type: 'goal', text: detected.text },
+                true,
+              )]
             : []),
         action('close-goal', '✕', { type: 'expand', id: 'goal' }),
       ],

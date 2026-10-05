@@ -108,7 +108,7 @@ export function suggestionRow(
     detail: [
       `text: ${suggestion.text}`,
       `kind: ${suggestion.kind} suggestion`,
-      ...(suggestion.kind === 'goal' ? ['auto: picked by Atlas until you confirm or drop it'] : []),
+      ...(suggestion.kind === 'goal' ? ["auto: Atlas's guess, not yet yours."] : []),
       `source: ${sourceName(suggestion.source)}`,
       whenLine(now ?? suggestion.at, suggestion.at, suggestion.turn),
       `topic: ${topic ?? 'not recorded'}`,

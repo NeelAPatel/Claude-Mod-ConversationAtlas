@@ -3,8 +3,8 @@
 Goal rows retain their Atlas icon and draw the semantic focus modifier immediately after
 it (`◎ ✦ title` for the confirmed goal, `○ ✦ title` for a focused alternative). The modifier
 reserves title space independently of the icon and right-side metadata. Goal suggestions
-and alternatives show `auto`; expansions explain `auto: picked by Atlas until you confirm
-or drop it`. Alternatives use the existing goal Action labeled **Switch to this**. The
+and alternatives show `auto`; expansions explain `auto: Atlas's guess, not yet yours.`
+Alternatives use the existing goal Action labeled **Switch to this**. The
 shared engine moves focus after two consecutive topic-observed turns and restores it on a
 goal-matching topic; renderer reads never change state. Legend uses `✦ suggested / goal detected`;
 its icon-list entry `before an icon: just changed` remains.

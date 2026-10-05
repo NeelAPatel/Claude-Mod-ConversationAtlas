@@ -259,12 +259,12 @@ describe('goal focus: observation stays separate from intent', () => {
     const suggested = observe(emptySnapshot('focus', ROOT, 0), { goal: 'Ship the API' }, 1)
     const row = suggestionRow(suggested, suggested.suggestions[0]!, view, 2, true)
     expect(row.meta).toBe('auto')
-    expect(row.detail).toContain('auto: picked by Atlas until you confirm or drop it')
+    expect(row.detail).toContain("auto: Atlas's guess, not yet yours.")
     expect(row.actions?.[0]?.label).toBe('Set as goal')
     const s = observe(setGoal(suggested, 'Ship the API', 'person', 3), { topic: 'Write onboarding docs' }, 4)
     const alternatives = buildMap(s, view, 5).sections[0]?.rows[0]?.suggestedGoals
     expect(alternatives?.[0]?.meta).toBe('auto')
-    expect(alternatives?.[0]?.detail).toContain('auto: picked by Atlas until you confirm or drop it')
+    expect(alternatives?.[0]?.detail).toContain("auto: Atlas's guess, not yet yours.")
   })
 
   test('both surfaces draw focus after the icon and Switch to this alone confirms it', { timeoutMs: 20_000 }, async ($, on) => {

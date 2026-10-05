@@ -72,8 +72,8 @@ Change it any time with `/atlas observer [claude|engine]`.
 
 - `/atlas goal ship the login refactor` sets the goal. Atlas also shows the goal it *detected*;
   **Use this as my goal** makes it yours.
-- Goal suggestions and observed alternatives carry **auto**: picked by Atlas until you confirm
-  or drop it. **✦** after a goal icon marks what this turn is about. It stays on your confirmed
+- Goal suggestions and observed alternatives carry **auto**: Atlas's guess, not yet yours.
+  **✦** after a goal icon marks what this turn is about. It stays on your confirmed
   goal for one diverging turn and moves to an alternative after two consecutive observed turns
   on that topic; a matching topic returns it to your goal. **Switch to this** confirms an
   alternative. **Dismiss** hides it for this session view, including after observation or goal changes.
