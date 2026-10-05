@@ -19,8 +19,8 @@ try {
   }
 
   $matches = [regex]::Matches($output, '(?m)^CAPTURE_GOLDEN ([^ ]+) (.+)$')
-  if ($matches.Count -ne 28) {
-    throw "Expected 28 captured goldens, found $($matches.Count)."
+  if ($matches.Count -ne 32) {
+    throw "Expected 32 captured goldens, found $($matches.Count)."
   }
 
   $entries = [ordered]@{}

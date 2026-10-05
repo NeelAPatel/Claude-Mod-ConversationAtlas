@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 
 import type { AtlasView } from '../types'
-import { SAMPLE_NOW, sampleSnapshot } from './fixtures/sample'
+import { SAMPLE_NOW, noGoalSnapshot, sampleSnapshot } from './fixtures/sample'
 import { GOLDENS } from './golden/manifest'
 
 const PLUGIN = 'conversation-atlas'
@@ -212,6 +212,21 @@ test('golden setup snapshots match the consent screen', { timeoutMs: 20_000 }, a
         requestId: 'atlas',
         props: { title: 'Atlas', isFocused: true, bodyColumns, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} },
       } as any)
+      await golden.assert($, name, await ui.drawn())
+      await ui.unmount()
+    }
+  }
+})
+
+test('golden Map snapshots match the no-goal state', { timeoutMs: 20_000 }, async ($, on) => {
+  const { clock, golden } = world(on, { setup: { observer: 'claude', at: SAMPLE_NOW }, [`session:golden-sample-session`]: noGoalSnapshot() })
+  await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+  await clock.settle()
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    for (const bodyColumns of [46, 80]) {
+      const name = `${surface}-${bodyColumns}-map-nogoal`
+      const ui = await mountSample($, surface, bodyColumns, 'map', name)
       await golden.assert($, name, await ui.drawn())
       await ui.unmount()
     }

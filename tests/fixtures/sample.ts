@@ -121,3 +121,19 @@ export function sampleSnapshot(): AtlasSnapshot {
   s = addCheckpoint(s, 'Post-prompt milestone', 'claude', 'Long prompt retained for the Trail popup.', SAMPLE_NOW - 1_000)
   return s
 }
+
+/** The fixed sample with its confirmed goal cleared, retaining observed suggestions. */
+export function noGoalSnapshot(): AtlasSnapshot {
+  const sample = sampleSnapshot()
+  const goalSuggestion = {
+    id: 's-no-goal',
+    kind: 'goal' as const,
+    text: 'Build a dependable Conversation Atlas pane for long sessions.',
+    why: null,
+    at: SAMPLE_NOW - 108_000,
+    turn: sample.turn,
+    source: 'prompt' as const,
+    topicId: sample.currentTopicId,
+  }
+  return { ...sample, goal: null, suggestions: [...sample.suggestions, goalSuggestion] }
+}

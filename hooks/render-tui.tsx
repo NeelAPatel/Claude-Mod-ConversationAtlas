@@ -243,12 +243,15 @@ function expansionActions(ctx: Ctx, row: ScreenRow, items: ScreenAction[]): Rend
 function layoutRow(input: Parameters<typeof uiLayoutRow>[0], keepCounts = false): ReturnType<typeof uiLayoutRow> {
   const layout = uiLayoutRow(keepCounts ? { ...input, text: '' } : input)
   const parts = layout.metaParts.map(part => part.text)
+  const droppedShortMeta = !parts.length && !layout.meta && !input.metaParts?.length && input.meta?.trim() === 'auto'
+    ? input.meta
+    : undefined
   const meta = parts.length ? [...parts, ...(layout.right ? [layout.right] : [])].join(' ')
-    : [layout.meta, layout.right].filter(Boolean).join(' · ')
+    : [layout.meta ?? droppedShortMeta, layout.right].filter(Boolean).join(' · ')
   if (!meta) return layout
   const available = Math.max(1, input.width - cellWidth(input.prefix) - cellWidth(meta) - 1)
   const title = uiLayoutRow({ width: available, prefix: '', text: input.text, middle: input.middle })
-  return { ...layout, text: title.text }
+  return { ...layout, text: title.text, meta: layout.meta ?? droppedShortMeta }
 }
 
 function inlineMeta(ctx: Ctx, row: ScreenRow, layout: ReturnType<typeof layoutRow>): RenderElement | null {
