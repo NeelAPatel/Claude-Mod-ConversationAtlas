@@ -9,7 +9,7 @@ const explain: Record<string, string> = {
   'NEEDS YOUR CALL': 'Suggestions from Claude or your wording. Nothing changes until you press.',
   'OBSERVED DECISIONS': 'Things that sounded decided. Confirm means true from now on; Drop means it was not a decision.',
   'DETOUR FINDINGS': 'Keep is an outcome you take back; Exclude is explored, do not rely on it.',
-  'OPEN QUESTIONS': 'Unanswered questions from Claude or you. Claude reports them resolved when answered.',
+  'OPEN QUESTIONS': 'Unanswered questions from Claude or you. Confirm when answered; Drop if it no longer matters.',
 }
 const help: Record<string, string[]> = {
   'NEEDS YOUR CALL': [
@@ -33,7 +33,7 @@ const help: Record<string, string[]> = {
   'OPEN QUESTIONS': [
     'Questions waiting for an answer.',
     '? marks open; ✓ marks resolved.',
-    'Claude reports answered questions as resolved; expand for the source.',
+    'Confirm marks it answered; Drop removes it. Expand for the source.',
     'Reopen a resolved question if it becomes active again.',
   ],
   OPEN: [

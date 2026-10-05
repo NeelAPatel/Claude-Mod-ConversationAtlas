@@ -128,7 +128,8 @@ describe('open cleanup guards', () => {
     let s = observe(emptySnapshot('guard', ROOT, 0), { questions: ['Does this work?'], decisions: ['Keep this behavior'] }, 1)
     const question = s.questions[0]!
     const view = { ...scrollTestView(), mode: 'claude' as const }
-    expect(itemRow(s, question, 2, view, true).actions).toEqual([])
+    expect(itemRow(s, question, 2, view, true).actions?.map(item => [item.label, item.action.type]))
+      .toEqual([['Confirm', 'resolve'], ['Drop', 'drop']])
     expect(itemRow(s, s.decisions[0]!, 2, view, true).actions?.map(item => [item.label, item.action.type]))
       .toEqual([['Confirm', 'settle'], ['Drop', 'drop']])
     s = observe(s, { resolved: [question.text] }, 3)

@@ -91,7 +91,7 @@ The bottom bar holds **Legend** (`l`), **decisions** (`d`), **open questions** (
 there when you send reach Claude. Details: [docs/REFERENCE.md](docs/REFERENCE.md).
 
 Open decisions use **Confirm** / **Drop** (detour findings keep **Keep** / **Exclude**).
-Claude reports answered questions as resolved; resolved questions keep **Reopen**.
+Open questions take **Confirm** (answered) and **Drop**; resolved questions keep **Reopen**. Claude can also report them answered.
 Inline expansions end with a right-justified **✕**; their other actions wrap on the left.
 
 ### 4. Recovering and scanning earlier conversations

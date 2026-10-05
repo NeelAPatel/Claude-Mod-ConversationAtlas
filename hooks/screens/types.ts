@@ -22,6 +22,7 @@ export type Action =
   | { type: 'exclude'; id: string }
   | { type: 'drop'; id: string }
   | { type: 'restore'; id: string }
+  | { type: 'resolve'; id: string }
   | { type: 'reopen'; id: string }
   | { type: 'attach'; ref: AtlasSelection }
   | { type: 'return' }
