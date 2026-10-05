@@ -105,6 +105,9 @@ export type Ctx = {
 }
 type PaneCtx = Ctx
 
+// Owner decision "Option A": flip to true to restore expansion close buttons.
+const EXPANSION_CLOSE_BUTTON = false
+
 const OBSERVER_NOTE = 'Needs the Claude observer · /atlas observer claude'
 const POPUP_BG = '#16161e'
 const SCAN_RESULT_MS = 4_000
@@ -223,10 +226,11 @@ function actions(
 }
 
 // Reserve the close cell before allowing the left-hand actions to wrap.
-function expansionActions(ctx: Ctx, row: ScreenRow, items: ScreenAction[]): RenderElement {
+function expansionActions(ctx: Ctx, row: ScreenRow, items: ScreenAction[]): RenderElement | null {
   const { Box, Button } = ctx.el
   const close = items.find(item => item.action.type === 'expand' && item.action.id === row.id)
   const left = items.filter(item => item !== close)
+  if (!EXPANSION_CLOSE_BUTTON) return actions(ctx, left)
   return (
     <Box key={`expansion-actions-${row.key}`} flexDirection="row" gap={1} marginLeft={2} flexShrink={0}>
       <Box key={`expansion-actions-left-${row.key}`} flexGrow={1} flexShrink={1} minWidth={0}>
@@ -317,7 +321,7 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
   const headPress = row.interactive
     ? () =>
         ctx.act(
-          row.kind === 'event'
+          row.kind === 'event' || open
             ? { type: 'expand', id: row.id }
             : row.overflowPopup
               ? { type: 'popup', popup: { kind: 'item', id: row.id } }
@@ -638,6 +642,7 @@ function renderSection(ctx: Ctx, section: ScreenSection): RenderElement {
           label={section.input.label}
           placeholder={section.input.placeholder}
           submitLabel={section.input.submitLabel}
+          value={section.input.value}
           onSubmit={(value: string) => ctx.act({ type: 'goal', text: value })}
         />
       ) : null}
@@ -682,12 +687,10 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
   const content = (
     <Box key="legend-content" flexDirection="column" flexShrink={0}>
       <Box flexShrink={0}><Text bold>HOW TO USE</Text></Box>
-      <Box flexShrink={0}><Text dimColor wrap="wrap">
-        Plain rows expand structured details inline. Secondary controls are bracketed on terminal and native on desktop.
-      </Text></Box>
-      <Box flexShrink={0}><Text dimColor wrap="wrap">
-        Topics from the start of the work to now stay observed; press an action to confirm intent.
-      </Text></Box>
+      <Box flexShrink={0}><Text dimColor wrap="wrap">1. Each row is one thing Atlas saw: an icon, a title, counts and age.</Text></Box>
+      <Box flexShrink={0}><Text dimColor wrap="wrap">2. Press a row to open its details; press it again to close.</Text></Box>
+      <Box flexShrink={0}><Text dimColor wrap="wrap">3. [Bracketed] buttons do something when pressed.</Text></Box>
+      <Box flexShrink={0}><Text dimColor wrap="wrap">4. Nothing is confirmed until you press Confirm; observed items stay auto.</Text></Box>
       <Box flexShrink={0}><Text wrap="wrap">
         Marks: <Text color={SOURCE_MARK.person.color}>›</Text> you ·{' '}
         <Text color={SOURCE_MARK.claude.color}>✻</Text> Claude · <Text color={SOURCE_MARK.codex.color}>⌬</Text> Codex ·{' '}
@@ -709,7 +712,8 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
       </Box>
       <Box flexShrink={0}><Text bold>LEGEND</Text></Box>
       <Box flexShrink={0}><Text wrap="wrap">auto: picked by Atlas until you confirm or drop it</Text></Box>
-      <Box flexShrink={0}><Text wrap="wrap">✦ before an icon = just changed; ✦ after the goal icon = the goal this turn is about.</Text></Box>
+      <Box flexShrink={0}><Text wrap="wrap">✦ before an icon: just changed</Text></Box>
+      <Box flexShrink={0}><Text wrap="wrap">✦ after the goal icon: the goal this turn is about</Text></Box>
       <Box flexShrink={0}><Text wrap="wrap">
         counts: <Text color={C.write}>e</Text> edits <Text color={C.read}>r</Text> reads{' '}
         <Text color={C.path}>t</Text> topics <Text color={C.decision}>d</Text> decisions{' '}
@@ -729,6 +733,7 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
           })}
         </Box>
       ))}
+      <Box flexShrink={0}><Text dimColor wrap="wrap">{`pane: ${ctx.width + 2} columns`}</Text></Box>
     </Box>
   )
   const frame = (

@@ -98,7 +98,7 @@ there when you send reach Claude. Details: [docs/REFERENCE.md](docs/REFERENCE.md
 
 Open decisions use **Confirm** / **Drop** (detour findings keep **Keep** / **Exclude**).
 Open questions take **Confirm** (answered) and **Drop**; resolved questions keep **Reopen**. Claude can also report them answered.
-Inline expansions end with a right-justified **✕**; their other actions wrap on the left.
+Press an expanded row to collapse it; its other actions wrap on the left.
 
 Decisions show `!` for major choices and a dim `·` for minor ones after their icon.
 Atlas assigns weight from deterministic text cues; expand a decision and press

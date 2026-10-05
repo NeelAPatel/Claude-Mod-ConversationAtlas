@@ -17,7 +17,7 @@
 - Narrow interception: hooks observe with `await next(e)` and return the engine's result unchanged. The only answers are the plugin's own tool and command.
 - Before changing APIs, read the build's generated declarations (`.claude-plugin/types/` once loaded) and run `claude plugin validate` + `claude plugin test`.
 - The pane is sized to `bodyRows` and scrolls its own body via `ui.scroll` → `view.scroll`, so the app bar stays pinned. `rowsOf` estimates the body height. Built elements keep children on `el.children` (see `childrenOf`).
-- UI has three explicit paradigms: EXPANSION is inline structured detail under a row; TOGGLES flip state in place (Legend and Trail sort); POPUPS/MENUS are bordered, over-body panels for Trail events, Decisions and Open questions with `✕ Close`. Every Button is an action and every interactive row is a Button. Only one popup is open at a time, and any other action dismisses it. While Legend is on headings show `EXPLAIN` notes. Any new section needs an `EXPLAIN` entry.
+- UI has three explicit paradigms: EXPANSION is inline structured detail under a row, collapsed by pressing the row; TOGGLES flip state in place (Legend and Trail sort); POPUPS/MENUS are bordered, over-body panels for Trail events, Decisions and Open questions with `✕ Close`. Every Button is an action and every interactive row is a Button. Only one popup is open at a time, and any other action dismisses it. While Legend is on headings show `EXPLAIN` notes. Any new section needs an `EXPLAIN` entry.
 - Recovery reads `<root>/.claude/atlas/*.json` (`saveFile` format). Adopting one is always an explicit press or `/atlas recover n`.
 - No Claude-usage-costing behaviour before the user's setup choice.
 
@@ -31,4 +31,4 @@
 
 - **Releases (user 2026-10-05).** Version lives only in `.claude-plugin/plugin.json`; marketplace is `neel-cc-mods` (`.claude-plugin/marketplace.json`). The first push to `main`, for any reason, must be a complete push of v0.1.0 (tagged `v0.1.0`), made only after the user's final validation. See `docs/RELEASING.md` and `CHANGELOG.md`.
 
-- Expansions end with a right-justified `✕`; popups use the header `✕`.
+- Expansions have no close button (the `✕` is disabled behind one switch per renderer); pressing the expanded row collapses it. Popups use the header `✕`.

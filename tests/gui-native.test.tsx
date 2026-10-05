@@ -182,9 +182,8 @@ test('desktop overflow items expand inline and close without popup actions', { t
   expect(expanded).toContain('Additional context for the inline expansion.')
   const buttons = await ui.findAll({ type: 'Button' })
   expect(buttons.some((button: any) => button.props.label === 'Chat ⇒')).toBe(true)
-  const close = buttons.find((button: any) => button.props.label === '✕')
-  if (!close?.props.key) throw new Error('Expanded Open item is missing its Close action')
-  await ui.press({ key: String(close.props.key) })
+  expect(buttons.some((button: any) => button.props.label === '✕')).toBe(false)
+  await ui.press({ key: String(row.props.key) })
   expect(await text(ui)).not.toContain('Additional context for the inline expansion.')
   const tree = elements(await ui.drawn())
   expect(tree.some(node => node.props?.key === 'atlas-popup')).toBe(false)
@@ -192,7 +191,7 @@ test('desktop overflow items expand inline and close without popup actions', { t
   await ui.unmount()
 })
 
-test('desktop Trail detail labels use two columns at 80 and one column at 46', { timeoutMs: 20_000 }, async ($, on) => {
+test('desktop Trail detail labels stay one per row at every width', { timeoutMs: 20_000 }, async ($, on) => {
   const clock = setup(on)
   on('turn.start', () => ({ turnId: 'gui-detail-layout' }))
   await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true } as any)
@@ -206,18 +205,11 @@ test('desktop Trail detail labels use two columns at 80 and one column at 46', {
     await ui.press({ key: String(event.props.key) })
     const tree = elements(await ui.drawn())
     const grids = tree.filter(node => String(node.props?.key ?? '').startsWith('expanded-line-story-1-grid-'))
-    expect(grids.length > 0).toBe(bodyColumns >= 64)
-    if (bodyColumns >= 64) {
-      const firstGridRow = (grids[0]?.children ?? []).find((node: any) => node.type === 'Box' && node.props?.flexDirection === 'row')
-      expect(firstGridRow?.children).toHaveLength(2)
-      expect(firstGridRow?.props?.alignItems).toBe('flex-start')
-      expect(firstGridRow?.props?.flexShrink).toBe(0)
-      for (const cell of firstGridRow.children) expect(cell.props?.alignItems).toBe('flex-start')
-      expect(grids.flatMap((grid: any) => grid.children ?? []).filter((node: any) => node.props?.flexDirection === 'row').length).toBeGreaterThan(1)
-    }
+    expect(grids).toHaveLength(0)
+    expect(tree.some(node => node.type === 'Box' && node.props?.width === 0)).toBe(false)
     const buttons = await ui.findAll({ type: 'Button' })
     expect(buttons.filter((button: any) => button.props.label === 'Chat ⇒')).toHaveLength(1)
-    expect(buttons.filter((button: any) => button.props.label === '✕')).toHaveLength(1)
+    expect(buttons.filter((button: any) => button.props.label === '✕')).toHaveLength(0)
     const detail = await text(ui)
     expect(detail).toContain('turn: 1')
     expect(detail).toContain('when: now')

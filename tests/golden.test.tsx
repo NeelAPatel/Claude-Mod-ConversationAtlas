@@ -190,8 +190,7 @@ test('golden pane snapshots match the fixed sample', { timeoutMs: 20_000 }, asyn
       expect(events.length).toBeGreaterThanOrEqual(2)
       await expanded.press({ key: String(events[0]?.props.key ?? '') })
       await golden.assert($, `${surface}-${bodyColumns}-trail-expanded`, await expanded.drawn())
-      const close = (await expanded.findAll({ type: 'Button' })).find((button: any) => String(button.props.key ?? '').startsWith('close-evb-'))
-      await expanded.press({ key: String(close?.props.key ?? '') })
+      await expanded.press({ key: String(events[0]?.props.key ?? '') })
       await expanded.unmount()
     }
   }

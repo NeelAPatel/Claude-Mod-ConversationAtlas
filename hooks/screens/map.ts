@@ -98,7 +98,7 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
       ]
   const rows: ScreenRow[] = []
   // No confirmed goal means no goal row: an unset goal must not read as one set to "not confirmed yet".
-  if (snapshot.goal && !view.editingGoal) {
+  if (snapshot.goal) {
     const suggestedGoals: ScreenRow[] = alternatives.map((text, index) => ({
       id: `goal-alternative-${index}`,
       key: `goal-alternative-${index}`,
@@ -138,7 +138,11 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
   return section('goal', 'GOAL', rows, {
     tone: 'goal',
     empty: 'No goal yet. Type one below, or use a suggestion.',
-    actions: snapshot.goal && !snapshot.detour && !view.editingGoal ? [action('edit-goal', 'Edit', { type: 'edit-goal' })] : [],
+    actions: view.editingGoal
+      ? [action('cancel-goal', 'Cancel', { type: 'edit-goal' })]
+      : snapshot.goal && !snapshot.detour
+        ? [action('edit-goal', 'Edit', { type: 'edit-goal' })]
+        : [],
     input:
       view.editingGoal || (!snapshot.goal && !suggestion)
         ? {
@@ -146,6 +150,7 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
             label: '◎ ',
             placeholder: snapshot.goal ? 'new goal, Enter to confirm' : 'type your goal, Enter to confirm',
             submitLabel: 'set',
+            value: snapshot.goal?.text ?? '',
           }
         : undefined,
   })

@@ -32,14 +32,17 @@ RESUME NEXT ? pinned  {0:color:#7dcfff,bold|14:dim}
 Where to pick up. Pinned is yours; suggested is Claude’s guess.  {0:italic,dim}
 ▸  Review the fixed pane sample and approve…  {0:color:#7dcfff}
 HOW TO USE  {0:bold}
-Plain rows expand structured details inline. Desktop actions use native controls.  {0:dim}
-Topics from the start of the work to now stay observed; press an action to confirm intent.  {0:dim}
+1. Each row is one thing Atlas saw: an icon, a title, counts and age.  {0:dim}
+2. Press a row to open its details; press it again to close.  {0:dim}
+3. Buttons do something when pressed.  {0:dim}
+4. Nothing is confirmed until you press Confirm; observed items stay auto.  {0:dim}
 Marks: › you · ✻ Claude · ⌬ Codex · □ other  {7:color:#7dcfff|15:color:#d97757|26:color:#7c8cff|36:color:#9aa5b1}
 OBSERVER  {0:bold}
 Claude
 LEGEND  {0:bold}
 auto: picked by Atlas until you confirm or drop it
-✦ before an icon = just changed; ✦ after the goal icon = the goal this turn is about.
+✦ before an icon: just changed
+✦ after the goal icon: the goal this turn is about
 counts: e edits r reads t topics d decisions q questions h hand-offs b report-backs  {8:color:#ff9e64|16:color:#bb9af7|24:color:#bb9af7|33:color:#9ece6a|45:color:#f7768e|57:color:#7aa2f7|69:color:#7aa2f7}
 ◎ your goal (confirmed)  {0:color:#7dcfff,bold}
 ○ suggestion, needs you  {0:bold}
@@ -62,5 +65,6 @@ counts: e edits r reads t topics d decisions q questions h hand-offs b report-ba
 ◎ resume earlier session  {0:color:#7dcfff,bold}
 → hand-off running  {0:color:#7aa2f7,bold}
 ← report back  {0:color:#9ece6a,bold}
+pane: 46 columns  {0:dim}
 Legend + Mark
 ━━━━━━  {0:color:#e0af68,bold}

@@ -120,7 +120,7 @@ export type ScreenSection = {
   rows: ScreenRow[]
   empty?: string
   actions?: ScreenAction[]
-  input?: { key: string; label: string; placeholder: string; submitLabel: string }
+  input?: { key: string; label: string; placeholder: string; submitLabel: string; value: string }
 }
 
 export type ScreenPopup = {

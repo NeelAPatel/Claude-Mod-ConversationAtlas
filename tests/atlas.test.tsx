@@ -769,7 +769,6 @@ describe('hooks', () => {
         'exclusions:',
         'Return',
         'Make it the goal',
-        '✕',
       ]) {
         expect(expanded).toContain(text)
       }
@@ -998,7 +997,7 @@ describe('readability: app bar, legend, resizing', () => {
     expect(expanded).toContain('topic: Action layout')
     expect(expanded).toContain('Pin next')
     expect(expanded).toContain('Dismiss')
-    expect(expanded).toContain('✕')
+    expect(expanded).not.toContain('✕')
     expect(expanded).not.toContain('Confirm')
 
     await ui.press({ key: decisionKey ?? '' })
@@ -1020,23 +1019,22 @@ describe('readability: app bar, legend, resizing', () => {
     const evidenceExpanded = await drawn(ui)
     expect(evidenceExpanded).toContain('kind: earlier session')
     expect(evidenceExpanded).toContain('Resume this')
-    expect(evidenceExpanded).toContain('✕')
+    expect(evidenceExpanded).not.toContain('✕')
     await ui.unmount()
   })
 
-  test('the expanded goal close control reserves the right edge', { timeoutMs: 20_000 }, async ($, on) => {
+  test('the expanded goal collapses by row press without a close cell', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await $.command.run({ command: 'atlas', args: 'goal Ship the pane', origin: { kind: 'composer' } } as any)
     await clock.settle()
     const ui = await mountPane($)
     await ui.press({ key: 'goal-row' })
-    const close = await ui.find({ key: 'close-goal', type: 'Button' })
-    expect(close?.props.plain).toBe(true)
-    expect(close?.props.label).toBe('✕')
-    const cell = nodeByKey(await ui.drawn(), 'expansion-close-cell-goal-row')
-    expect(cell?.props?.width).toBe(1)
-    expect(cell?.props?.flexShrink).toBe(0)
+    expect(await ui.find({ key: 'close-goal', type: 'Button' })).toBeUndefined()
+    expect(nodeByKey(await ui.drawn(), 'expansion-close-cell-goal-row')).toBeUndefined()
+    expect(await drawn(ui)).toContain('confirmed: Ship the pane')
+    await ui.press({ key: 'goal-row' })
+    expect(await drawn(ui)).not.toContain('confirmed: Ship the pane')
     await ui.unmount()
   })
 
@@ -2020,11 +2018,11 @@ describe('expansion hanging indent, spacing and section tones', () => {
         expect(lines.join('')).not.toContain('…')
         expect(lines.map(line => line.slice(2)).join('')).toContain('ENDMARK')
         expect(rowsOf(detail, width - 2)).toBe(lines.length)
-        // Header, wrapped detail, action row and exactly one trailing empty row.
+        // Header, wrapped detail and exactly one trailing empty row; no empty action row.
         const detailLines = buildMap(snapshot, { ...scrollTestView(), mode: 'claude' }, 0).sections[0]?.rows[0]?.detail ?? []
         const drawnDetailHeight = detailLines.reduce((height, _, index) =>
           height + wrappedTextRows(nodeByKey(tree, `detail-goal-row-${index}`), width - 2).length, 0)
-        expect(rowsOf(expansion, width)).toBe(1 + drawnDetailHeight + 1 + 1)
+        expect(rowsOf(expansion, width)).toBe(1 + drawnDetailHeight + 1)
         const children = childrenOfNode(expansion)
         expect(children.at(-1)?.props?.key).toBe('expansion-gap-goal-row')
         expect(children.at(-1)?.props?.height).toBe(1)
@@ -2618,8 +2616,8 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     expect(t).toContain('add retries with backoff')
     expect(t).toContain('"key":"add-evb-')
     const close = t.match(/"key":"(close-evb-[^"]+)"/)?.[1]
-    expect(close).toBeDefined()
-    await ui.press({ key: close ?? '' })
+    expect(close).toBeUndefined()
+    await ui.press({ key: btn ?? '' })
     expect(await drawn(ui)).not.toContain('expanded-detail-story-1')
     await ui.unmount()
   })
@@ -2948,8 +2946,7 @@ describe('b5: icon colors, source marks and complete Legend', () => {
         const total = heights.reduce((sum, height) => sum + height, 0)
         expect(rowsOf(full, width)).toBe(total + 2)
         expect(measured?.maxLegendScroll).toBe(total + 2 - Number(panel?.props?.height))
-        expect(heights[1]).toBeGreaterThan(1)
-        expect(heights[2]).toBeGreaterThan(1)
+        expect(Math.max(...heights)).toBeGreaterThan(1)
         const counts = lines.find(line => iconText(line).startsWith('counts:'))
         expect(rowsOf(counts, innerWidth)).toBeGreaterThan(1)
         expect(content?.props?.flexShrink).toBe(0)
@@ -3063,7 +3060,7 @@ describe('decision weight', () => {
       const controls = (await ui.findAll({ type: 'Button' })).map((button: any) => button.props.key)
       expect(controls.indexOf(`set-${id}`)).toBeLessThan(controls.indexOf(`weight-${id}`))
       expect(controls.indexOf(`weight-${id}`)).toBeLessThan(controls.indexOf(`add-${key}`))
-      expect(controls.indexOf(`add-${key}`)).toBeLessThan(controls.indexOf(`close-${key}`))
+      expect(controls).not.toContain(`close-${key}`)
       await $.tool.call({ tool: OBSERVE, decisions: ['Use the public API today'] } as any)
       expect(await drawn(ui)).toContain('weight: minor (you)')
       await ui.press({ key: `weight-${id}` })

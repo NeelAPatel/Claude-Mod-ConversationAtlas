@@ -32,8 +32,7 @@ way, and their keys stay present at 26, 34, 48 and 72 body columns.
 ### Three interaction patterns
 
 - **Expansion.** Rows (goal, topics, decisions, questions, checkpoints, files) expand inline
-  with indented dim `│` detail lines. The details show metadata, not a repeat of the row. Expansions end with a right-justified **✕**, with other actions on the left
-  wrapping when needed. Each
+  with indented dim `│` detail lines. The details show metadata, not a repeat of the row. Press an expanded row to collapse it; its other actions wrap on the left. Each
   action group has one primary action where it makes sense, and the other actions are cyan
   `[ label ]` controls whose label lights up on hover.
 - **Toggles.** Flip state in place.
@@ -78,8 +77,8 @@ two; older snapshots load with null focus and display focus on the confirmed goa
 Decision weight applies only to decisions: `◇ ! title` / `◇ · title` (also `◆`
 for settled decisions). `!` uses the decision tone; `·` is dim. Expand for
 `weight: major (auto)` or `weight: minor (you)` and **Make minor** / **Make major**.
-The toggle follows Confirm/Drop, Keep/Exclude, or Reopen/Restore, before Chat ⇒
-and ✕. It also appears on Map LATEST and the Evidence ledger. It changes only
+The toggle follows Confirm/Drop, Keep/Exclude, or Reopen/Restore, before Chat ⇒.
+It also appears on Map LATEST and the Evidence ledger. It changes only
 weight, with no sorting change, Trail event, intent change, or prompt context.
 
 The case-insensitive word cues are architecture, schema, API, security, release,

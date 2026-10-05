@@ -140,7 +140,7 @@ export const buildEvidence: ScreenBuilder = (snapshot, view, now): ScreenModel =
     section(
       'settled',
       'SETTLED (LEDGER)',
-      settled.map(item => itemRow(snapshot, item, now, view, false)),
+      settled.map(item => itemRow(snapshot, item, now, view, true)),
       {
         tone: 'decision',
         count: `${settled.length}`,

@@ -106,6 +106,9 @@ export type Ctx = {
 }
 type PaneCtx = Ctx
 
+// Owner decision "Option A": flip to true to restore expansion close buttons.
+const EXPANSION_CLOSE_BUTTON = false
+
 const OBSERVER_NOTE = 'Needs the Claude observer · /atlas observer claude'
 const SCAN_RESULT_MS = 4_000
 
@@ -243,10 +246,11 @@ const ROW_MIN_GUTTER_CELLS = 2
 const GUI_TITLE_CHARACTER_ALLOWANCE = 1.15
 
 // Reserve the close cell before allowing the left-hand actions to wrap.
-function expansionActions(ctx: Ctx, row: ScreenRow, items: ScreenAction[]): RenderElement {
+function expansionActions(ctx: Ctx, row: ScreenRow, items: ScreenAction[]): RenderElement | null {
   const { Box, Button } = ctx.el
   const close = items.find(item => item.action.type === 'expand' && item.action.id === row.id)
   const left = items.filter(item => item !== close)
+  if (!EXPANSION_CLOSE_BUTTON) return actions(ctx, left)
   return (
     <Box key={`expansion-actions-${row.key}`} flexDirection="row" gap={1} marginLeft={2} flexShrink={0}>
       <Box key={`expansion-actions-left-${row.key}`} flexGrow={1} flexShrink={1} minWidth={0}>
@@ -500,35 +504,13 @@ function eventDetailLines(row: ScreenRow): DetailLine[] {
   )
 }
 
-function detailLayout(ctx: Ctx, prefix: string, lines: DetailLine[], renderFull?: (line: DetailLine) => RenderElement): RenderElement[] {
-  const { Box, Text } = ctx.el
-  const columns = ctx.width >= 64
-  const isShortLabel = (line: DetailLine) => line.text.length <= 40 && /^[^:\n]+:\s+\S/.test(line.text)
-  const elements: RenderElement[] = []
-  let group: DetailLine[] = []
-  const flush = () => {
-    if (!group.length) return
-    const short = group
-    group = []
-    if (!columns) {
-      elements.push(...short.map((line, index) => guideRow(ctx, `${prefix}-${elements.length + index}`, <Text dimColor={line.dim} wrap="wrap">{line.text}</Text>)))
-      return
-    }
-    elements.push(<Box key={`${prefix}-grid-${elements.length}`} flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0} alignItems="flex-start">
-      {Array.from({ length: Math.ceil(short.length / 2) }, (_unused, rowIndex) => <Box key={`${prefix}-grid-row-${rowIndex}`} flexDirection="row" flexShrink={0} minWidth={0} alignItems="flex-start">
-      {short.slice(rowIndex * 2, rowIndex * 2 + 2).map((line, columnIndex) => <Box key={`${prefix}-cell-${rowIndex}-${columnIndex}`} flexDirection="row" width={0} flexGrow={1} flexShrink={1} minWidth={0} marginLeft={columnIndex ? 1 : 0} alignItems="flex-start"><Text dimColor={line.dim} wrap="wrap">{line.text}</Text></Box>)}
-      </Box>)}
-    </Box>)
-  }
-  lines.forEach((line, index) => {
-    if (isShortLabel(line)) group.push(line)
-    else {
-      flush()
-      elements.push(guideRow(ctx, `${prefix}-full-${index}`, renderFull?.(line) ?? <Text dimColor={line.dim} wrap="wrap">{line.text}</Text>))
-    }
-  })
-  flush()
-  return elements
+function detailLayout(ctx: Ctx, prefix: string, lines: DetailLine[], renderLine?: (line: DetailLine) => RenderElement): RenderElement[] {
+  const { Text } = ctx.el
+  return lines.map((line, index) => guideRow(
+    ctx,
+    `${prefix}-${index}`,
+    renderLine?.(line) ?? <Text dimColor={line.dim} wrap="wrap">{line.text}</Text>,
+  ))
 }
 
 function guideRow(ctx: Ctx, key: string, content: RenderElement): RenderElement {
@@ -541,15 +523,12 @@ function guideRow(ctx: Ctx, key: string, content: RenderElement): RenderElement 
 }
 
 function eventGeometry(ctx: Ctx, row: ScreenRow) {
-  const lines = eventDetailLines(row)
   const { Text } = ctx.el
-  const items = detailLayout(ctx, `expanded-line-${row.id}`, lines, line => <Text dimColor={line.dim} wrap="wrap">
-    {['✻', '⌬', '□'].includes(line.text[0] ?? '') && line.text[1] === ' ' ? (
-      <Text color={Object.values(SOURCE_MARK).find(source => source.mark === line.text[0])?.color}>{line.text[0]}</Text>
-    ) : null}
-    {['✻', '⌬', '□'].includes(line.text[0] ?? '') && line.text[1] === ' ' ? line.text.slice(1) : line.text}
+  const marked = (line: DetailLine) => ['✻', '⌬', '□'].includes(line.text[0] ?? '') && line.text[1] === ' '
+  return detailLayout(ctx, `expanded-line-${row.id}`, eventDetailLines(row), line => <Text dimColor={line.dim} wrap="wrap">
+    {marked(line) ? <Text color={Object.values(SOURCE_MARK).find(source => source.mark === line.text[0])?.color}>{line.text[0]}</Text> : null}
+    {marked(line) ? line.text.slice(1) : line.text}
   </Text>)
-  return items
 }
 
 function EventDetail({ ctx, row }: { ctx: Ctx; row: ScreenRow }): RenderElement {
@@ -642,6 +621,7 @@ function renderSection(ctx: Ctx, section: ScreenSection): RenderElement {
           label={section.input.label}
           placeholder={section.input.placeholder}
           submitLabel={section.input.submitLabel}
+          value={section.input.value}
           onSubmit={(value: string) => ctx.act({ type: 'goal', text: value })}
         />
       ) : null}
@@ -678,16 +658,22 @@ export const LEGEND: [GlyphKey | '!' | '·', string][] = [
   ['reportBack', 'report back'],
 ]
 export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
-  const { Box, Text } = ctx.el
+  const { Box, Text, Svg } = ctx.el
   const content = (
     <Box key="legend-content" flexDirection="column" flexShrink={0}>
+      {Svg ? <Svg
+        key="legend-separator"
+        source={'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 1" preserveAspectRatio="none">'
+          + '<path d="M0 0.5H100" stroke="#41414a" stroke-width="1"/></svg>'}
+        alt="Legend separator"
+        width={Math.max(1, ctx.width * 8)}
+        height={1}
+      /> : null}
       <Box flexShrink={0}><Text bold>HOW TO USE</Text></Box>
-      <Box flexShrink={0}><Text dimColor wrap="wrap">
-        Plain rows expand structured details inline. Desktop actions use native controls.
-      </Text></Box>
-      <Box flexShrink={0}><Text dimColor wrap="wrap">
-        Topics from the start of the work to now stay observed; press an action to confirm intent.
-      </Text></Box>
+      <Box flexShrink={0}><Text dimColor wrap="wrap">1. Each row is one thing Atlas saw: an icon, a title, counts and age.</Text></Box>
+      <Box flexShrink={0}><Text dimColor wrap="wrap">2. Press a row to open its details; press it again to close.</Text></Box>
+      <Box flexShrink={0}><Text dimColor wrap="wrap">3. Buttons do something when pressed.</Text></Box>
+      <Box flexShrink={0}><Text dimColor wrap="wrap">4. Nothing is confirmed until you press Confirm; observed items stay auto.</Text></Box>
       <Box flexShrink={0}><Text wrap="wrap">
         Marks: <Text color={SOURCE_MARK.person.color}>›</Text> you ·{' '}
         <Text color={SOURCE_MARK.claude.color}>✻</Text> Claude · <Text color={SOURCE_MARK.codex.color}>⌬</Text> Codex ·{' '}
@@ -710,7 +696,8 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
       </Box>
       <Box flexShrink={0}><Text bold>LEGEND</Text></Box>
       <Box flexShrink={0}><Text wrap="wrap">auto: picked by Atlas until you confirm or drop it</Text></Box>
-      <Box flexShrink={0}><Text wrap="wrap">✦ before an icon = just changed; ✦ after the goal icon = the goal this turn is about.</Text></Box>
+      <Box flexShrink={0}><Text wrap="wrap">✦ before an icon: just changed</Text></Box>
+      <Box flexShrink={0}><Text wrap="wrap">✦ after the goal icon: the goal this turn is about</Text></Box>
       <Box flexShrink={0}><Text wrap="wrap">
         counts: <Text color={C.write}>e</Text> edits <Text color={C.read}>r</Text> reads{' '}
         <Text color={C.path}>t</Text> topics <Text color={C.decision}>d</Text> decisions{' '}
@@ -732,6 +719,7 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
         </Box>
       ))}
       </Box>
+      <Box flexShrink={0}><Text dimColor wrap="wrap">{`pane: ${ctx.width + 2} columns`}</Text></Box>
     </Box>
   )
   const frame = (

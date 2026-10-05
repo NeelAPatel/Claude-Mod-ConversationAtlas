@@ -14,7 +14,7 @@ TRAIL · Story ⓘ [≡]  {0:color:#b9f27c,bold|16:color:#7dcfff|18:color:#7dcff
 │ Commit: Post-prompt commit  {0:dim}
 │ › Review the visual regression boundary for the Atlas pane carefully. Preserve the existing action semantics while checking the fixed sample state.  {0:dim}
 ▲1/14▼  {0:dim|1:dim}
-[Chat ⇒] ✕  {0:color:#7dcfff|7:color:#7dcfff}
+[Chat ⇒]  {0:color:#7dcfff|7:color:#7dcfff}
 
 › Build a dependable Conversation Atlas pane for lo… 2e 2r ⚑ 4t 3d 2q 2h 1b 1m  {0:color:#7dcfff|53:color:#ff9e64|56:color:#bb9af7|59:color:#7aa2f7|61:color:#bb9af7|64:color:#9ece6a|67:color:#f7768e|70:color:#7aa2f7|73:color:#7aa2f7|76:dim}
 ──────────────────────────────────────────────────────────────────────────────  {0:dim}
