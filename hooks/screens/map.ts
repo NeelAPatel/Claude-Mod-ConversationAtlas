@@ -1,19 +1,19 @@
 // Shows the current goal, observed path, detours, activity and resume cues. Pure; no `$`.
 
-import { activeDecisions, goalSuggestions, openQuestions, pathOf, resumeHint } from '../model'
+import { activeDecisions, focusedGoal, goalSuggestions, openQuestions, pathOf, resumeHint } from '../model'
 import { base, rel } from '../activity'
 import type { AtlasSnapshot } from '../../types'
 import { action, ago, filterHiddenRows, itemRow, sourceName, suggestionRow, topicName, whenLine } from './shared'
 import type { ScreenBuilder, ScreenModel, ScreenRow, ScreenSection, ScreenView } from './types'
 
 const explain: Record<string, string> = {
-  GOAL: 'What you are trying to do. Only you set it: confirm a suggestion, type one, or explicitly adopt Atlas’s detected aim.',
+  GOAL: 'What you are trying to do. Only you set it. auto means Atlas picked it; ✦ after the icon marks this turn’s focus.',
   'CURRENT PATH': 'Topics from the start of the work to now; detour branches show where the main path paused. Claude keeps it current.',
   DETOUR: 'A side trip you chose, with its departure and return target.',
   'POSSIBLE DETOUR': 'Looks like a side trip. Take it to get a return point, or say it is not one.',
   ACTIVITY: 'What Claude is doing: spinner = running, done, or failed.',
   'WORKING SET': 'Files touched lately: edited and read counts. Click one to point Claude at it.',
-  LATEST: 'Newest decisions and questions. Confirm decisions in the Open tab.',
+  LATEST: 'Newest decisions and questions. Confirm decisions in the Open tab. ! = major, · = minor decision; auto uses text cues, you means your weight toggle.',
   'RESUME NEXT': 'Where to pick up. Pinned is yours; suggested is Claude’s guess.',
 }
 const help: Record<string, string[]> = {
@@ -21,6 +21,9 @@ const help: Record<string, string[]> = {
     'Your confirmed destination for this session.',
     'Only you set it: confirm a suggestion, type one, or adopt a detected aim.',
     '◎ is confirmed; ○ is a suggestion waiting for your press.',
+    'auto: picked by Atlas until you confirm or drop it.',
+    '✦ after the goal icon marks the goal this turn is about; it moves after two consecutive observed turns on another topic.',
+    'Switch to this confirms an alternative as your goal.',
     'Expand the goal row for its source and the action to use a detected aim.',
   ],
   'CURRENT PATH': [
@@ -56,6 +59,7 @@ const help: Record<string, string[]> = {
     'Chat ⇒ points Claude at a file only when you keep its chip.',
   ],
   LATEST: [
+    '! after a decision icon means major; · means minor. Expand to Make major or Make minor; auto uses text cues, you means your choice.',
     'The newest observed decisions and questions.',
     '◇ is heard but unsettled; ? is an open question.',
     'Use the Open tab to confirm decisions or review questions.',
@@ -76,6 +80,7 @@ function section(key: string, heading: string, rows: ScreenRow[], extra: Partial
 function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSection {
   const suggestion = [...snapshot.suggestions].reverse().find(item => item.kind === 'goal' || item.kind === 'resume')
   const alternatives = goalSuggestions(snapshot)
+  const focus = focusedGoal(snapshot)
   const detected =
     snapshot.detectedGoal && (!snapshot.goal || snapshot.detectedGoal.text !== snapshot.goal.text) ? snapshot.detectedGoal : null
   const needsObserver = view.mode === 'engine' && detected?.source === 'claude'
@@ -84,6 +89,8 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
         `confirmed: ${snapshot.goal.text}`,
         `set by: ${sourceName(snapshot.goal.source)} · ${ago(now - snapshot.goal.at)} · turn ${snapshot.goal.turn}`,
         ...(detected ? [`Atlas currently reads your aim as: ${detected.text}`] : ['Atlas has no different detected aim.']),
+        ...(alternatives.length ? ['auto: picked by Atlas until you confirm or drop it'] : []),
+        ...(snapshot.detour && alternatives.length ? ['Return from the detour (or make it the goal) before changing the goal.'] : []),
       ]
     : [
         'status: not confirmed',
@@ -97,16 +104,19 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
       key: `goal-alternative-${index}`,
       kind: 'goal',
       glyph: 'suggestion',
+      marker: focus === text ? '✦' : undefined,
       text,
-      meta: 'observed alternative',
+      meta: 'auto',
       tone: 'goal',
-      actions: [action(`update-goal-${index}`, 'Update goal', { type: 'goal', text }, true)],
+      detail: ['auto: picked by Atlas until you confirm or drop it'],
+      actions: [action(`switch-goal-${index}`, 'Switch to this', { type: 'goal', text }, true)],
     }))
     rows.push({
       id: 'goal',
       key: 'goal-row',
       kind: 'goal',
       glyph: 'goal',
+      marker: focus === snapshot.goal.text ? '✦' : undefined,
       text: snapshot.goal.text,
       tone: 'goal',
       expandable: true,
@@ -124,7 +134,7 @@ function goal(snapshot: AtlasSnapshot, view: ScreenView, now: number): ScreenSec
       ],
     })
   }
-  if (!snapshot.goal && suggestion) rows.push(suggestionRow(snapshot, suggestion, view))
+  if (!snapshot.goal && suggestion) rows.push(suggestionRow(snapshot, suggestion, view, now))
   return section('goal', 'GOAL', rows, {
     tone: 'goal',
     empty: 'No goal yet. Type one below, or use a suggestion.',

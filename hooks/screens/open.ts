@@ -7,7 +7,7 @@ import type { ScreenBuilder, ScreenModel, ScreenRow, ScreenSection } from './typ
 
 const explain: Record<string, string> = {
   'NEEDS YOUR CALL': 'Suggestions from Claude or your wording. Nothing changes until you press.',
-  'OBSERVED DECISIONS': 'Things that sounded decided. Confirm means true from now on; Drop means it was not a decision.',
+  'OBSERVED DECISIONS': 'Things that sounded decided. Confirm means true from now on; Drop means it was not a decision. ! = major, · = minor decision; auto uses text cues, you means your weight toggle.',
   'DETOUR FINDINGS': 'Keep is an outcome you take back; Exclude is explored, do not rely on it.',
   'OPEN QUESTIONS': 'Unanswered questions from Claude or you. Confirm when answered; Drop if it no longer matters.',
 }
@@ -19,6 +19,7 @@ const help: Record<string, string[]> = {
     'Nothing changes until you press.',
   ],
   'OBSERVED DECISIONS': [
+    '! after a decision icon means major; · means minor. Expand to Make major or Make minor; auto uses text cues, you means your choice.',
     'Conclusions Atlas heard but you have not settled.',
     '◇ means observed, not yet true from now on.',
     'Confirm keeps it as knowledge; Drop removes it from the active list.',

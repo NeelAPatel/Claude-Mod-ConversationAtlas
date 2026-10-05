@@ -2,12 +2,19 @@ import { describe, expect, mock, test, type Engine } from 'claude-code/testing'
 
 import {
   addCheckpoint,
+  addDecision,
+  addQuestion,
+  autoDecisionWeight,
+  decisionWeight,
+  toggleDecisionWeight,
   adoptRecall,
   closeUnverifiedHandoffs,
   collapseEvents,
   confirmSuggestion,
   emptySnapshot,
+  focusedGoal,
   goalSuggestions,
+  hydrate,
   hasReplaceableContent,
   observe,
   promptBullets,
@@ -19,6 +26,7 @@ import {
   setGoal,
   setItemStatus,
   setNextStep,
+  snapshotError,
   startDetour,
   startHandoff,
   startTurn,
@@ -39,7 +47,7 @@ test('surface dispatcher selects the GUI only for desktop', () => {
 })
 import { buildEvidence } from '../hooks/screens/evidence'
 import { buildMap } from '../hooks/screens/map'
-import { itemRow } from '../hooks/screens/shared'
+import { itemRow, suggestionRow } from '../hooks/screens/shared'
 import { buildOpen } from '../hooks/screens/open'
 import { buildTrail, eventText, trailViewPopup } from '../hooks/screens/trail'
 import type { On } from 'claude-code'
@@ -131,11 +139,162 @@ describe('open cleanup guards', () => {
     expect(itemRow(s, question, 2, view, true).actions?.map(item => [item.label, item.action.type]))
       .toEqual([['Confirm', 'resolve'], ['Drop', 'drop']])
     expect(itemRow(s, s.decisions[0]!, 2, view, true).actions?.map(item => [item.label, item.action.type]))
-      .toEqual([['Confirm', 'settle'], ['Drop', 'drop']])
+      .toEqual([['Confirm', 'settle'], ['Drop', 'drop'], ['Make major', 'weight']])
     s = observe(s, { resolved: [question.text] }, 3)
     expect(s.questions[0]?.status).toBe('resolved')
     expect(itemRow(s, s.questions[0]!, 4, view, true).actions?.map(item => [item.label, item.action.type]))
       .toEqual([['Reopen', 'reopen']])
+  })
+})
+
+describe('goal focus: observation stays separate from intent', () => {
+  test('one diverging turn keeps goal focus; the second moves it; return restores it', () => {
+    let s = setGoal(emptySnapshot('focus', ROOT, 0), 'Ship the API', 'person', 1)
+    const goal = s.goal
+    const view = { ...scrollTestView(), mode: 'claude' as const }
+    expect(focusedGoal(s)).toBe('Ship the API')
+    s = observe(s, { topic: 'Ship API validation' }, 1)
+    s = startTurn(s, 'Review the next topic.', 2)
+    s = observe(s, { topic: 'Write onboarding docs' }, 3)
+    expect(s.focus?.turns).toBe(1)
+    expect(focusedGoal(s)).toBe('Ship the API')
+    expect(buildMap(s, view, 3).sections[0]?.rows[0]?.marker).toBe('✦')
+    s = observe(s, { topic: 'Write onboarding docs' }, 4)
+    expect(s.focus?.turns).toBe(1)
+    s = startTurn(s, 'Continue that topic.', 5)
+    // Advancing the turn alone does not count a stale topic.
+    expect(s.focus?.turns).toBe(1)
+    s = observe(s, { topic: 'Write onboarding docs' }, 6)
+    expect(s.focus).toEqual({ text: 'Write onboarding docs', since: 1, turns: 2, lastTurn: 2 })
+    expect(focusedGoal(s)).toBe('Write onboarding docs')
+    const row = buildMap(s, view, 6).sections[0]?.rows[0]
+    expect(row?.marker).toBeUndefined()
+    expect(row?.suggestedGoals?.[0]?.marker).toBe('✦')
+    expect(row?.suggestedGoals?.[0]?.actions?.[0]).toEqual({
+      key: 'switch-goal-0', label: 'Switch to this', action: { type: 'goal', text: 'Write onboarding docs' }, primary: true,
+    })
+    expect(s.goal).toEqual(goal)
+    // The explicit action uses the existing intent reducer.
+    const switched = setGoal(s, row!.suggestedGoals![0]!.text, 'person', 7)
+    expect(switched.goal?.text).toBe('Write onboarding docs')
+    expect(focusedGoal(switched)).toBe(switched.goal?.text)
+    s = observe(s, { topic: 'Ship API validation', shift: 'return' }, 8)
+    expect(focusedGoal(s)).toBe('Ship the API')
+    expect(s.goal).toEqual(goal)
+  })
+
+  test('candidate changes and unobserved turns reset the two-turn run', () => {
+    let s = setGoal(emptySnapshot('focus', ROOT, 0), 'Ship the API', 'person', 1)
+    s = observe(startTurn(s, 'First topic.', 2), { topic: 'Write onboarding docs' }, 3)
+    s = observe(startTurn(s, 'Another topic.', 4), { topic: 'Audit terminal spacing' }, 5)
+    expect(s.focus?.turns).toBe(1)
+    expect(focusedGoal(s)).toBe('Ship the API')
+    s = startTurn(s, 'No topic report this turn.', 6)
+    s = observe(s, { questions: ['Is spacing right?'] }, 7)
+    expect(s.focus?.lastTurn).toBe(2)
+    s = observe(startTurn(s, 'Resume that topic.', 8), { topic: 'Audit terminal spacing' }, 9)
+    expect(s.focus?.turns).toBe(1)
+    s = observe(startTurn(s, 'Continue that topic.', 10), { topic: 'Audit terminal spacing again' }, 11)
+    expect(s.focus?.turns).toBe(2)
+    expect(focusedGoal(s)).toBe('Audit terminal spacing again')
+  })
+
+  test('a focus change adds no Trail event, freshness, checkpoint or prompt context', () => {
+    let s = setGoal(emptySnapshot('focus', ROOT, 0), 'Ship the API', 'person', 1)
+    s = observe(startTurn(s, 'First topic.', 2), { topic: 'Write onboarding docs' }, 3)
+    s = startTurn(s, 'Continue that topic.', 4)
+    const before = s
+    s = observe(s, { topic: 'Write onboarding docs' }, 5)
+    expect(s.focus?.turns).toBe(2)
+    for (const key of ['goal', 'detour', 'nextStep', 'checkpoints', 'events', 'fresh', 'pendingContext'] as const)
+      expect(s[key]).toEqual(before[key])
+  })
+
+  test('moved focus stays visible even with recent goal-matching evidence', () => {
+    let s = setGoal(emptySnapshot('focus', ROOT, 0), 'Ship the API', 'person', 1)
+    s = observe(s, { topic: 'Ship API validation' }, 2)
+    s = observe(startTurn(s, 'Write docs.', 3), { topic: 'Write onboarding docs' }, 4)
+    expect(goalSuggestions(s)).toEqual([])
+    s = observe(startTurn(s, 'Continue docs.', 5), { topic: 'Write onboarding docs' }, 6)
+    expect(goalSuggestions(s)[0]).toBe('Write onboarding docs')
+    s = observe(s, { topic: 'Ship API validation', shift: 'return' }, 7)
+    expect(focusedGoal(s)).toBe('Ship the API')
+    expect(goalSuggestions(s)).toEqual([])
+  })
+
+  test('old snapshots load with null focus; saved focus round-trips bounded and malformed records reject', () => {
+    const old = { ...emptySnapshot('old', ROOT, 0) }
+    delete old.focus
+    expect(hydrate(old, 'current', ROOT, 1).focus).toBeNull()
+    expect(upgrade(old).focus).toBeNull()
+    const recall = fromAtlasFullFile(saveFile(old, 1), ROOT)
+    expect(recall).not.toBeNull()
+    expect(recoverFull(emptySnapshot('current', ROOT, 0), recall!, 2).focus).toBeNull()
+    const saved = { ...old, focus: { text: 'x'.repeat(200), since: 1, turns: 99, lastTurn: 99 } }
+    const restored = recoverFull(emptySnapshot('current', ROOT, 0), fromAtlasFullFile(saveFile(saved, 2), ROOT)!, 3)
+    expect(restored.focus?.text.length).toBe(140)
+    expect(restored.focus?.turns).toBe(2)
+    for (const focus of [[], 'topic', { text: 'docs', since: 1, turns: 1 }, { text: '', since: 1, turns: 1, lastTurn: 1 }])
+      expect(snapshotError({ ...old, focus })).toBe('malformed focus record')
+  })
+
+  test('an active detour keeps its observed focus visible and preserves the goal-action guard', () => {
+    let s = setGoal(emptySnapshot('focus', ROOT, 0), 'Ship the API', 'person', 1)
+    s = observe(s, { topic: 'Ship API validation' }, 2)
+    s = startDetour(s, 'Review onboarding docs', null, 3)
+    s = observe(startTurn(s, 'Review docs.', 4), { topic: 'Write onboarding docs', shift: 'subtopic' }, 5)
+    s = observe(startTurn(s, 'Continue docs.', 6), { topic: 'Write onboarding docs' }, 7)
+    const row = buildMap(s, { ...scrollTestView(), mode: 'claude' }, 8).sections[0]?.rows[0]
+    expect(row?.marker).toBeUndefined()
+    expect(row?.suggestedGoals?.[0]?.marker).toBe('✦')
+    expect(row?.suggestedGoals?.[0]?.actions?.[0]?.label).toBe('Switch to this')
+    expect(row?.detail).toContain('Return from the detour (or make it the goal) before changing the goal.')
+    expect(setGoal(s, 'Write onboarding docs', 'person', 9)).toBe(s)
+    const returned = returnFromDetour(s, 10)
+    expect(setGoal(returned, 'Write onboarding docs', 'person', 11).goal?.text).toBe('Write onboarding docs')
+  })
+
+  test('unconfirmed goals and derived alternatives have auto metadata and explanatory detail', () => {
+    const view = { ...scrollTestView(), mode: 'claude' as const }
+    const suggested = observe(emptySnapshot('focus', ROOT, 0), { goal: 'Ship the API' }, 1)
+    const row = suggestionRow(suggested, suggested.suggestions[0]!, view, 2, true)
+    expect(row.meta).toBe('auto')
+    expect(row.detail).toContain('auto: picked by Atlas until you confirm or drop it')
+    expect(row.actions?.[0]?.label).toBe('Set as goal')
+    const s = observe(setGoal(suggested, 'Ship the API', 'person', 3), { topic: 'Write onboarding docs' }, 4)
+    const alternatives = buildMap(s, view, 5).sections[0]?.rows[0]?.suggestedGoals
+    expect(alternatives?.[0]?.meta).toBe('auto')
+    expect(alternatives?.[0]?.detail).toContain('auto: picked by Atlas until you confirm or drop it')
+  })
+
+  test('both surfaces draw focus after the icon and Switch to this alone confirms it', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    on('turn.start', (_$: any, e: any) => ({ turnId: e.turnId }))
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.command.run({ command: 'atlas', args: 'goal Ship the API', origin: { kind: 'composer' } } as any)
+    await $.turn.start({ turnId: 'focus-1', text: 'Write some docs.' } as any)
+    await $.tool.call({ tool: OBSERVE, topic: 'Write onboarding docs' } as any)
+    await $.turn.start({ turnId: 'focus-2', text: 'Continue the docs.' } as any)
+    await $.tool.call({ tool: OBSERVE, topic: 'Write onboarding docs' } as any)
+    await clock.settle()
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+      const head = JSON.stringify(nodeByKey(await ui.drawn(), 'head-goal-row'))
+      expect(head).toContain('Ship the API')
+      expect(head).not.toContain('✦')
+      if (!await ui.find({ key: 'switch-goal-0', type: 'Button' })) await ui.press({ key: 'goal-row' })
+      const alternative = JSON.stringify(nodeByKey(await ui.drawn(), 'head-goal-alternative-0'))
+      expect(alternative.indexOf('○')).toBeLessThan(alternative.indexOf('✦'))
+      expect(alternative.indexOf('✦')).toBeLessThan(alternative.indexOf('Write onboarding docs'))
+      expect(await drawn(ui)).toContain('Switch to this')
+      await ui.unmount()
+    }
+    const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+    await ui.press({ key: 'switch-goal-0' })
+    const head = JSON.stringify(nodeByKey(await ui.drawn(), 'head-goal-row'))
+    expect(head).toContain('Write onboarding docs')
+    expect(head.indexOf('◎')).toBeLessThan(head.indexOf('✦'))
+    await ui.unmount()
   })
 })
 
@@ -206,7 +365,7 @@ describe('model: observation never writes intent', () => {
     expect(goalSuggestions(far)).toEqual(['Polish the desktop surface', 'Audit terminal spacing', 'Write onboarding docs'])
   })
 
-  test('observing a far topic does not change the goal until Update goal is pressed', { timeoutMs: 20_000 }, async ($, on) => {
+  test('observing a far topic does not change the goal until Switch to this is pressed', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock } = world(on)
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
     await $.command.run({ command: 'atlas', args: 'goal Ship the API', origin: { kind: 'composer' } } as any)
@@ -218,9 +377,9 @@ describe('model: observation never writes intent', () => {
     expect(await drawn(ui)).toContain('Ship the API')
     expect(await drawn(ui)).toContain('· 3 suggestions')
     await ui.press({ key: 'goal-row' })
-    expect(await ui.find({ key: 'update-goal-0', type: 'Button' })).toBeDefined()
+    expect(await ui.find({ key: 'switch-goal-0', type: 'Button' })).toBeDefined()
     expect(await drawn(ui)).toContain('Polish the desktop surface')
-    await ui.press({ key: 'update-goal-0' })
+    await ui.press({ key: 'switch-goal-0' })
     expect(await drawn(ui)).toContain('Polish the desktop surface')
     await ui.unmount()
   })
@@ -547,7 +706,7 @@ describe('hooks', () => {
     await clock.settle()
     const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
     expect(await drawn(ui)).not.toContain('not confirmed yet')
-    expect(await drawn(ui)).toContain('goal suggestion')
+    expect(await drawn(ui)).toContain('auto')
     const ok = (await drawn(ui)).match(/"key":"(ok-s\d+)"/)?.[1]
     expect(ok).toBeDefined()
     await ui.press({ key: ok ?? '' })
@@ -1657,7 +1816,7 @@ describe('joining a conversation late', () => {
     expect(forks).toBe(0)
     const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface: 'terminal', component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
     let text = await drawn(ui)
-    expect(text).toContain('Build the release checklist pane for the team.')
+    expect(text).toContain('Build the release checklist pane')
     expect(text).toContain('pane.ts')
     expect(text).toContain('Should the pane also show owners?')
     expect(text).not.toContain('not typed')
@@ -2679,13 +2838,14 @@ function iconText(value: unknown): string {
 
 describe('b5: icon colors, source marks and complete Legend', () => {
   test('Legend keys match every tab row across the sample and all event, file and activity kinds', () => {
-    const used = new Set<GlyphKey>()
-    for (const snapshot of [sampleSnapshot(), iconFixture()]) {
+    const used = new Set<GlyphKey | '!' | '·'>()
+    for (const snapshot of [sampleSnapshot(), addDecision(iconFixture(), 'Use the public API', 'claude', SAMPLE_NOW)]) {
       for (const build of [buildMap, buildTrail, buildOpen, buildEvidence]) {
         for (const trailView of ['story', 'log'] as const) {
           const model = build(snapshot, { ...scrollTestView(), mode: 'claude', trailView }, SAMPLE_NOW)
           for (const row of model.sections.flatMap(section => section.rows)) {
             if (row.glyph) used.add(row.glyph)
+            if (row.marker === '!' || row.marker === '·') used.add(row.marker)
             if (row.fresh) used.add('fresh')
           }
         }
@@ -2821,6 +2981,94 @@ describe('b5: icon colors, source marks and complete Legend', () => {
         expect(JSON.stringify(nodeByKey(lastTree, 'legend-content'))).toContain('resume earlier session')
         await ui.unmount()
       }
+    }
+  })
+})
+
+
+describe('decision weight', () => {
+  test('deterministic consequential cues and minor text; questions get no weight', () => {
+    for (const cue of ['architecture', 'schema', 'API', 'security', 'release', 'publish', 'delete', 'migrate', 'replace', 'rename', 'breaking', 'public', 'data', 'must', 'never', 'always', 'default', 'go with']) {
+      expect(autoDecisionWeight(`We choose ${cue} today`)).toBe('major')
+      const s = addDecision(emptySnapshot('weight', ROOT, 0), `We choose ${cue} today`, 'claude', 1)
+      expect(s.decisions[0]?.weight).toBe('major')
+      expect(s.decisions[0]?.weightBy).toBe('auto')
+    }
+    expect(autoDecisionWeight('Use a blue heading')).toBe('minor')
+    expect(autoDecisionWeight('The database label')).toBe('minor')
+    const s = addQuestion(emptySnapshot('weight', ROOT, 0), 'Which API?', 'claude', 1)
+    expect(s.questions[0]?.weight).toBeUndefined()
+    expect(s.questions[0]?.weightBy).toBeUndefined()
+    expect(toggleDecisionWeight(s, s.questions[0]!.id)).toBe(s)
+  })
+
+  test('old saves derive on read; toggles preserve all other state and survive re-observation', () => {
+    let s = observe(setGoal(emptySnapshot('weight', ROOT, 0), 'Ship it', 'person', 1), { decisions: ['Use the public API'], questions: ['Which API?'] }, 2)
+    delete s.decisions[0]!.weight
+    delete s.decisions[0]!.weightBy
+    s = hydrate(s, 'weight', ROOT, 3)
+    const before = s
+    const item = s.decisions[0]!
+    const view = { ...scrollTestView(), mode: 'claude' as const }
+    const row = itemRow(s, item, 4, view, true)
+    expect(row.marker).toBe('!')
+    expect(row.detail).toContain('weight: major (auto)')
+    expect(row.actions?.map(a => a.label)).toEqual(['Confirm', 'Drop', 'Make minor'])
+    expect(row.actions?.at(-1)?.action).toEqual({ type: 'weight', id: item.id })
+    expect(item.weight).toBeUndefined()
+    s = toggleDecisionWeight(s, item.id)
+    expect(s.decisions[0]?.weightBy).toBe('person')
+    expect(decisionWeight(s.decisions[0]!)).toBe('minor')
+    expect({ ...s, decisions: before.decisions }).toEqual(before)
+    expect(addDecision(s, 'Use the public API today', 'claude', 5)).toBe(s)
+    expect(itemRow(s, s.decisions[0]!, 6, view, false).marker).toBe('·')
+    expect(itemRow(s, s.decisions[0]!, 6, view, false).detail).toContain('weight: minor (you)')
+    for (const status of ['settled', 'excluded'] as const) {
+      const variant = setItemStatus(s, item.id, status, 7)
+      const actions = itemRow(variant, variant.decisions[0]!, 8, view, true).actions!
+      expect(actions.map(a => a.label)).toEqual([status === 'settled' ? 'Reopen' : 'Restore', 'Make major'])
+    }
+    const detour = startDetour(s, 'Check details', 'person', 1)
+    expect(itemRow(detour, detour.decisions[0]!, 9, view, true).actions?.map(a => a.label)).toEqual(['Keep', 'Exclude', 'Make major'])
+    expect(itemRow(s, s.questions[0]!, 9, view, true).marker).toBeUndefined()
+    expect(itemRow(s, s.questions[0]!, 9, view, true).detail?.some(line => line.startsWith('weight:'))).toBe(false)
+    expect(toggleDecisionWeight(toggleDecisionWeight(s, item.id), item.id).decisions[0]?.weight).toBe('minor')
+    expect(toggleDecisionWeight(s, 'missing')).toBe(s)
+  })
+
+  test('both surfaces toggle in an expansion and keep it open, without a Trail event', { timeoutMs: 20_000 }, async ($, on) => {
+    const { clock } = world(on)
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true } as any)
+    await $.tool.call({ tool: OBSERVE, decisions: ['Use the public API'] } as any)
+    await clock.settle()
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const ui = await $.ui.mount({ plugin: 'conversation-atlas', surface, component: 'Pane', requestId: 'atlas', props: PANE_PROPS })
+      await ui.press({ key: 'tab-open' })
+      const key = (await drawn(ui)).match(/"key":"(dsel-[^"]+)"/)?.[1] ?? ''
+      const id = key.slice('dsel-'.length)
+      if (!await ui.find({ key: `weight-${id}`, type: 'Button' })) await ui.press({ key })
+      expect(await drawn(ui)).toContain(surface === 'terminal' ? 'weight: major (auto)' : 'weight: major (you)')
+      const majorHead = nodeByKey(await ui.drawn(), `head-${key}`)
+      const majorText = rowText(majorHead)
+      expect(majorText.indexOf('◇')).toBeLessThan(majorText.indexOf('!'))
+      expect(majorText.indexOf('!')).toBeLessThan(majorText.indexOf('Use the public API'))
+      const majorMarker = iconNodes(majorHead).find(node => node.type === 'Text' && iconText(node).trim() === '!')
+      expect(majorMarker?.props?.color).toBe(C.decision)
+      await ui.press({ key: `weight-${id}` })
+      expect(await drawn(ui)).toContain('weight: minor (you)')
+      expect(await drawn(ui)).toContain('Make major')
+      const minorHead = nodeByKey(await ui.drawn(), `head-${key}`)
+      const minorMarker = iconNodes(minorHead).find(node => node.type === 'Text' && iconText(node).trim() === '·')
+      expect(minorMarker?.props?.dimColor).toBe(true)
+      const controls = (await ui.findAll({ type: 'Button' })).map((button: any) => button.props.key)
+      expect(controls.indexOf(`set-${id}`)).toBeLessThan(controls.indexOf(`weight-${id}`))
+      expect(controls.indexOf(`weight-${id}`)).toBeLessThan(controls.indexOf(`add-${key}`))
+      expect(controls.indexOf(`add-${key}`)).toBeLessThan(controls.indexOf(`close-${key}`))
+      await $.tool.call({ tool: OBSERVE, decisions: ['Use the public API today'] } as any)
+      expect(await drawn(ui)).toContain('weight: minor (you)')
+      await ui.press({ key: `weight-${id}` })
+      expect(await drawn(ui)).toContain('weight: major (you)')
+      await ui.unmount()
     }
   })
 })

@@ -1,8 +1,8 @@
 ───────────────────────────── Conversation Atlas ─────────────────────────────  {0:dim|29:color:#7dcfff,bold|49:dim}
 ▸Map Trail Open 4 Evidence ▲ ▼  {0:color:yellowBright,bold|27:dim}
 GOAL ⓘ [Edit]┃  {0:color:#7dcfff,bold|7:color:#7dcfff|12:color:#7dcfff}
-What you are trying to do. Only you set it: confirm a suggestion, type one, or explicitly adopt Atlas’s detected aim.  {0:italic,dim}
-◎ Build a dependable Conversation Atlas pane for long sessi… · 3 suggestions  {0:color:#7dcfff|61:dim}
+What you are trying to do. Only you set it. auto means Atlas picked it; ✦ after the icon marks this turn’s focus.  {0:italic,dim}
+◎ ✦ Build a dependable Conversation Atlas pane for long ses… · 3 suggestions  {0:color:#7dcfff|2:color:#7dcfff,bold|61:dim}
 CURRENT PATH ⓘ3 earlier  {0:color:#bb9af7,bold|14:dim}
 Topics from the start of the work to now; detour branches show where the main path paused. Claude keeps it current.  {0:italic,dim}
 Atlas foundations
@@ -24,18 +24,14 @@ Files touched lately: edited and read counts. Click one to point Claude at it.  
 · atlas.test.tsx 0e 1r 1m  {0:color:#bb9af7|17:color:#ff9e64|20:color:#bb9af7|23:dim}
 ✎ view.tsx 1e 1r 1m  {0:color:#ff9e64|11:color:#ff9e64|14:color:#bb9af7|17:dim}
 LATEST ⓘ confirm in Open  {0:color:#7aa2f7,bold|9:dim}
-Newest decisions and questions. Confirm decisions in the Open tab.  {0:italic,dim}
-◆ Keep renderers pure  {0:color:#9ece6a}
-◇ Use text goldens for visual review  {0:color:#9ece6a}
+Newest decisions and questions. Confirm decisions in the Open tab. ! = major, · = minor decision; auto uses text cues, you means your weight toggle.  {0:italic,dim}
+◆ · Keep renderers pure  {0:color:#9ece6a|2:dim}
+◇ · Use text goldens for visual review  {0:color:#9ece6a|2:dim}
 ? Which surface gets the first manual check?  {0:color:#f7768e}
 RESUME NEXT ⓘpinned  {0:color:#7dcfff,bold|13:dim}
 Where to pick up. Pinned is yours; suggested is Claude’s guess.  {0:italic,dim}
 ▸ Review the fixed pane sample and approve the visual boundary.  {0:color:#7dcfff}
 ┃
-┃
-┃
-│  {0:dim}
-│  {0:dim}
 │  {0:dim}
 │  {0:dim}
 │  {0:dim}
@@ -50,14 +46,17 @@ Topics from the start of the work to now stay observed; press an action to confi
 Marks: › you · ✻ Claude · ⌬ Codex · □ other  {7:color:#7dcfff|15:color:#d97757|26:color:#7c8cff|36:color:#9aa5b1}
 Observer mode: [Observer: Claude]  {0:dim|15:color:#7dcfff|32:color:#7dcfff}
 LEGEND  {0:bold}
+auto: picked by Atlas until you confirm or drop it
+✦ before an icon = just changed; ✦ after the goal icon = the goal this turn is about.
 counts: e edits r reads t topics d decisions q questions h hand-offs b report-backs  {8:color:#ff9e64|16:color:#bb9af7|24:color:#bb9af7|33:color:#9ece6a|45:color:#f7768e|57:color:#7aa2f7|69:color:#7aa2f7}
 ◎ your goal (confirmed)○ suggestion, needs you  {0:color:#7dcfff,bold|23:bold}
 ● current topic↳ detour / possible detour  {0:color:#bb9af7,bold|15:color:#e0af68,bold}
 ↩ returned◇ decision, not settled  {0:color:#e0af68,bold|10:color:#9ece6a,bold}
-◆ settled decision⚑ checkpoint / evidence  {0:color:#9ece6a,bold|18:color:#7aa2f7,bold}
+◆ settled decision! major decision  {0:color:#9ece6a,bold|18:color:#9ece6a,bold}
+· minor decision⚑ checkpoint / evidence  {0:dim|16:color:#7aa2f7,bold}
 ? open question✓ done  {0:color:#f7768e,bold|15:color:#9ece6a,bold}
 ✗ failed✎ file edited  {0:color:#f7768e,bold|8:color:#ff9e64,bold}
-· file read✦ just changed  {0:color:#bb9af7,bold|11:bold}
+· file read✦ before an icon: just changed  {0:color:#bb9af7,bold|11:bold}
 ✓ resolved question▸ next step  {0:color:#9ece6a,bold|19:color:#7dcfff,bold}
 ◎ resume earlier session→ hand-off running  {0:color:#7dcfff,bold|24:color:#7aa2f7,bold}
 ← report back  {0:color:#9ece6a,bold}

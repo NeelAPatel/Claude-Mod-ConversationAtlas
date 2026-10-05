@@ -72,6 +72,12 @@ Change it any time with `/atlas observer [claude|engine]`.
 
 - `/atlas goal ship the login refactor` sets the goal. Atlas also shows the goal it *detected*;
   **Use this as my goal** makes it yours.
+- Goal suggestions and observed alternatives carry **auto**: picked by Atlas until you confirm
+  or drop it. **✦** after a goal icon marks what this turn is about. It stays on your confirmed
+  goal for one diverging turn and moves to an alternative after two consecutive observed turns
+  on that topic; a matching topic returns it to your goal. **Switch to this** confirms an
+  alternative. Observation never changes your goal or adds a focus event to Trail.
+  **✦** before an icon still means just changed.
 - `/atlas detour check the flaky test` snapshots where you left off and starts a side trip.
   Decisions made during it are kept as its outcomes.
 - `/atlas return` ends the detour and sends Claude **one short packet**: the goal, topic, next step
@@ -93,6 +99,12 @@ there when you send reach Claude. Details: [docs/REFERENCE.md](docs/REFERENCE.md
 Open decisions use **Confirm** / **Drop** (detour findings keep **Keep** / **Exclude**).
 Open questions take **Confirm** (answered) and **Drop**; resolved questions keep **Reopen**. Claude can also report them answered.
 Inline expansions end with a right-justified **✕**; their other actions wrap on the left.
+
+Decisions show `!` for major choices and a dim `·` for minor ones after their icon.
+Atlas assigns weight from deterministic text cues; expand a decision and press
+**Make minor** or **Make major** to override it. The detail shows `auto` or `you`.
+Weight changes preserve confirmation status and add no Trail event or intent.
+
 
 ### 4. Recovering and scanning earlier conversations
 

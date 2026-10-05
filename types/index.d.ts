@@ -80,6 +80,9 @@ export type AtlasItem = {
   // decisions: observed -> settled (confirmed) or excluded (set aside during a detour).
   // questions: open -> resolved.
   status: 'observed' | 'settled' | 'excluded' | 'open' | 'resolved'
+  // Decisions only; absent fields derive from text without migrating old saves.
+  weight?: 'major' | 'minor'
+  weightBy?: 'auto' | 'person'
 }
 
 export type AtlasCheckpoint = {

@@ -15,12 +15,17 @@ import type {
   AtlasHandoff,
   AtlasItem,
   AtlasRecall,
-  AtlasSnapshot,
+  AtlasSnapshot as BaseSnapshot,
   AtlasSource,
   AtlasSuggestion,
   AtlasSuggestionKind,
   AtlasTopic,
 } from '../types'
+
+// Optional at the type boundary because pre-focus snapshots are still supported.
+// All constructors/loaders below provide a plain JSON field with a null default.
+export type AtlasFocus = { text: string; since: number; turns: number; lastTurn: number }
+export type AtlasSnapshot = BaseSnapshot & { focus?: AtlasFocus | null }
 
 export const LIMITS = {
   events: 200,
@@ -32,6 +37,8 @@ export const LIMITS = {
   suggestions: 10,
   history: 20,
   handoffs: 20,
+  focusText: 140,
+  focusTurns: 2,
 } as const
 
 export type Shift = 'same' | 'subtopic' | 'sibling' | 'possible-detour' | 'return'
@@ -85,6 +92,7 @@ export function emptySnapshot(sessionId: string, root: string, now: number): Atl
     turn: 0,
     seq: 0,
     goal: null,
+    focus: null,
     detectedGoal: null,
     goalHistory: [],
     detour: null,
@@ -118,6 +126,7 @@ export function hydrate(raw: unknown, sessionId: string, root: string, now: numb
   return {
     ...base,
     ...s,
+    focus: boundedFocus(s.focus),
     detour,
     sessionId,
     root,
@@ -136,6 +145,21 @@ type RawSnapshot = Record<string, unknown>
 
 function isRawRecord(value: unknown): value is RawSnapshot {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function focusError(value: unknown): string | null {
+  if (value === undefined || value === null) return null
+  if (!isRawRecord(value) || typeof value.text !== 'string' || !clip(value.text) ||
+    ![value.since, value.turns, value.lastTurn].every(n => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0) ||
+    Number(value.turns) < 1 || Number(value.lastTurn) < Number(value.since)) return 'malformed focus record'
+  return null
+}
+
+function boundedFocus(value: unknown): AtlasFocus | null {
+  if (value == null || focusError(value)) return null
+  const focus = value as AtlasFocus
+  return { text: clip(focus.text, LIMITS.focusText), since: focus.since,
+    turns: Math.min(focus.turns, LIMITS.focusTurns), lastTurn: focus.lastTurn }
 }
 
 const requiredRecordArrays = ['goalHistory', 'detourHistory', 'topics', 'suggestions', 'decisions', 'questions', 'checkpoints', 'files', 'activity', 'events']
@@ -185,6 +209,8 @@ function detourShapeError(value: unknown, label: string): string | null {
 export function snapshotError(raw: unknown): string | null {
   if (!isRawRecord(raw)) return 'snapshot is not an object'
   if (raw.v !== 1) return `unsupported version ${raw.v === undefined ? 'missing' : String(raw.v)}`
+  const error = focusError(raw.focus)
+  if (error) return error
   for (const field of requiredRecordArrays) {
     const error = recordArrayError(raw, field, true)
     if (error) return error
@@ -223,6 +249,7 @@ export function snapshotError(raw: unknown): string | null {
 export function upgrade(s: AtlasSnapshot): AtlasSnapshot {
   const partial = s as Partial<AtlasSnapshot>
   const needs =
+    partial.focus === undefined ||
     partial.detectedGoal === undefined ||
     !Array.isArray(partial.recall) ||
     !Array.isArray(partial.adopted) ||
@@ -237,6 +264,7 @@ export function upgrade(s: AtlasSnapshot): AtlasSnapshot {
   return {
     ...base,
     ...s,
+    focus: boundedFocus(partial.focus),
     detectedGoal: partial.detectedGoal ?? null,
     recall: partial.recall ?? [],
     adopted: partial.adopted ?? [],
@@ -292,17 +320,47 @@ export function currentTopic(s: AtlasSnapshot): AtlasTopic | null {
   return s.topics.find(t => t.id === s.currentTopicId) ?? null
 }
 
+// Count only topic observations, once per turn. A different candidate or a gap
+// resets the run; similar wording in the immediately following turn reaches two.
+// startTurn advances the clock but never counts the previous turn's stale topic.
+// Matching the confirmed goal (or no topic) immediately restores goal focus.
+// This reducer writes no intent, fresh mark or Trail event.
+function observeFocus(s: AtlasSnapshot): AtlasSnapshot {
+  const goal = s.goal?.text
+  if (!goal) return s.focus == null ? s : { ...s, focus: null }
+  const topic = currentTopic(s)?.title
+  const text = clip(!topic || similar(topic, goal) ? goal : topic, LIMITS.focusText)
+  const previous = s.focus
+  const same = Boolean(previous && similar(previous.text, text))
+  const consecutive = same && previous!.lastTurn === s.turn - 1
+  const repeated = same && previous!.lastTurn === s.turn
+  const turns = repeated ? previous!.turns : consecutive ? Math.min(LIMITS.focusTurns, previous!.turns + 1) : 1
+  return { ...s, focus: { text, since: repeated || consecutive ? previous!.since : s.turn, turns, lastTurn: s.turn } }
+}
+
+export function focusedGoal(s: AtlasSnapshot): string | null {
+  if (!s.goal) return null
+  return s.focus && s.focus.turns >= LIMITS.focusTurns && !similar(s.focus.text, s.goal.text)
+    ? s.focus.text : s.goal.text
+}
+
 // Derived alternatives are intentionally not stored as suggestions: they are a
-// read-only view of observed evidence until the person presses Update goal.
+// read-only view of observed evidence until the person presses Switch to this.
 export function goalSuggestions(s: AtlasSnapshot): string[] {
   const goal = s.goal?.text
-  if (!goal || s.detour) return []
+  if (!goal) return []
+  const focus = focusedGoal(s)
+  const moved = focus && !similar(focus, goal) ? focus : null
+  // A detour still blocks setGoal, but must not hide the observed focus row.
+  // Its existing goal Action explains that Return/promote is required first.
+  if (s.detour) return moved ? [moved] : []
   const recentMain = s.topics.filter(topic => topic.kind === 'main').slice(-5)
   const current = currentTopic(s)
   const recentEvidence = [current?.title, ...recentMain.map(topic => topic.title)].filter((text): text is string => Boolean(text))
-  if (!recentEvidence.length || recentEvidence.some(text => similar(text, goal))) return []
+  if (!moved && (!recentEvidence.length || recentEvidence.some(text => similar(text, goal)))) return []
 
   const candidates = [
+    moved,
     s.detectedGoal?.text,
     current?.title,
     ...recentMain
@@ -383,12 +441,31 @@ export function dismissSuggestion(s: AtlasSnapshot, sid: string, now: number): A
 
 // ---------------------------------------------------------------- items
 
+// Deterministic consequential-choice cues, matched as words (case-insensitive).
+// Old decisions use exactly this rule on read; observation never writes intent.
+const MAJOR_DECISION_CUE = /\b(?:architecture|schema|api|security|release|publish|delete|migrate|replace|rename|breaking|public|data|must|never|always|default|go\s+with)\b/i
+
+export function autoDecisionWeight(text: string): 'major' | 'minor' {
+  return MAJOR_DECISION_CUE.test(text) ? 'major' : 'minor'
+}
+
+export function decisionWeight(item: AtlasItem): 'major' | 'minor' {
+  return item.weight ?? autoDecisionWeight(item.text)
+}
+
+export function toggleDecisionWeight(s: AtlasSnapshot, iid: string): AtlasSnapshot {
+  const hit = s.decisions.find(item => item.id === iid)
+  if (!hit) return s
+  const weight = decisionWeight(hit) === 'major' ? 'minor' : 'major'
+  return { ...s, decisions: s.decisions.map(item => item.id === iid ? { ...item, weight, weightBy: 'person' as const } : item) }
+}
+
 function addItem(s: AtlasSnapshot, list: 'decisions' | 'questions', text: string, source: AtlasSource, now: number): AtlasSnapshot {
   const body = clip(text, 160)
   if (!body) return s
   if (s[list].some(x => similar(x.text, body) && x.status !== 'resolved')) return s
   const [iid, next] = id(s, list === 'decisions' ? 'd' : 'q')
-  const item: AtlasItem = { id: iid, text: body, at: now, turn: s.turn, topicId: s.currentTopicId, source, status: list === 'decisions' ? 'observed' : 'open' }
+  const item: AtlasItem = { id: iid, text: body, at: now, turn: s.turn, topicId: s.currentTopicId, source, status: list === 'decisions' ? 'observed' : 'open', ...(list === 'decisions' ? { weight: autoDecisionWeight(body), weightBy: 'auto' as const } : {}) }
   const withItem = { ...next, [list]: keep([...next[list], item], LIMITS.items) } as AtlasSnapshot
   return flash(event(withItem, list === 'decisions' ? 'decision' : 'question', body, now), iid)
 }
@@ -516,7 +593,7 @@ export function observe(s: AtlasSnapshot, report: ObserveReport, now: number): A
   if (report.goal) next = { ...next, detectedGoal: { text: clip(report.goal, 140), source: 'claude', at: now } }
   // A proposed goal is only ever a suggestion, and only while nothing is confirmed.
   if (report.goal && !next.goal) next = suggest(next, 'goal', report.goal, 'Proposed by Claude', 'claude', now)
-  return next
+  return report.topic || report.shift ? observeFocus(next) : next
 }
 
 // ---------------------------------------------------------------- prompt cues (observation)

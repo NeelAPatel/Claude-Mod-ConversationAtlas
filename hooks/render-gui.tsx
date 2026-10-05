@@ -267,7 +267,7 @@ function rowMetaLayout(ctx: Ctx, row: ScreenRow, indent: number) {
   const keepCounts = Boolean(metaParts.length)
   let layout = layoutRow({ width: ctx.width, prefix: '', text: '', meta, metaParts: parts, right: row.right }, keepCounts)
   const titleCells = (value: typeof layout) => Math.max(0,
-    ctx.width - indent - ROW_ICON_CELLS - ROW_GAP_CELLS * 2 - ROW_MIN_GUTTER_CELLS
+    ctx.width - indent - ROW_ICON_CELLS - ROW_GAP_CELLS * 2 - ROW_MIN_GUTTER_CELLS - (row.marker ? 2 : 0)
     - [...value.metaParts.map(part => part.text), value.meta, value.right].filter(Boolean).reduce((sum, text, index) => sum + cellWidth(text!) + (index ? 1 : 0), 0))
   // Free attribution first, then zero counts; preserve age after all other metadata.
   if (titleCells(layout) < 24 && meta) {
@@ -385,6 +385,7 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
       <Box width={3} flexShrink={0} alignItems="center" justifyContent="center">
         <Text color={sourceMark ? row.sourceMarkColor : g?.color ?? (row.fresh ? GLYPH.fresh.color : open ? GLYPH.expanded.color : undefined)} bold={row.bold || open} dimColor={!icon}>{icon}</Text>
       </Box>
+      {row.marker ? <Text color={row.marker === '!' ? C.decision : row.marker === '✦' ? C.goal : undefined} dimColor={row.marker === '·'} bold={row.marker !== '·'}>{row.marker}</Text> : null}
       <Box flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
         {headPress ? (
           <Button
@@ -653,7 +654,7 @@ function screenFor(snapshot: AtlasSnapshot, view: ScreenView, now: number): Scre
   return builders[view.tab](snapshot, view, now)
 }
 
-export const LEGEND: [GlyphKey, string][] = [
+export const LEGEND: [GlyphKey | '!' | '·', string][] = [
   ['goal', 'your goal (confirmed)'],
   ['suggestion', 'suggestion, needs you'],
   ['currentTopic', 'current topic'],
@@ -661,13 +662,15 @@ export const LEGEND: [GlyphKey, string][] = [
   ['returned', 'returned'],
   ['observedDecision', 'decision, not settled'],
   ['settledDecision', 'settled decision'],
+  ['!', 'major decision'],
+  ['·', 'minor decision'],
   ['checkpoint', 'checkpoint / evidence'],
   ['openQuestion', 'open question'],
   ['ok', 'done'],
   ['fail', 'failed'],
   ['editedFile', 'file edited'],
   ['readFile', 'file read'],
-  ['fresh', 'just changed'],
+  ['fresh', 'before an icon: just changed'],
   ['resolved', 'resolved question'],
   ['next', 'next step'],
   ['resume', 'resume earlier session'],
@@ -706,6 +709,8 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
         )}
       </Box>
       <Box flexShrink={0}><Text bold>LEGEND</Text></Box>
+      <Box flexShrink={0}><Text wrap="wrap">auto: picked by Atlas until you confirm or drop it</Text></Box>
+      <Box flexShrink={0}><Text wrap="wrap">✦ before an icon = just changed; ✦ after the goal icon = the goal this turn is about.</Text></Box>
       <Box flexShrink={0}><Text wrap="wrap">
         counts: <Text color={C.write}>e</Text> edits <Text color={C.read}>r</Text> reads{' '}
         <Text color={C.path}>t</Text> topics <Text color={C.decision}>d</Text> decisions{' '}
@@ -716,10 +721,10 @@ export function legendPanel(ctx: Ctx, height?: number, at = 0): RenderElement {
       {(ctx.width >= 64 ? [LEGEND.slice(0, Math.ceil(LEGEND.length / 2)), LEGEND.slice(Math.ceil(LEGEND.length / 2))] : [LEGEND]).map((column, columnIndex) => (
         <Box key={`legend-columns-${columnIndex}`} flexDirection="column" flexGrow={1} flexShrink={1}>
         {column.map(([name, meaning]) => {
-        const g = glyph(ctx, name)
+        const g = name === '!' || name === '·' ? { char: name, color: name === '!' ? C.decision : undefined } : glyph(ctx, name)
         return (
           <Box key={`lg-${name}`} flexDirection="row" gap={1} flexShrink={0}>
-            <Box width={3} flexShrink={0}><Text color={g.color} bold>{g.char}</Text></Box>
+            <Box width={3} flexShrink={0}><Text color={g.color} dimColor={name === '·'} bold={name !== '·'}>{g.char}</Text></Box>
             <Text wrap="truncate-end">{meaning}</Text>
           </Box>
         )

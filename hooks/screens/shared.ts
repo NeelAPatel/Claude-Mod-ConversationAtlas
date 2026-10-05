@@ -1,5 +1,6 @@
 // Builds shared rows, actions and popups for the Atlas screens. Pure; no `$`.
 
+import { decisionWeight } from '../model'
 import type { AtlasItem, AtlasSnapshot, AtlasSuggestion, AtlasTopic } from '../../types'
 import type { Action, GlyphKey, ScreenAction, ScreenRow, ScreenView, ToneKey } from './types'
 
@@ -55,6 +56,7 @@ export function itemDetails(snapshot: AtlasSnapshot, item: AtlasItem, now: numbe
     `source: ${sourceName(item.source)}`,
     whenLine(now, item.at, item.turn),
     `status: ${item.status}`,
+    ...(snapshot.decisions.some(decision => decision.id === item.id) ? [`weight: ${decisionWeight(item)} (${item.weightBy === 'person' ? 'you' : 'auto'})`] : []),
     `topic: ${topicName(snapshot, item.topicId) ?? 'not recorded'}`,
   ]
 }
@@ -95,7 +97,7 @@ export function suggestionRow(
     kind: 'suggestion',
     glyph,
     text: suggestion.text,
-    meta: `${suggestion.kind} suggestion · from ${who}${suggestion.why ? ` · ${suggestion.why}` : ''}`,
+    meta: suggestion.kind === 'goal' ? 'auto' : `${suggestion.kind} suggestion · from ${who}${suggestion.why ? ` · ${suggestion.why}` : ''}`,
     tone,
     fresh: snapshot.fresh.includes(suggestion.id),
     actions: [
@@ -106,6 +108,7 @@ export function suggestionRow(
     detail: [
       `text: ${suggestion.text}`,
       `kind: ${suggestion.kind} suggestion`,
+      ...(suggestion.kind === 'goal' ? ['auto: picked by Atlas until you confirm or drop it'] : []),
       `source: ${sourceName(suggestion.source)}`,
       whenLine(now ?? suggestion.at, suggestion.at, suggestion.turn),
       `topic: ${topic ?? 'not recorded'}`,
@@ -119,7 +122,8 @@ export function itemRow(snapshot: AtlasSnapshot, item: AtlasItem, now: number, v
   const settled = item.status === 'settled'
   const excluded = item.status === 'excluded'
   const inDetour = Boolean(snapshot.detour) && item.at >= (snapshot.detour?.at ?? 0)
-  const isQuestion = item.status === 'open' || item.status === 'resolved'
+  const isQuestion = !snapshot.decisions.some(decision => decision.id === item.id)
+  const weight = isQuestion ? undefined : decisionWeight(item)
   const kind = isQuestion
     ? item.status === 'open'
       ? 'open question'
@@ -172,6 +176,7 @@ export function itemRow(snapshot: AtlasSnapshot, item: AtlasItem, now: number, v
     key: `${isQuestion ? 'q' : 'd'}sel-${item.id}`,
     kind: 'item',
     glyph,
+    ...(!isQuestion ? { marker: weight === 'major' ? '!' as const : '·' as const } : {}),
     text: item.text,
     source: sourceName(item.source),
     tone,
@@ -179,7 +184,7 @@ export function itemRow(snapshot: AtlasSnapshot, item: AtlasItem, now: number, v
     italic: withActions && item.status === 'observed',
     expandable: true,
     detail: itemDetails(snapshot, item, now, kind),
-    actions: extra,
+    actions: [...extra, ...(!isQuestion ? [action(`weight-${item.id}`, weight === 'major' ? 'Make minor' : 'Make major', { type: 'weight', id: item.id })] : [])],
     interactive: true,
     overflowPopup: !(withActions && item.status === 'observed') && (item.text.length > 120 || item.text.split(/\r?\n/).length > 4),
   }
