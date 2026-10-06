@@ -1,3 +1,48 @@
+> **Archived 2026-10-06.** This list is frozen. Tasks now live in GitHub Issues and milestones; do not edit the rows below.
+>
+> | Old row | GitHub issue | Title |
+> |---|---|---|
+> | #4 | #1 | One design spec or three |
+> | #5 | #2 | Rule for major vs minor decision weight; overrides persist? |
+> | #15-16 | #3 | Goldens each job may change; observe token budget |
+> | #17 | #4 | Decisions become stored records; observe sends only changes |
+> | #66 | #5 | Open plus edit may not work in the terminal |
+> | #9 | #6 | Option A: top confirmed goal is the active one |
+> | #30 | #7 | Desktop mouse wheel scrolls inside an expansion |
+> | #45 | #8 | Measure per-turn token overhead in a long chat |
+> | #1 | #9 | Update button to edit a decision title and add a note |
+> | #10 | #10 | Match a reworded decision to its earlier one |
+> | #22 | #11 | Goals become an ordered list |
+> | #64 | #12 | Remove the terminal arrow buttons |
+> | #49 | #13 | update-goldens.ps1 corrupts non-ASCII goldens |
+> | #50 | #14 | Pre-existing tsc errors in tests/fixtures/sample.ts |
+> | #33 | #15 | Narrow widths: row meta must not vanish before the title |
+> | #36 | #16 | Rename Chat button glyph to plain ASCII |
+> | #38 | #17 | Long goal-suggestion text cannot be read in full |
+> | #41 | #18 | Atlas fills sparsely in long chats until /atlas scan |
+> | #44 | #19 | Expandable entries in the Legend panel |
+> | #46 | #20 | Development loop automation |
+> | #47 | #21 | Drift detection |
+> | #48 | #22 | Cross-chat messages and system reminders show as prompts |
+> | #56 | #23 | Suggested goals layout polish |
+> | #57 | #24 | Detour bookkeeping (before-detour checkpoint, return point) |
+> | #58 | #25 | Detour expansion and findings fixes |
+> | #59 | #26 | Detour controls (switch, return chip, manual start) |
+> | #60 | #27 | Goal suggestions from history; stale RESUME NEXT |
+> | #63 | #28 | Re-anchor desktop tab bar and bottom bar (host-dependent) |
+> | #65 | #29 | Goal row right-side meta: short tag plus age only |
+> | #35 | #30 | Terminal expansion close button that adapts to pane width |
+> | #3 | #31 | Suggested goals stay until dropped; optional red tint |
+> | #8 | #32 | Claude proposes an answer to an open question |
+> | #11 | #33 | Badge on revised decisions |
+> | #26 | #34 | Only changes are sent; no extra observe calls |
+> | #27 | #35 | Write the design decisions into the README |
+> | #25 | #36 | Up to 3 expanded rows per tab on desktop |
+> | #12 | #37 | Sort decisions by weight |
+> | #13 | #38 | Decisions made across detours: grouping and carry-over |
+> | #14 | #39 | Merge duplicate decisions |
+> | #55 | #40 | One-line animation when an item moves between sections |
+
 # Atlas task table (single source of truth for tasks; owner-approved format, 2026-10-05). The Task Master chat keeps it current.
 
 ## Legend
