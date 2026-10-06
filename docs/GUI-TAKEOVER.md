@@ -1,5 +1,7 @@
 # GUI takeover: rules and prompt for a GUI-only Atlas session
 
+> **Historical (0.1 build phase).** This scheme is still enforced by `scripts/check-gui-scope.ps1` against the tag `tui-freeze-2026-10-04`, and may be retired.
+
 Written 2026-10-04 after b11 carved the renderers apart. Read this whole file before touching anything. The paste-ready prompt is at the end.
 
 ## 1. What "GUI" means here (checked against the plugin API docs, build 2.1.289)

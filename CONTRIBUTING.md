@@ -37,6 +37,13 @@ These are enforced by tests; the full list is in [AGENTS.md](AGENTS.md).
 - **Pure files stay pure:** `model.ts`, `activity.ts`, `view.tsx` have no hooks or side effects;
   `register.tsx` is the only side-effect file. Client props must be plain JSON.
 
+## How work is tracked
+
+- Tasks are GitHub issues, grouped into milestones; the milestone says which release they belong to.
+- Say what blocks an issue with a `Blocked by #n` line or link.
+- One change per PR, kept small, branched from `dev`, with `Closes #n` in the description.
+- The owner merges by button after testing by eye.
+
 ## Visual changes and golden snapshots
 
 `tests/golden/` holds the drawn text of every tab at fixed sizes. Any change to drawn output fails
