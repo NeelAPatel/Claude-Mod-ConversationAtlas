@@ -1,0 +1,8 @@
+import { test } from 'claude-code/testing'
+import { runSimulation } from '../scripts/sim/steps'
+
+const SIM_CONFIG = /*STEPS*/
+
+test('control-atlas generated simulation', { timeoutMs: 20_000 }, async ($, on) => {
+  await runSimulation($, on, SIM_CONFIG as any)
+})
