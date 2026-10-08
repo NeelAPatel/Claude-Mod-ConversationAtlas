@@ -2,7 +2,8 @@
 .claude-plugin/types/
 tsconfig.json
 # Local Atlas data for this repo's own sessions.
-.claude/
+.claude/*
+!.claude/skills/
 node_modules/
 .tmp-npm-cache/
 *.log
