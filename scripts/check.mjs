@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { parseBrief } from './check-brief.mjs';
@@ -47,6 +47,21 @@ export function scopeViolations(changedFiles, allowList) {
   const entries = allowList.map(item => item.replaceAll('\\', '/'));
   return changedFiles.map(file => file.replaceAll('\\', '/'))
     .filter(file => !entries.some(entry => entry === file || matchesGlob(file, entry)));
+}
+
+// tsc needs the declarations Claude Code writes when it loads the mod, so a missing
+// prerequisite is a skip with a reason, never a failure. Returns the first missing item
+// as a note, or null when tsc can run.
+export function tscPrerequisite(existsFn = existsSync, platform = process.platform) {
+  const tscBin = platform === 'win32' ? 'node_modules/.bin/tsc.cmd' : 'node_modules/.bin/tsc';
+  const items = [
+    ['package.json', 'missing package.json'],
+    ['tsconfig.json', 'missing tsconfig.json'],
+    ['.claude-plugin/types/tsconfig.json', 'missing .claude-plugin/types/tsconfig.json (written when Claude Code loads the mod)'],
+    [tscBin, `missing ${tscBin} (run npm install)`],
+  ];
+  const first = items.find(([file]) => !existsFn(file));
+  return first ? first[1] : null;
 }
 
 function capture(command, args, options = {}) {
@@ -190,8 +205,8 @@ function perform(options) {
     return { status: result.status === 0 ? 'pass' : 'fail', note: summarize(result, 'surface seam check passed'), details: { exitCode: result.status } };
   });
   run('tsc', () => {
-    const hasPackage = capture('node', ['-e', "const fs=require('node:fs');process.exit(fs.existsSync('package.json')&&fs.existsSync('tsconfig.json')?0:1)"]);
-    if (hasPackage.status !== 0) return skipped('no package.json/tsconfig yet (issue 50)');
+    const missing = tscPrerequisite();
+    if (missing) return skipped(missing);
     const result = runCommand('npx', ['--no-install', 'tsc', '--noEmit']);
     return { status: result.status === 0 ? 'pass' : 'fail', note: result.error ?? result.output.trim(), details: { exitCode: result.status } };
   });

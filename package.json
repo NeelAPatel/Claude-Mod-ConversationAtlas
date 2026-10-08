@@ -1,0 +1,11 @@
+{
+  "name": "conversation-atlas-dev",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}
