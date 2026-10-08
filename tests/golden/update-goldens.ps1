@@ -1,4 +1,7 @@
 $ErrorActionPreference = 'Stop'
+# Read `claude plugin test` output as UTF-8 so non-ASCII glyphs in goldens survive.
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $testFile = Join-Path $repo 'tests/golden.test.tsx'
