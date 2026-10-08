@@ -1,18 +1,32 @@
 Closes #
 
 - Layer: <!-- engine / ui-base / tui / gui / docs / process -->
-- Golden impact: <!-- none / terminal / desktop / both / all -->
+- Golden impact: <!-- none / terminal / desktop / both / all; name the goldens -->
 - Shared files touched: <!-- none, or list -->
+- Verdict: <!-- sim-verified / unit-test-verified / type-check-only / unproven (owner-eye) -->
 
-## What and why
+## Why
+<!-- The problem and the approach in one to three short sentences. -->
+
+## What changed
+<!-- One to three short bullets. -->
+
+## Scope
+<!-- What this covers and what it deliberately leaves out. -->
+
+## Blast radius
+<!-- Who or what this touches and why that is safe or risky. -->
+
+## Verification
+<!-- Real runs and outcomes: `node scripts/check.mjs --brief ...` result, control-atlas frames, golden diff. -->
 
 ## Checks
 - [ ] One change, branched from `dev`
-- [ ] `claude plugin validate .` and `claude plugin test .` pass
+- [ ] `node scripts/check.mjs` prints `RESULT PASS`
 - [ ] Golden diff included and explained (if drawn output changed)
 - [ ] Observation never writes intent / no cost before consent still hold
 
-## Tested by eye on (tick those that apply)
+## Owner eye test (only if the verdict is `unproven (owner-eye)` or the look changed)
 - [ ] terminal, 46 columns
 - [ ] terminal, 80 columns
 - [ ] desktop, narrow
