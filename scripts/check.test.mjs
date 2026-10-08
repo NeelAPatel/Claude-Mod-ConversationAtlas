@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { goldenScope, matchesGlob, scopeViolations } from './check.mjs';
+import { goldenScope, matchesGlob, scopeViolations, tscPrerequisite } from './check.mjs';
 import { parseBrief } from './check-brief.mjs';
 
 const goodBrief = `## RESTATE
@@ -76,6 +76,22 @@ test('golden scope allows named goldens and rejects unexpected changes', () => {
   const denied = goldenScope(['tests/golden/terminal-80-trail.txt'], ['desktop-46-map']);
   assert.deepEqual(denied.unexpected, ['terminal-80-trail']);
   assert.deepEqual(denied.missing, ['desktop-46-map']);
+});
+
+test('tsc prerequisite returns the first missing item, or null when all exist', () => {
+  const all = ['package.json', 'tsconfig.json', '.claude-plugin/types/tsconfig.json', 'node_modules/.bin/tsc', 'node_modules/.bin/tsc.cmd'];
+  const have = missing => file => all.includes(file) && !missing.includes(file);
+  assert.equal(tscPrerequisite(have([]), 'linux'), null);
+  assert.equal(tscPrerequisite(have([]), 'win32'), null);
+  assert.match(tscPrerequisite(have(['package.json', 'tsconfig.json']), 'linux'), /^missing package\.json/);
+  assert.match(tscPrerequisite(have(['tsconfig.json']), 'linux'), /^missing tsconfig\.json/);
+  assert.match(
+    tscPrerequisite(have(['.claude-plugin/types/tsconfig.json']), 'linux'),
+    /^missing \.claude-plugin\/types\/tsconfig\.json \(written when Claude Code loads the mod\)/,
+  );
+  assert.match(tscPrerequisite(have(['node_modules/.bin/tsc']), 'linux'), /^missing node_modules\/\.bin\/tsc /);
+  assert.match(tscPrerequisite(have(['node_modules/.bin/tsc.cmd']), 'win32'), /^missing node_modules\/\.bin\/tsc\.cmd /);
+  assert.equal(tscPrerequisite(have(['node_modules/.bin/tsc.cmd']), 'linux'), null);
 });
 
 test('JSON report has the required fields and step shape', () => {
