@@ -1,6 +1,6 @@
 ---
 name: atlas-land
-description: Clean up after the owner merges an Atlas pull request: close the issue, update dev, delete the merged branch, archive job files and ask about installing. Use for /atlas-land <PR number>.
+description: "Clean up after the owner merges an Atlas pull request (close the issue, update dev, delete the merged branch, archive job files, ask about installing). Use for /atlas-land <PR number>."
 ---
 
 # Atlas land
