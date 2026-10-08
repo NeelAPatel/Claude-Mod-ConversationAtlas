@@ -32,7 +32,7 @@ Read by Claude Code and by Codex. Keep this file short: detail lives in the link
 - One change per brief, with an explicit list of files that may be touched.
 
 ## Golden snapshots guard the look
-- `tests/golden/` holds the drawn terminal and desktop text of every tab, the Legend and a popup, from one fixed sample state at fixed widths.
+- `tests/golden/` holds the drawn terminal and desktop text of every tab, the Legend, the Trail-expanded view and the setup screen, from one fixed sample state at fixed widths.
 - Any change to drawn output fails until the goldens are updated (run `tests/golden/update-goldens.ps1` under `pwsh`).
 - Each brief names the goldens it may change; `node scripts/check.mjs --brief` rejects any other golden change.
 - Claude reviews the golden diff, not just the test count, before installing.
@@ -50,7 +50,7 @@ Read by Claude Code and by Codex. Keep this file short: detail lives in the link
   - decisions settled during a detour are its outcomes.
   - return emits one deterministic packet ("not recorded" for missing facts) that rides exactly one composer prompt.
   - promote replaces the goal and keeps history.
-- **Context Claude reads** comes only from: the static rules section (`prompt.compose`), the one-line confirmed-intent note, a pending return packet, and Atlas chips the user left in the prompt (`Add to message` puts `[Atlas #n: …]` in the draft; a deleted chip sends nothing). Nothing observed is sent back as if settled.
+- **Context Claude reads** comes only from: the static rules section (`prompt.compose`), the one-line confirmed-intent note, a pending return packet, and Atlas chips the user left in the prompt (`Chat ⇒` puts `[Atlas #n: …]` in the draft; a deleted chip sends nothing). Nothing observed is sent back as if settled.
 - **Purity:** `model.ts`, `activity.ts` and `view.tsx` stay pure (no `$`). `register.tsx` is the only file with hooks and side effects, and creates the `Client` element (module path literal `./live.tsx`).
 - Client props must be plain JSON: run them through `plain()` (an undefined field makes the engine refuse the tree).
 - **State:** `$.state` `conversation-atlas.snapshot|view` via `update` (CAS); render hooks never write. Durable copies go to `$.store` on a 2 s timer; keep bounded lists in `LIMITS`.

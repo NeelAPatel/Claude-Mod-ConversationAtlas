@@ -1,6 +1,7 @@
 # TUI UI/UX paradigm (terminal renderer)
 
 Applies to `hooks/render-tui.tsx`. Shared principles: [README.md](README.md). Reference implementation for rows: Map > Working set.
+Verified against the code on 2026-10-08 (audit: 92 claims). Rules marked **target** are intended behaviour the code does not fully meet yet.
 
 ## Pane and scrolling
 - The pane is sized to `bodyRows` and scrolls its own body via `ui.scroll` → `view.scroll`; the app bar stays pinned.
@@ -9,11 +10,14 @@ Applies to `hooks/render-tui.tsx`. Shared principles: [README.md](README.md). Re
 
 ## Row anatomy
 - `icon · title · gutter · meta`.
-- icon: one fixed column, the entry's Legend icon. Prompts use the source mark `›`. Modifiers such as `✦` follow the icon.
-- title: truncates first.
-- gutter: always at least 1 blank cell between title and meta.
+- icon: the entry's Legend icon at the start of the row, after the depth indent.
+  - the focus marker follows the icon (`◎ ✦`); a fresh `✦` ("just changed") comes before it.
+  - prompts use the source mark `›`; markers and `▾` add cells around the icon.
+- title: when the row is too narrow, meta tags minimise first, then the title truncates (event rows keep their counts and truncate the title first). Minimum title width and the full rule: issue #15.
+- gutter: always at least 1 blank cell between title and meta. The age is always reserved.
 - meta: right-justified.
-  - counts via `metaParts`, number + letter, each in its tone: `e` edits, `r` reads, `t` topics, `d` decisions, `q` questions, `h` hand-offs, `b` report-backs (listed in the Legend).
+  - counts via `metaParts`: number + letter, each in its tone: `e` edits, `r` reads, `t` topics, `d` decisions, `q` questions, `h` hand-offs, `b` report-backs (listed in the Legend).
+  - below 60 cells the TUI shows the number only (no letter).
   - then age via `right`, e.g. `1m`.
   - never hand-build meta strings.
 
@@ -21,12 +25,15 @@ Applies to `hooks/render-tui.tsx`. Shared principles: [README.md](README.md). Re
 - **EXPANSION**
   - inline structured detail under a row; pressing the expanded row collapses it.
   - no close button: the `✕` is disabled behind one switch per renderer.
-  - frozen: F1–F3 guide column, blank row after an expansion.
+  - frozen: the guide column and the blank row after an expansion.
+  - event expansion uses a 6-row scroll window.
 - **TOGGLES** flip state in place (Legend, Trail sort).
 - **POPUPS/MENUS**
-  - bordered, over-body panels for Trail events, Decisions and Open questions.
-  - close with the header `✕ Close`.
-  - one popup open at a time; any other action dismisses it.
+  - bordered, over-body panels. Two kinds exist: Trail Settings, and long decision/question text (over 120 characters or 4+ lines).
+  - Trail events expand inline; they do not use a popup.
+  - close with the header control (`✕` on Trail Settings, `Close` on item popups); key `popup-close`.
+  - one popup open at a time; a navigation action (tab, Legend, expand, …) dismisses it.
+  - settings actions inside the popup (page, filter, sort, view) keep it open.
 - Every Button is an action; every interactive row is a Button.
 
 ## Settings and menu pattern (reference: Trail Settings, `trailViewPopup`, `popupShell`)
@@ -39,7 +46,7 @@ Applies to `hooks/render-tui.tsx`. Shared principles: [README.md](README.md). Re
 - New settings or menus copy this shape; do not invent another.
 
 ## Legend and headings
-- While Legend is on, headings show `EXPLAIN` notes; every new section needs an `EXPLAIN` entry.
+- While Legend is on, headings show `EXPLAIN` notes; every new section should have an `EXPLAIN` entry (not enforced: a missing entry falls back to the heading text).
 - Frozen: section heading tones.
 
 ## Proof
