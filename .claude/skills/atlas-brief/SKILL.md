@@ -7,9 +7,13 @@ description: Write, check and launch a Codex job for a triaged Conversation Atla
 
 Input: a triaged issue. Output: a checked brief, a running headless Codex job, and a one-line launch note to the owner.
 
+0. **Preflight Codex** before anything else (a broken sandbox still costs about 38k tokens per attempt):
+   `echo "Run 'git status --short' and reply with its output only." | codex exec -m gpt-6-luna -c model_reasoning_effort='"low"' --sandbox workspace-write -C <repo> -`
+   If the output contains `setup refresh` or `exited -1`, Codex is unavailable (issue 62): tell the owner in one line and run the same brief on a Claude subagent instead (Agent tool, `model: sonnet`, same file allow-list and no-git-writes rules, report to the same path). Do not retry Codex in a loop.
+   Newly added skill files are picked up at the start of the next turn, not mid-turn.
 1. Read the issue and its triage comment (`gh issue view <n> --comments`). If there is no triage, run `atlas-triage` first.
 2. Pick the model and effort from `docs/process/models.md`. If two open issues touch the same files, batch them in one brief with a combined GOLDENS line.
-3. Cut the branch from `dev`: `git switch dev && git pull --ff-only && git switch -c <feat|fix|chore>/<slug>`. One job at a time in the main folder.
+3. Cut the branch from `dev`: `git switch dev && git pull --ff-only && git switch -c <feat|fix|chore>/<slug>`. One job at a time in the main folder. If the skills or other prerequisites are not in `dev` yet (stacked work), cut from the parent branch instead, open the PR with that parent as base, and pass `--base <parent>` to the gate.
 4. Copy `docs/process/brief-template.md` to `.claude/atlas/handoffs/<slug>-brief.md` and fill every section. Name exact files and lines so the agent does not explore. RESTATE the issue in your own words. SCOPE is an allow-list; tag shared files `(shared)`. GOLDENS is `none` or basenames. VERIFY includes `node scripts/check.mjs --brief .claude/atlas/handoffs/<slug>-brief.md`. Tell Codex it may run `claude plugin test .`, validate and the checker, but never commits, merges, switches branches, installs, or runs the golden updater unless the brief says so.
 5. `node scripts/check-brief.mjs .claude/atlas/handoffs/<slug>-brief.md` must pass. Fix the brief, not the checker.
 6. Create `.claude/atlas/handoffs/<slug>.progress.md` with one `[ ]` line per stage, and start the live bar (`mcp__plan-progress__plan_progress`).
