@@ -8,7 +8,7 @@ Step 2 of 7 in Atlas Flow (`docs/process/ATLAS_FLOW.md`); launching the builder 
 
 Input: a triaged issue. Output: a checked brief, a running headless Codex job, and a one-line launch note to the owner.
 
-0. **Preflight Codex** before anything else (a broken sandbox still costs about 38k tokens per attempt):
+0. Read `docs/process/SUBAGENTS.md` (hard rules, model and effort). **Preflight Codex** before anything else (a broken sandbox still costs about 38k tokens per attempt):
    `echo "Run 'git status --short' and reply with its output only." | codex exec -m gpt-6-luna -c model_reasoning_effort='"low"' --sandbox workspace-write -C <repo> -`
    If the output contains `setup refresh` or `exited -1`, Codex is unavailable: tell the owner in one line and run the same brief on a Claude subagent instead (Agent tool, `model: sonnet`, same file allow-list and no-git-writes rules, report to the same path). Do not retry Codex in a loop.
    Newly added skill files are picked up at the start of the next turn, not mid-turn.

@@ -76,6 +76,9 @@ export function parseBrief(markdown, { root = process.cwd() } = {}) {
   if (!/\S+\.md\b/i.test(reportBody)) {
     problems.push({ section: 'REPORT', message: 'report path ending in .md is not named', hint: 'name the report markdown path' });
   }
+  if (/gpt-[\w.-]*astra/i.test(markdown)) {
+    problems.push({ section: 'VERIFY', message: 'the astra model is never used', hint: 'choose gpt-6.1-sol or gpt-6-luna (docs/process/SUBAGENTS.md)' });
+  }
   return { sections: bodies, scope, goldens, problems };
 }
 

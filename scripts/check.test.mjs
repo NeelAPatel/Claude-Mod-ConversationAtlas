@@ -44,6 +44,12 @@ test('brief parser reports missing sections, placeholders, and invalid rules', (
   assert.ok(parsed.problems.some(problem => problem.section === 'REPORT'));
 });
 
+test('a brief that names the astra model is rejected', () => {
+  const parsed = parseBrief(`${goodBrief}\nRun with codex exec -m gpt-6-astra.\n`);
+  assert.ok(parsed.problems.some(problem => /astra/.test(problem.message)));
+  assert.deepEqual(parseBrief(goodBrief).problems, []);
+});
+
 test('shared scope entries require a shared marker', () => {
   const parsed = parseBrief(goodBrief.replace('- scripts/check.mjs', '- hooks/view.tsx'));
   assert.ok(parsed.problems.some(problem => problem.section === 'SCOPE' && /shared/.test(problem.message)));

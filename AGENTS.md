@@ -26,6 +26,7 @@ Read by Claude Code and by Codex. Keep this file short: detail lives in the link
 - The owner eye-tests only PRs marked `owner-eye`; everything else relies on the gate.
 
 ## Delegated agents (Codex etc.)
+- **Before launching any subagent read `docs/process/SUBAGENTS.md`** (Codex first, Claude fallback, model and effort per job). Never use the `astra` model.
 - May run headless (`codex exec`, background) with `--sandbox workspace-write`, never full access.
 - May run `claude plugin test`, `claude plugin validate`, `scripts/check-seam.ps1` and `node scripts/check.mjs`.
 - Never run the golden updater, an install or any git write unless the brief says so.
