@@ -20,7 +20,7 @@ Write `none` or comma-separated golden basenames: <none or names>
 Checkable outcomes: <observable requirements>
 
 ## VERIFY
-Exact commands, including `node scripts/check.mjs --brief <this file>`.
+Exact commands, including `node scripts/check.mjs --brief <this file>`. For UI changes, list the Simulator routes to replay, taken from the feature pages of the `verification-by-tui-sim` skill (for example `tab trail`).
 
 ## TIMEBOX
 Estimate and stop condition: <estimate and retry limit>

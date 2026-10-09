@@ -928,26 +928,6 @@ export function popupShell(ctx: Ctx, popup: ScreenPopup, placement: { top?: numb
       ) : actions(ctx, [closeAction], { marginLeft: 0, gap: 0, flexWrap: 'nowrap' })}
     </Box>
   )
-  const pager = !trailSettings && popup.page ? (
-    <Box flexDirection="row" gap={1} flexShrink={0} backgroundColor={POPUP_BG}>
-      <Button
-        key="settings-page-prev"
-        plain
-        dimColor={popup.page.current <= 0}
-        label="‹"
-        onPress={() => ctx.act({ type: 'trail-settings-page', page: popup.page!.current - 1 })}
-      />
-      <Text dimColor>{`${popup.page.current + 1}/${popup.page.total}`}</Text>
-      <Button
-        key="settings-page-next"
-        plain
-        dimColor={popup.page.current >= popup.page.total - 1}
-        label="›"
-        onPress={() => ctx.act({ type: 'trail-settings-page', page: popup.page!.current + 1 })}
-      />
-      <Text dimColor>{popup.page.name}</Text>
-    </Box>
-  ) : null
   const popupChildren: RenderElement[] = [header]
   if (trailSettings && popup.page) {
     popupChildren.push(
@@ -1515,4 +1495,3 @@ function titleRule(ctx: UiContext, width: number, color: string): RenderElement 
     </Box>
   )
 }
-

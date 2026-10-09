@@ -13,17 +13,6 @@ export type UiContext = {
   width: number
 }
 
-export type UiRow = {
-  key: string
-  text: string
-  glyph?: string
-  glyphColor?: string
-  right?: string
-  dim?: boolean
-  bold?: boolean
-  onPress?: () => void
-}
-
 export type UiSection = {
   key: string
   heading: string
@@ -326,11 +315,6 @@ function tierLabels(items: BarItem[], tier: BarLabels['tier']): string[] {
       : (item.compact ?? item.icon ?? item.short ?? item.label.slice(0, 1)))
 }
 
-export function barWidth(labels: string[], gap = 1): number {
-  return labels.reduce((sum, label, i) => sum + cellWidth(label) + (i ? gap : 0), 0)
-}
-
-
 export function collapseBarLabelsWith(
   items: BarItem[],
   width: number,
@@ -356,4 +340,3 @@ export function collapseBarLabelsWith(
   const widths = widthsFor(compact, false)
   return { tier: 'compact', labels: compact, itemWidths: widths, grid: barGrid(widths, width, gap) }
 }
-
