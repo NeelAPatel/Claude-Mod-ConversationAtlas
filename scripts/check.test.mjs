@@ -106,7 +106,7 @@ test('JSON report has the required fields and step shape', () => {
     const out = path.join(temp, 'result.json');
     const result = spawnSync(process.execPath, [
       'scripts/check.mjs', '--json', '--out', out,
-      '--skip', 'validate,test,seam,tsc,scripts,stamp',
+      '--skip', 'validate,test,seam,tsc,scripts,golden-scope,scope,stamp',
     ], { encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const report = JSON.parse(readFileSync(out, 'utf8'));
