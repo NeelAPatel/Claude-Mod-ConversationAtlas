@@ -16,7 +16,7 @@ Applies to every chat, agent, branch, file and reply. Goal: the owner can follow
 
 ## Chats
 - `Task Master #N`: the one active lead.
-- `Imp-<issue#>-<slug>`: a worker chat for one issue (for example `Imp-66-verify-atlas`).
+- `Imp-<issue#>-<slug>`: a worker chat for one issue (for example `Imp-66-verification-by-tui-sim`).
 - `Done - <name>`: finished chat; archive it after renaming.
 - One active worker per issue; one job at a time in the main folder.
 
