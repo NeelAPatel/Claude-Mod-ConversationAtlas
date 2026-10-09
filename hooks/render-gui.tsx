@@ -476,7 +476,7 @@ function renderRowContent(ctx: Ctx, row: ScreenRow): RenderElement {
           ...(row.actions ?? []),
           {
             key: `add-${row.key}`,
-            label: 'Chat ⇒',
+            label: 'Chat >',
             action: { type: 'attach', ref: { kind: row.kind, id: row.id, text: row.fullText ?? row.text } },
           },
           { key: `close-${row.key}`, label: '✕', action: { type: 'expand', id: row.id } },

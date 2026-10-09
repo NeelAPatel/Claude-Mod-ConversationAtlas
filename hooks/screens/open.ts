@@ -23,7 +23,7 @@ const help: Record<string, string[]> = {
     'Conclusions Atlas heard but you have not settled.',
     '◇ means observed, not yet true from now on.',
     'Confirm keeps it as knowledge; Drop removes it from the active list.',
-    'Expand a row for source, time, topic and Chat ⇒.',
+    'Expand a row for source, time, topic and Chat >.',
   ],
   'DETOUR FINDINGS': [
     'Observed decisions found while a detour is active.',

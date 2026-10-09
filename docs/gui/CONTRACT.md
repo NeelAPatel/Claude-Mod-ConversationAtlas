@@ -53,7 +53,7 @@ lengths (the short label is used below 40 columns).
 The tab strip has no Up/Down scroll buttons or custom scrollbar; narrow widths may wrap without horizontal overflow.
 A one-cell spacer separates the buttons from the colored baseline. Expansion details are all rendered inline with no internal window or Previous/Next controls.
 Each detail line sits on its own row at every width. Press an expanded row to collapse it; its other actions wrap on the left. Expansion `✕` buttons are
-disabled behind one renderer switch. Chat ⇒ keeps the full `[Atlas #n: full title]` chip text. Decision Confirm uses the `settle` Action; resolved questions
+disabled behind one renderer switch. Chat > keeps the full `[Atlas #n: full title]` chip text. Decision Confirm uses the `settle` Action; resolved questions
 keep Reopen, and open questions have no Resolved button.
 The engine scrolls the full inline expansion and Legend content; `maxExpandedScroll` is always 0.
 
@@ -61,5 +61,5 @@ Decision rows draw the shared marker immediately after their icon: `!` in the
 decision tone for major, `·` dim for minor. Expansion details include
 `weight: major (auto)` / `weight: minor (you)`. The `weight-<id>` button carries
 `{ type: 'weight', id }`, labeled Make minor / Make major, after status actions
-and before Chat ⇒. Pressing flips weight while keeping the expansion open.
+and before Chat >. Pressing flips weight while keeping the expansion open.
 This Action changes only the person's weight; it adds no Trail event or intent.
