@@ -56,7 +56,7 @@ const help: Record<string, string[]> = {
     'Files touched lately, with edited and read counts.',
     '✎ means edited; · means read; the counts show e/r activity.',
     'Press a file to inspect its path, operation and timing.',
-    'Chat ⇒ points Claude at a file only when you keep its chip.',
+    'Chat > points Claude at a file only when you keep its chip.',
   ],
   LATEST: [
     '! after a decision icon means major; · means minor. Expand to Make major or Make minor; auto uses text cues, you means your choice.',

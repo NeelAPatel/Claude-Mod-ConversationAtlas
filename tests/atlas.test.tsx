@@ -2548,7 +2548,7 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     await ui.unmount()
   })
 
-  test('Chat ⇒ puts a chip in the draft; only a chip left in the text sends the full item', { timeoutMs: 20_000 }, async ($, on) => {
+  test('Chat > puts a chip in the draft; only a chip left in the text sends the full item', { timeoutMs: 20_000 }, async ($, on) => {
     const { clock, seen } = world(on)
     const fills: string[] = []
     on('prompt.fill', (_$: any, e: any) => {
@@ -2680,11 +2680,11 @@ describe('pane interactions: sort, scrollbar, expand, footer', () => {
     await ui.press({ key: sel ?? '' })
     expect(await drawn(ui)).toContain('ENDMARK')
     const after = await drawn(ui)
-    expect(after).toContain('Chat ⇒')
+    expect(after).toContain('Chat >')
     expect(after).not.toContain('Send to Claude')
     const close = (after.match(/"key":"(close-[^"]+)"/)?.[1]) ?? ''
     await ui.press({ key: close })
-    expect(await drawn(ui)).not.toContain('Chat ⇒')
+    expect(await drawn(ui)).not.toContain('Chat >')
     await ui.unmount()
   })
 

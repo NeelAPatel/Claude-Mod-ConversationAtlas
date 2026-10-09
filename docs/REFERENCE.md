@@ -41,7 +41,7 @@ way, and their keys stay present at 26, 34, 48 and 72 body columns.
     panel also holds the **Observer: Claude / Engine only** toggle.
   - **Trail sort** flips the order of the timeline.
 - **Popups.** Every Trail event opens a small rounded popup anchored below or above its row.
-  Prompt events also show the full text, bullets and **Chat ⇒**. ◇ decisions and
+  Prompt events also show the full text, bullets and **Chat >**. ◇ decisions and
   ? open questions open one small popup above their bottom-bar button, with each row
   expandable and showing its actions. Popups are at most 52 columns wide and 10 rows tall,
   measure each row at the popup's inner width, and put the scroll controls together at the
@@ -81,7 +81,7 @@ two; older snapshots load with null focus and display focus on the confirmed goa
 Decision weight applies only to decisions: `◇ ! title` / `◇ · title` (also `◆`
 for settled decisions). `!` uses the decision tone; `·` is dim. Expand for
 `weight: major (auto)` or `weight: minor (you)` and **Make minor** / **Make major**.
-The toggle follows Confirm/Drop, Keep/Exclude, or Reopen/Restore, before Chat ⇒.
+The toggle follows Confirm/Drop, Keep/Exclude, or Reopen/Restore, before Chat >.
 It also appears on Map LATEST and the Evidence ledger. It changes only
 weight, with no sorting change, Trail event, intent change, or prompt context.
 

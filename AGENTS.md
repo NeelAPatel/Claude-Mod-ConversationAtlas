@@ -52,7 +52,7 @@ Read by Claude Code and by Codex. Keep this file short: detail lives in the link
   - decisions settled during a detour are its outcomes.
   - return emits one deterministic packet ("not recorded" for missing facts) that rides exactly one composer prompt.
   - promote replaces the goal and keeps history.
-- **Context Claude reads** comes only from: the static rules section (`prompt.compose`), the one-line confirmed-intent note, a pending return packet, and Atlas chips the user left in the prompt (`Chat ⇒` puts `[Atlas #n: …]` in the draft; a deleted chip sends nothing). Nothing observed is sent back as if settled.
+- **Context Claude reads** comes only from: the static rules section (`prompt.compose`), the one-line confirmed-intent note, a pending return packet, and Atlas chips the user left in the prompt (`Chat >` puts `[Atlas #n: …]` in the draft; a deleted chip sends nothing). Nothing observed is sent back as if settled.
 - **Purity:** `model.ts`, `activity.ts` and `view.tsx` stay pure (no `$`). `register.tsx` is the only file with hooks and side effects, and creates the `Client` element (module path literal `./live.tsx`).
 - Client props must be plain JSON: run them through `plain()` (an undefined field makes the engine refuse the tree).
 - **State:** `$.state` `conversation-atlas.snapshot|view` via `update` (CAS); render hooks never write. Durable copies go to `$.store` on a 2 s timer; keep bounded lists in `LIMITS`.

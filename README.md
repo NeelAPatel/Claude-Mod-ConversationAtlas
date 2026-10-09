@@ -95,7 +95,7 @@ Change it any time with `/atlas observer [claude|engine]`.
 
 In the terminal the bottom bar holds **Legend** (`l`), **decisions** (`d`), **open questions** (`q`) and
 **+ Mark** (`k`). On the desktop, **Legend** and **+ Mark** sit next to the tabs and scroll with the pane. Legend’s **How to use** starts collapsed; expand it for instructions, Observer mode and count meanings.
-**Chat ⇒** on any item puts an `[Atlas #n: …]` chip in your draft; only chips still
+**Chat >** on any item puts an `[Atlas #n: …]` chip in your draft; only chips still
 there when you send reach Claude. Details: [docs/REFERENCE.md](docs/REFERENCE.md).
 
 Open decisions use **Confirm** / **Drop** (detour findings keep **Keep** / **Exclude**).
