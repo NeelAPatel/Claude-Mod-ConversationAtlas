@@ -1,0 +1,11 @@
+# Normalise text to LF in the repository and in the working tree on every platform.
+* text=auto eol=lf
+
+# Never touch binary assets.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.mp4 binary
+*.webm binary
