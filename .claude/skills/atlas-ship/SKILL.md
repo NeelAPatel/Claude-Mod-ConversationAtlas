@@ -1,9 +1,10 @@
 ---
 name: atlas-ship
-description: Review a finished Codex job, run the gate, commit, and open the pull request with the evidence body, then wait for the owner's merge. Use for /atlas-ship after a job finishes.
+description: Atlas Flow steps 4 and 5 (Check, Ship). Review a finished Codex job, run the gate, commit, and open the pull request with the evidence body, then wait for the owner's merge. Use for /atlas-ship after a job finishes.
 ---
 
 # Atlas ship
+Steps 4 and 5 of 7 in Atlas Flow (`docs/process/ATLAS_FLOW.md`): Check, then Ship.
 
 Input: a finished job on its branch. Output: a PR into `dev` and a verdict. You never merge unless the owner says so in chat.
 

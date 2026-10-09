@@ -22,7 +22,7 @@ Read by Claude Code and by Codex. Keep this file short: detail lives in the link
   - implementer chats are `Imp-<slug>`, managed by the Task Master.
   - patch = fix without new capability; minor = one capability with a one-line theme.
 - **Naming and replies:** one front door (the active Task Master); work is `#NN` or `PR #NN` only; standard in `docs/process/NAMING.md`.
-- **Dev flow:** issue → `atlas-triage` → `atlas-brief` → Codex → `node scripts/check.mjs --brief <brief>` → `atlas-ship` → owner merges → `atlas-land` (skills in `.claude/skills/`).
+- **Atlas Flow** (`docs/process/ATLAS_FLOW.md`): 1 Triage (`atlas-triage`) → 2 Brief (`atlas-brief`) → 3 Build (Codex, else a Sonnet subagent) → 4 Check (Gate: `node scripts/check.mjs --brief`) → 5 Ship (`atlas-ship`) → 6 Merge (owner) → 7 Land (`atlas-land`). "Run #NN through the Flow" means all seven steps.
 - The owner eye-tests only PRs marked `owner-eye`; everything else relies on the gate.
 
 ## Delegated agents (Codex etc.)

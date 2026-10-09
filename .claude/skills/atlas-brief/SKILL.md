@@ -1,15 +1,16 @@
 ---
 name: atlas-brief
-description: Write, check and launch a Codex job for a triaged Conversation Atlas issue using the brief template and the model-role table. Use for /atlas-brief <issue number>.
+description: Atlas Flow step 2 (Brief), launches step 3 (Build). Write, check and launch a Codex job for a triaged Conversation Atlas issue using the brief template and the model-role table. Use for /atlas-brief <issue number>.
 ---
 
 # Atlas brief
+Step 2 of 7 in Atlas Flow (`docs/process/ATLAS_FLOW.md`); launching the builder is step 3.
 
 Input: a triaged issue. Output: a checked brief, a running headless Codex job, and a one-line launch note to the owner.
 
 0. **Preflight Codex** before anything else (a broken sandbox still costs about 38k tokens per attempt):
    `echo "Run 'git status --short' and reply with its output only." | codex exec -m gpt-6-luna -c model_reasoning_effort='"low"' --sandbox workspace-write -C <repo> -`
-   If the output contains `setup refresh` or `exited -1`, Codex is unavailable (issue 62): tell the owner in one line and run the same brief on a Claude subagent instead (Agent tool, `model: sonnet`, same file allow-list and no-git-writes rules, report to the same path). Do not retry Codex in a loop.
+   If the output contains `setup refresh` or `exited -1`, Codex is unavailable: tell the owner in one line and run the same brief on a Claude subagent instead (Agent tool, `model: sonnet`, same file allow-list and no-git-writes rules, report to the same path). Do not retry Codex in a loop.
    Newly added skill files are picked up at the start of the next turn, not mid-turn.
 1. Read the issue and its triage comment (`gh issue view <n> --comments`). If there is no triage, run `atlas-triage` first.
 2. Pick the model and effort from `docs/process/models.md`. If two open issues touch the same files, batch them in one brief with a combined GOLDENS line.

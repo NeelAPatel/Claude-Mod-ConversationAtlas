@@ -32,6 +32,7 @@ Applies to every chat, agent, branch, file and reply. Goal: the owner can follow
 | Simulator | `scripts/control-atlas.ps1`: draws the real Atlas pane as text for a size and a list of steps |
 | Gate | `node scripts/check.mjs`: validate, tests, seam, script tests, golden scope, scope, `tsc` when possible |
 | Brief | the job file a builder follows (`docs/process/brief-template.md`) |
+| Atlas Flow | the seven fixed steps every issue takes: Triage, Brief, Build, Check, Ship, Merge, Land (`ATLAS_FLOW.md`) |
 | Proof check | the table of claims, labels and evidence that every PR carries |
 | Handover | the kickoff file one Task Master leaves for the next |
 | Golden | a saved text snapshot of a drawn screen in `tests/golden/` |
