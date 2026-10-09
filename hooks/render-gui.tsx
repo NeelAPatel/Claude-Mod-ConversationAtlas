@@ -807,7 +807,7 @@ export function popupShell(ctx: Ctx, popup: ScreenPopup, _placement: { top?: num
 }
 
 function trailToolbar(ctx: Ctx): RenderElement {
-  const { Box, Button, Text } = ctx.el
+  const { Box, Button } = ctx.el
   const pages = [0, 1, 2].map(page => trailViewPopup(ctx.view.trailView, ctx.view.trailNewest, ctx.view.hidden ?? [], page))
   const viewRows = pages[0]?.rows ?? []
   const orderRow = pages[1]?.rows.find(row => row.actions?.some(item => item.key === 'trail-sort'))
@@ -1083,4 +1083,3 @@ function ActionGroup(
     </Box>
   )
 }
-

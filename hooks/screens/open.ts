@@ -1,7 +1,6 @@
 // Shows suggestions, observed decisions and open questions that need a user action. Pure; no `$`.
 
 import { openQuestions } from '../model'
-import type { AtlasSnapshot } from '../../types'
 import { filterHiddenRows, itemRow, suggestionRow } from './shared'
 import type { ScreenBuilder, ScreenModel, ScreenRow, ScreenSection } from './types'
 

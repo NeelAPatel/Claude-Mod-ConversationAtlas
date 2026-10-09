@@ -2,7 +2,7 @@
 
 import { base, rel } from '../activity'
 import type { AtlasSnapshot } from '../../types'
-import { action, ago, filterHiddenRows, itemRow, sourceName, whenLine } from './shared'
+import { action, ago, filterHiddenRows, itemRow, whenLine } from './shared'
 import type { ScreenBuilder, ScreenModel, ScreenRow, ScreenSection } from './types'
 
 const explain: Record<string, string> = {

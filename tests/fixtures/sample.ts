@@ -132,7 +132,7 @@ export function noGoalSnapshot(): AtlasSnapshot {
     why: null,
     at: SAMPLE_NOW - 108_000,
     turn: sample.turn,
-    source: 'prompt' as const,
+    source: 'person' as const,
     topicId: sample.currentTopicId,
   }
   return { ...sample, goal: null, suggestions: [...sample.suggestions, goalSuggestion] }
