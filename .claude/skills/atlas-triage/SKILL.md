@@ -1,9 +1,10 @@
 ---
 name: atlas-triage
-description: Triage a Conversation Atlas GitHub issue (new or existing) into layer, golden impact, shared files, size, route and blockers before any brief is written. Use for /atlas-triage <issue number>.
+description: Atlas Flow step 1 (Triage). Triage a Conversation Atlas GitHub issue (new or existing) into layer, golden impact, shared files, size, route and blockers before any brief is written. Use for /atlas-triage <issue number>.
 ---
 
 # Atlas triage
+Step 1 of 7 in Atlas Flow (`docs/process/ATLAS_FLOW.md`).
 
 Input: an issue number. Output: one triage comment on the issue and a one-line route for the owner. Read-only except the comment, label and milestone edits.
 

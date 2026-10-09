@@ -1,9 +1,10 @@
 ---
 name: atlas-land
-description: "Clean up after the owner merges an Atlas pull request (close the issue, update dev, delete the merged branch, archive job files, ask about installing). Use for /atlas-land <PR number>."
+description: "Atlas Flow step 7 (Land). Clean up after the owner merges an Atlas pull request (close the issue, update dev, delete the merged branch, archive job files, ask about installing). Use for /atlas-land <PR number>."
 ---
 
 # Atlas land
+Step 7 of 7 in Atlas Flow (`docs/process/ATLAS_FLOW.md`); step 6 is the owner merging.
 
 Run only after the PR shows `MERGED` (`gh pr view <n> --json state,closingIssuesReferences`).
 
