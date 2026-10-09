@@ -21,6 +21,7 @@ Read by Claude Code and by Codex. Keep this file short: detail lives in the link
   - each PR says `Closes #n` (into `dev` it does not auto-close; close the issue after the merge).
   - implementer chats are `Imp-<slug>`, managed by the Task Master.
   - patch = fix without new capability; minor = one capability with a one-line theme.
+- **Naming and replies:** one front door (the active Task Master); work is `#NN` or `PR #NN` only; standard in `docs/process/NAMING.md`.
 - **Dev flow:** issue → `atlas-triage` → `atlas-brief` → Codex → `node scripts/check.mjs --brief <brief>` → `atlas-ship` → owner merges → `atlas-land` (skills in `.claude/skills/`).
 - The owner eye-tests only PRs marked `owner-eye`; everything else relies on the gate.
 

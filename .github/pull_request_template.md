@@ -17,8 +17,8 @@ Closes #
 ## Blast radius
 <!-- Who or what this touches and why that is safe or risky. -->
 
-## Verification
-<!-- Real runs and outcomes: `node scripts/check.mjs --brief ...` result, control-atlas frames, golden diff. -->
+## Proof check
+<!-- Table: Claim | Label | Evidence. Labels: sim-verified, unit-test-verified, type-check-only, unproven (owner-eye). See docs/process/NAMING.md. -->
 
 ## Checks
 - [ ] One change, branched from `dev`
